@@ -98,7 +98,8 @@
 
 > 报错类型页面
 
-![](https://files.mdnice.com/user/72769/58f2c665-edb2-492e-ac9e-073147b66a73.png)
+![](https://files.mdnice.com/user/72769/c0357afa-13b9-43de-8b7b-72c5e2dec1ac.png)
+
 
 
 ## 配置面板（config）
