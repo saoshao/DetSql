@@ -535,7 +535,7 @@ public class MyHttpHandler implements HttpHandler {
                     }
 
                     List<Double> oneDoubleList3 = MyCompare.averageJaccard(pocResponseBody, poc2ResponseBody);
-                    if (Collections.max(oneDoubleList3) > 0.9) {
+                    if (Collections.max(oneDoubleList3) <= 0.9) {
                         continue;
                     }
                     for (int j = 0; j < 1; j++) {
@@ -768,7 +768,7 @@ public class MyHttpHandler implements HttpHandler {
                         }
 
                         List<Double> oneDoubleList3 = MyCompare.averageJaccard(pocResponseBody, poc2ResponseBody);
-                        if (Collections.max(oneDoubleList3) > 0.9) {
+                        if (Collections.max(oneDoubleList3) <= 0.9) {
                             continue;
                         }
                         for (int j = 0; j < 1; j++) {
@@ -787,20 +787,20 @@ public class MyHttpHandler implements HttpHandler {
                                 order_flag = true;
                                 continue orderloop;
                             }
-                            for (int k = 0; k < 1; k++) {
-                                List<HttpParameter> poc4HttpParameters = new ArrayList<>(newHttpParameters);
-                                poc4HttpParameters.set(i, HttpParameter.bodyParameter(paramName, paramValue + ",2"));
-                                HttpRequest poc4HttpRequest = sourceHttpRequest.withUpdatedParameters(poc4HttpParameters);
-                                HttpRequestResponse httpSendRequestResponse4 = callMyRequest(poc4HttpRequest, 2);
+                        }
+                        for (int k = 0; k < 1; k++) {
+                            List<HttpParameter> poc4HttpParameters = new ArrayList<>(newHttpParameters);
+                            poc4HttpParameters.set(i, HttpParameter.bodyParameter(paramName, paramValue + ",2"));
+                            HttpRequest poc4HttpRequest = sourceHttpRequest.withUpdatedParameters(poc4HttpParameters);
+                            HttpRequestResponse httpSendRequestResponse4 = callMyRequest(poc4HttpRequest, 2);
 
-                                String poc4ResponseBody = new String(httpSendRequestResponse4.response().body().getBytes(), StandardCharsets.UTF_8);
-                                List<Double> oneDoubleList5 = MyCompare.averageJaccard(sourceBody, poc4ResponseBody);
-                                if (Collections.max(oneDoubleList5) > 0.9) {
-                                    String mySimimarityx = MyCompare.formatPercent(Collections.max(oneDoubleList5));
-                                    pocLogEntries.add(new PocLogEntry(paramName, ",2", mySimimarityx, "ordersql", String.valueOf(httpSendRequestResponse4.response().bodyToString().length()), String.valueOf(httpSendRequestResponse4.response().statusCode()), String.format("%.3f", (httpSendRequestResponse4.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), httpSendRequestResponse4, requestSm3Hash));
-                                    getAttackList.addAll(pocLogEntries);
-                                    order_flag = true;
-                                }
+                            String poc4ResponseBody = new String(httpSendRequestResponse4.response().body().getBytes(), StandardCharsets.UTF_8);
+                            List<Double> oneDoubleList5 = MyCompare.averageJaccard(sourceBody, poc4ResponseBody);
+                            if (Collections.max(oneDoubleList5) > 0.9) {
+                                String mySimimarityx = MyCompare.formatPercent(Collections.max(oneDoubleList5));
+                                pocLogEntries.add(new PocLogEntry(paramName, ",2", mySimimarityx, "ordersql", String.valueOf(httpSendRequestResponse4.response().bodyToString().length()), String.valueOf(httpSendRequestResponse4.response().statusCode()), String.format("%.3f", (httpSendRequestResponse4.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), httpSendRequestResponse4, requestSm3Hash));
+                                getAttackList.addAll(pocLogEntries);
+                                order_flag = true;
                             }
                         }
                     }
@@ -950,11 +950,11 @@ public class MyHttpHandler implements HttpHandler {
                             }
 
                             List<Double> oneDoubleList2 = MyCompare.averageJaccard(pocResponseBody, pocResponseBody1);
-                            if (Collections.max(oneDoubleList2) > 0.9) {
+                            if (Collections.max(oneDoubleList2) <= 0.9) {
                                 continue;
                             }
                             for (int i = 0; i < 1; i++) {
-                                // ",1", ",2", ",TRUE"
+                                // ",1", ",2",
                                 String pocBody2 = prefix + ",1" + suffix;
                                 HttpRequest pocHttpRequest2 = sourceHttpRequest.withBody(pocBody2);
                                 HttpRequestResponse pocHttpRequestResponse2 = callMyRequest(pocHttpRequest2, 2);
@@ -1177,11 +1177,11 @@ public class MyHttpHandler implements HttpHandler {
                         }
                     }
                     List<Double> oneDoubleList3 = MyCompare.averageJaccard(pocResponseBody, poc2ResponseBody);
-                    if (Collections.max(oneDoubleList3) > 0.9) {
+                    if (Collections.max(oneDoubleList3) <= 0.9) {
                         continue;
                     }
                     for (int j = 0; j < 1; j++) {
-                        // ",1", ",2", ",TRUE"
+                        // ",1", ",2",
                         List<HttpParameter> poc3HttpParameters = new ArrayList<>(newHttpParameters);
                         poc3HttpParameters.set(i, HttpParameter.cookieParameter(paramName, paramValue + ",1"));
                         HttpRequest poc3HttpRequest = sourceHttpRequest.withUpdatedParameters(poc3HttpParameters);
