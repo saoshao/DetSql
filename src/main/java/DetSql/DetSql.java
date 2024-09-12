@@ -437,6 +437,18 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider {
         }
         return sb.toString();
     }
+    public String unicodeEncode(String string) {
+        char[] utfBytes = string.toCharArray();
+        String unicodeBytes = "";
+        for (int i = 0; i < utfBytes.length; i++) {
+            String hexB = Integer.toHexString(utfBytes[i]);
+            if (hexB.length() <= 2) {
+                hexB = "00" + hexB;
+            }
+            unicodeBytes = unicodeBytes + "\\u" + hexB;
+        }
+        return unicodeBytes;
+    }
 
     public String encodeUrl(String text) {
         return URLEncoder.encode(text, StandardCharsets.UTF_8);
@@ -525,6 +537,17 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider {
                 }
             }
         });
+        JButton unxBt = new JButton("unicode编码");
+        unxBt.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                String text = textArea3.getText();
+                if (!text.isEmpty()) {
+                    String mytext = unicodeEncode(text);
+                    textArea3.setText(mytext);
+                }
+            }
+        });
         JButton urlBt = new JButton("url编码");
         urlBt.addActionListener(new ActionListener() {
             @Override
@@ -597,6 +620,9 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider {
         springLayout.putConstraint(SpringLayout.WEST, unBt, 0, SpringLayout.WEST, encBt);
         springLayout.putConstraint(SpringLayout.NORTH, unBt, st2, SpringLayout.NORTH, scrollPane3);
 
+        container.add(unxBt);
+        springLayout.putConstraint(SpringLayout.WEST, unxBt, 0, SpringLayout.WEST, unBt);
+        springLayout.putConstraint(SpringLayout.NORTH, unxBt, st, SpringLayout.SOUTH, unBt);
         container.add(urlLabel);
         springLayout.putConstraint(SpringLayout.WEST, urlLabel, 0, SpringLayout.WEST, topicLabel);
         springLayout.putConstraint(SpringLayout.NORTH, urlLabel, st, SpringLayout.SOUTH, scrollPane3);
