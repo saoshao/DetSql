@@ -51,10 +51,10 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider {
         this.api = montoyaApi;
         api.extension().setName("DetSql");
         sourceTableModel = new SourceTableModel();
-        PocTableModel pocTableModel = new PocTableModel();//两个表
+        PocTableModel pocTableModel = new PocTableModel();
         Component component = getComponent(sourceTableModel, pocTableModel);
         api.userInterface().registerSuiteTab("DetSql", component);
-        attackMap = new ConcurrentHashMap<>();//存poc请求
+        attackMap = new ConcurrentHashMap<>();
         myHttpHandler = new MyHttpHandler(api, sourceTableModel, pocTableModel, attackMap);
         api.http().registerHttpHandler(myHttpHandler);
         api.userInterface().registerContextMenuItemsProvider(this);
