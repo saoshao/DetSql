@@ -106,7 +106,8 @@
 
 > 数字类型页面
 
-![](https://files.mdnice.com/user/72769/3f908e03-ad8b-4d36-9836-fc530d9cd64d.png)
+![](https://files.mdnice.com/user/72769/4c74ec12-8b5c-4869-9052-7ec75c12ce89.png)
+
 
 
 
