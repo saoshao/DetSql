@@ -108,6 +108,9 @@
 
 ![](https://files.mdnice.com/user/72769/4c74ec12-8b5c-4869-9052-7ec75c12ce89.png)
 
+> 字符类型页面（包含多种类型）
+
+![](https://files.mdnice.com/user/72769/2f5ad4dd-243a-4cc7-ac47-acd302484855.png)
 
 
 
