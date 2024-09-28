@@ -104,6 +104,10 @@
 
 ![](https://files.mdnice.com/user/72769/7edd618c-85ca-4fc3-93aa-518b51dc191f.png)
 
+> 数字类型页面
+
+![](https://files.mdnice.com/user/72769/3f908e03-ad8b-4d36-9836-fc530d9cd64d.png)
+
 
 
 ## 配置面板（config）
