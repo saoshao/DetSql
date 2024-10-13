@@ -380,7 +380,7 @@ public class MyHttpHandler implements HttpHandler {
                         HttpRequest yinPocHttpRequest = sourceHttpRequest.withUpdatedParameters(yinPocHttpParameters);
                         HttpRequestResponse yinHttpSendRequestResponse = callMyRequest(yinPocHttpRequest, 2);
                         firstPocResponseBody = new String(yinHttpSendRequestResponse.response().body().getBytes(), StandardCharsets.UTF_8);
-                        List<Double> firstDoubleList = MyCompare.averageJaccard(sourceBody, firstPocResponseBody);
+                        List<Double> firstDoubleList = MyCompare.averageLevenshtein(sourceBody, firstPocResponseBody);
                         if (Collections.min(firstDoubleList) <= 0.9) {
                             String firstSimimarity = MyCompare.formatPercent(Collections.min(firstDoubleList));
                             pocLogEntries.add(new PocLogEntry(paramName, "'", firstSimimarity, "stringsql", String.valueOf(yinHttpSendRequestResponse.response().bodyToString().length()), String.valueOf(yinHttpSendRequestResponse.response().statusCode()), String.format("%.3f", (yinHttpSendRequestResponse.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), yinHttpSendRequestResponse, requestSm3Hash));
@@ -615,7 +615,7 @@ public class MyHttpHandler implements HttpHandler {
                             HttpRequest yinPocHttpRequest = sourceHttpRequest.withUpdatedParameters(yinPocHttpParameters);
                             HttpRequestResponse yinHttpSendRequestResponse = callMyRequest(yinPocHttpRequest, 2);
                             firstPocResponseBody = new String(yinHttpSendRequestResponse.response().body().getBytes(), StandardCharsets.UTF_8);
-                            List<Double> firstDoubleList = MyCompare.averageJaccard(sourceBody, firstPocResponseBody);
+                            List<Double> firstDoubleList = MyCompare.averageLevenshtein(sourceBody, firstPocResponseBody);
                             if (Collections.min(firstDoubleList) <= 0.9) {
                                 String firstSimimarity = MyCompare.formatPercent(Collections.min(firstDoubleList));
                                 pocLogEntries.add(new PocLogEntry(paramName, "'", firstSimimarity, "stringsql", String.valueOf(yinHttpSendRequestResponse.response().bodyToString().length()), String.valueOf(yinHttpSendRequestResponse.response().statusCode()), String.format("%.3f", (yinHttpSendRequestResponse.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), yinHttpSendRequestResponse, requestSm3Hash));
@@ -849,7 +849,7 @@ public class MyHttpHandler implements HttpHandler {
                                 HttpRequest yinHttpRequest = sourceHttpRequest.withBody(yinBody);
                                 HttpRequestResponse yinHttpRequestResponse = callMyRequest(yinHttpRequest, 2);
                                 firstPocResponseBody = new String(yinHttpRequestResponse.response().body().getBytes(), StandardCharsets.UTF_8);
-                                List<Double> firstDoubleList = MyCompare.averageJaccard(sourceBody, firstPocResponseBody);
+                                List<Double> firstDoubleList = MyCompare.averageLevenshtein(sourceBody, firstPocResponseBody);
                                 if (Collections.min(firstDoubleList) <= 0.9) {
                                     String firstSimimarity = MyCompare.formatPercent(Collections.min(firstDoubleList));
                                     pocLogEntries.add(new PocLogEntry(paramName, "'", firstSimimarity, "stringsql", String.valueOf(yinHttpRequestResponse.response().bodyToString().length()), String.valueOf(yinHttpRequestResponse.response().statusCode()), String.format("%.3f", (yinHttpRequestResponse.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), yinHttpRequestResponse, requestSm3Hash));
@@ -1029,7 +1029,7 @@ public class MyHttpHandler implements HttpHandler {
                         HttpRequest yinPocHttpRequest = sourceHttpRequest.withUpdatedParameters(yinPocHttpParameters);
                         HttpRequestResponse yinHttpSendRequestResponse = callMyRequest(yinPocHttpRequest, 2);
                         firstPocResponseBody = new String(yinHttpSendRequestResponse.response().body().getBytes(), StandardCharsets.UTF_8);
-                        List<Double> firstDoubleList = MyCompare.averageJaccard(sourceBody, firstPocResponseBody);
+                        List<Double> firstDoubleList = MyCompare.averageLevenshtein(sourceBody, firstPocResponseBody);
                         if (Collections.min(firstDoubleList) <= 0.9) {
                             String firstSimimarity = MyCompare.formatPercent(Collections.min(firstDoubleList));
                             pocLogEntries.add(new PocLogEntry(paramName, "'", firstSimimarity, "stringsql", String.valueOf(yinHttpSendRequestResponse.response().bodyToString().length()), String.valueOf(yinHttpSendRequestResponse.response().statusCode()), String.format("%.3f", (yinHttpSendRequestResponse.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), yinHttpSendRequestResponse, requestSm3Hash));

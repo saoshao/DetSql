@@ -131,35 +131,36 @@ public class MyCompare {
     //SqlNum,SqlString使用
     public static List<Double> averageLevenshtein(String s1, String s2) {
         List<Double> list = new ArrayList<>();
-        double levenshtein = levenshtein(s1, s2);
         if (s1.length() == s2.length()) {
             list.add(1.0);
         } else if (s1.isEmpty() || s2.isEmpty()) {
             list.add(0.0);
         } else if (Math.abs(s1.length()-s2.length())>=100) {
             list.add(0.9);
+            double levenshtein = levenshtein(s1, s2);
+            list.add(levenshtein);
         } else {
+            double levenshtein = levenshtein(s1, s2);
             list.add(levenshtein);
         }
-        list.add(levenshtein);
         return list;
     }
 
     //SqlOrder使用
     public static List<Double> averageJaccard(String s1, String s2) {
         List<Double> list = new ArrayList<>();
-        double jaccard = jaccard(s1, s2);
         if (s1.length() == s2.length()) {
             list.add(1.0);
         } else if (s1.isEmpty() || s2.isEmpty()) {
             list.add(0.0);
         } else if (Math.abs(s1.length()-s2.length())>=100) {
             list.add(0.9);
+            double jaccard = jaccard(s1, s2);
+            list.add(jaccard);
         }else {
-
+            double jaccard = jaccard(s1, s2);
             list.add(jaccard);
         }
-        list.add(jaccard);
         return list;
     }
     public static List<Double> averageCosine(String s1, String s2) {
