@@ -83,7 +83,7 @@ public class MyFilterRequest {
             return !httpResponseReceived.initiatingRequest().parameters(HttpParameterType.URL).isEmpty();
         }
         if (httpResponseReceived.initiatingRequest().method().equals("POST")) {
-            return (!httpResponseReceived.initiatingRequest().parameters(HttpParameterType.BODY).isEmpty()) || (!httpResponseReceived.initiatingRequest().parameters(HttpParameterType.JSON).isEmpty());
+            return (!httpResponseReceived.initiatingRequest().parameters(HttpParameterType.BODY).isEmpty()) || (!httpResponseReceived.initiatingRequest().parameters(HttpParameterType.JSON).isEmpty())||(!httpResponseReceived.initiatingRequest().parameters(HttpParameterType.XML).isEmpty());
         }
         return false;
     }
@@ -107,6 +107,8 @@ public class MyFilterRequest {
         } else if (method.equals("POST")) {
             List<ParsedHttpParameter> normalParameters = httpResponseReceived.initiatingRequest().parameters(HttpParameterType.BODY);
             List<ParsedHttpParameter> jsonParameters = httpResponseReceived.initiatingRequest().parameters(HttpParameterType.JSON);
+            List<ParsedHttpParameter> xmlParameters = httpResponseReceived.initiatingRequest().parameters(HttpParameterType.XML);
+
             if (!normalParameters.isEmpty()) {
                 for (ParsedHttpParameter normalParameter : normalParameters) {
                     sb.append(normalParameter.name());
@@ -114,6 +116,10 @@ public class MyFilterRequest {
             } else if (!jsonParameters.isEmpty()) {
                 for (ParsedHttpParameter jsonParameter : jsonParameters) {
                     sb.append(jsonParameter.name());
+                }
+            }else if (!xmlParameters.isEmpty()) {
+                for (ParsedHttpParameter xmlParameter : xmlParameters) {
+                    sb.append(xmlParameter.name());
                 }
             }
         }
@@ -135,6 +141,7 @@ public class MyFilterRequest {
         } else if (method.equals("POST")) {
             List<ParsedHttpParameter> normalParameters = selectHttpRequestRespons.request().parameters(HttpParameterType.BODY);
             List<ParsedHttpParameter> jsonParameters = selectHttpRequestRespons.request().parameters(HttpParameterType.JSON);
+            List<ParsedHttpParameter> xmlParameters = selectHttpRequestRespons.request().parameters(HttpParameterType.XML);
             if (!normalParameters.isEmpty()) {
                 for (ParsedHttpParameter normalParameter : normalParameters) {
                     sb.append(normalParameter.name());
@@ -142,6 +149,10 @@ public class MyFilterRequest {
             } else if (!jsonParameters.isEmpty()) {
                 for (ParsedHttpParameter jsonParameter : jsonParameters) {
                     sb.append(jsonParameter.name());
+                }
+            }else if (!xmlParameters.isEmpty()) {
+                for (ParsedHttpParameter xmlParameter : xmlParameters) {
+                    sb.append(xmlParameter.name());
                 }
             }
         }

@@ -9,6 +9,7 @@ import burp.api.montoya.http.message.params.HttpParameterType;
 import burp.api.montoya.http.message.params.ParsedHttpParameter;
 import burp.api.montoya.http.message.requests.HttpRequest;
 import burp.api.montoya.http.message.responses.HttpResponse;
+import burp.api.montoya.logging.Logging;
 import burp.api.montoya.utilities.CryptoUtils;
 import burp.api.montoya.utilities.DigestAlgorithm;
 
@@ -17,6 +18,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -149,185 +152,188 @@ public class MyHttpHandler implements HttpHandler {
 
     @Override
     public ResponseReceivedAction handleHttpResponseReceived(HttpResponseReceived httpResponseReceived) {
-        new Thread() {
-            @Override
-            public void run() {
-                try {
 
-                    if (DetSql.switchChexk.isSelected() && httpResponseReceived.bodyToString().length() != 0 && httpResponseReceived.bodyToString().length() < 10000) {
-                        if (MyFilterRequest.fromProxySource(httpResponseReceived) && MyFilterRequest.filterOneRequest(httpResponseReceived)) {
-                            String requestSm3Hash = byteToHex(cryptoUtils.generateDigest(ByteArray.byteArray(MyFilterRequest.getUnique(httpResponseReceived)), DigestAlgorithm.SM3).getBytes());
-                            Thread.currentThread().setName(requestSm3Hash);
-                            if (!attackMap.containsKey(requestSm3Hash)) {
-                                int oneLogSize = 0;
-                                lk.lock();
-                                try {
-                                    oneLogSize = sourceTableModel.log.size();
-                                    sourceTableModel.add(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "run", httpResponseReceived.bodyToString().length(), HttpRequestResponse.httpRequestResponse(httpResponseReceived.initiatingRequest(), HttpResponse.httpResponse()), httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()));
-                                } catch (Exception e) {
-                                    e.printStackTrace();
-                                } finally {
-                                    lk.unlock();
-                                    attackMap.put(requestSm3Hash, new ArrayList<>());
-                                }
-                                try {
-                                    String oneVuln = "";
-                                    semaphore.acquire();
-                                    try {
-                                        if (!Thread.currentThread().isInterrupted()) {
-                                            oneVuln = processOneRequest(httpResponseReceived, requestSm3Hash);
+                new Thread() {
+                    @Override
+                    public void run() {
+                        try {
+
+                            if (DetSql.switchChexk.isSelected() && httpResponseReceived.bodyToString().length() != 0 && httpResponseReceived.bodyToString().length() < 10000) {
+                                if (MyFilterRequest.fromProxySource(httpResponseReceived) && MyFilterRequest.filterOneRequest(httpResponseReceived)) {
+                                    String requestSm3Hash = byteToHex(cryptoUtils.generateDigest(ByteArray.byteArray(MyFilterRequest.getUnique(httpResponseReceived)), DigestAlgorithm.SM3).getBytes());
+                                    Thread.currentThread().setName(requestSm3Hash);
+                                    if (!attackMap.containsKey(requestSm3Hash)) {
+                                        int oneLogSize = 0;
+                                        lk.lock();
+                                        try {
+                                            oneLogSize = sourceTableModel.log.size();
+                                            sourceTableModel.add(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "run", httpResponseReceived.bodyToString().length(), HttpRequestResponse.httpRequestResponse(httpResponseReceived.initiatingRequest(), HttpResponse.httpResponse()), httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()));
+                                        } catch (Exception e) {
+                                            e.printStackTrace();
+                                        } finally {
+                                            lk.unlock();
+                                            attackMap.put(requestSm3Hash, new ArrayList<>());
+                                        }
+                                        try {
+                                            String oneVuln = "";
+                                            semaphore.acquire();
+                                            try {
+                                                if (!Thread.currentThread().isInterrupted()) {
+                                                    oneVuln = processOneRequest(httpResponseReceived, requestSm3Hash);
+                                                }
+
+                                            } catch (Exception e) {
+                                                e.printStackTrace();
+                                            } finally {
+                                                semaphore.release();
+
+                                                if (oneVuln.isBlank()) {
+                                                    sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "", httpResponseReceived.bodyToString().length(), null, httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
+                                                } else {
+                                                    sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, oneVuln, httpResponseReceived.bodyToString().length(), HttpRequestResponse.httpRequestResponse(httpResponseReceived.initiatingRequest(), HttpResponse.httpResponse()), httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
+                                                }
+                                            }
+                                        } catch (InterruptedException e) {
+                                            sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "手动停止", httpResponseReceived.bodyToString().length(), null, httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
+                                        } catch (Exception e) {
+                                            e.printStackTrace();
                                         }
 
+
+                                    }
+
+                                } else if (DetSql.vulnChexk.isSelected() && MyFilterRequest.fromRepeaterSource(httpResponseReceived) && MyFilterRequest.filterOneRequest(httpResponseReceived)) {
+                                    String requestSm3Hash = String.valueOf(System.currentTimeMillis());
+                                    Thread.currentThread().setName(requestSm3Hash);
+                                    int oneLogSize = 0;
+                                    lk.lock();
+                                    try {
+                                        oneLogSize = sourceTableModel.log.size();
+                                        sourceTableModel.add(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "run", httpResponseReceived.bodyToString().length(), HttpRequestResponse.httpRequestResponse(httpResponseReceived.initiatingRequest(), HttpResponse.httpResponse()), httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()));
                                     } catch (Exception e) {
                                         e.printStackTrace();
                                     } finally {
-                                        semaphore.release();
-
-                                        if (oneVuln.isBlank()) {
-                                            sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "", httpResponseReceived.bodyToString().length(), null, httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
-                                        } else {
-                                            sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, oneVuln, httpResponseReceived.bodyToString().length(), HttpRequestResponse.httpRequestResponse(httpResponseReceived.initiatingRequest(), HttpResponse.httpResponse()), httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
-                                        }
+                                        lk.unlock();
+                                        attackMap.put(requestSm3Hash, new ArrayList<>());
                                     }
-                                } catch (InterruptedException e) {
-                                    sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "手动停止", httpResponseReceived.bodyToString().length(), null, httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
-                                } catch (Exception e) {
-                                    e.printStackTrace();
-                                }
-
-
-                            }
-
-                        } else if (DetSql.vulnChexk.isSelected() && MyFilterRequest.fromRepeaterSource(httpResponseReceived) && MyFilterRequest.filterOneRequest(httpResponseReceived)) {
-                            String requestSm3Hash = String.valueOf(System.currentTimeMillis());
-                            Thread.currentThread().setName(requestSm3Hash);
-                            int oneLogSize = 0;
-                            lk.lock();
-                            try {
-                                oneLogSize = sourceTableModel.log.size();
-                                sourceTableModel.add(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "run", httpResponseReceived.bodyToString().length(), HttpRequestResponse.httpRequestResponse(httpResponseReceived.initiatingRequest(), HttpResponse.httpResponse()), httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()));
-                            } catch (Exception e) {
-                                e.printStackTrace();
-                            } finally {
-                                lk.unlock();
-                                attackMap.put(requestSm3Hash, new ArrayList<>());
-                            }
-                            try {
-                                String oneVuln = "";
-                                semaphore.acquire();
-                                try {
-                                    if (!Thread.currentThread().isInterrupted()) {
-                                        oneVuln = processOneRequest(httpResponseReceived, requestSm3Hash);
-                                    }
-
-                                } catch (Exception e) {
-                                    e.printStackTrace();
-                                } finally {
-                                    semaphore.release();
-                                    if (oneVuln.isBlank()) {
-                                        sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "", httpResponseReceived.bodyToString().length(), null, httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
-                                    } else {
-                                        sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, oneVuln, httpResponseReceived.bodyToString().length(), HttpRequestResponse.httpRequestResponse(httpResponseReceived.initiatingRequest(), HttpResponse.httpResponse()), httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
-                                    }
-
-                                }
-                            } catch (InterruptedException e) {
-                                sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "手动停止", httpResponseReceived.bodyToString().length(), null, httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
-                            } catch (Exception e) {
-                                e.printStackTrace();
-                            }
-
-
-                        }
-                    } else if (DetSql.switchChexk.isSelected() && httpResponseReceived.bodyToString().length() != 0 && httpResponseReceived.bodyToString().length() < 50000) {
-                        if (MyFilterRequest.fromProxySource(httpResponseReceived) && MyFilterRequest.filterOneRequest(httpResponseReceived)) {
-                            String requestSm3Hash = byteToHex(cryptoUtils.generateDigest(ByteArray.byteArray(MyFilterRequest.getUnique(httpResponseReceived)), DigestAlgorithm.SM3).getBytes());
-                            Thread.currentThread().setName(requestSm3Hash);
-                            if (!attackMap.containsKey(requestSm3Hash)) {
-                                int oneLogSize = 0;
-                                lk.lock();
-
-                                try {
-                                    oneLogSize = sourceTableModel.log.size();
-                                    sourceTableModel.add(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "run", httpResponseReceived.bodyToString().length(), HttpRequestResponse.httpRequestResponse(httpResponseReceived.initiatingRequest(), HttpResponse.httpResponse()), httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()));
-                                } catch (Exception e) {
-                                    e.printStackTrace();
-                                } finally {
-                                    lk.unlock();
-                                    attackMap.put(requestSm3Hash, new ArrayList<>());
-                                }
-                                try {
-                                    String oneVuln = "";
-                                    semaphore2.acquire();
                                     try {
-                                        if (!Thread.currentThread().isInterrupted()) {
-                                            oneVuln = processOneRequest(httpResponseReceived, requestSm3Hash);
-                                        }
+                                        String oneVuln = "";
+                                        semaphore.acquire();
+                                        try {
+                                            if (!Thread.currentThread().isInterrupted()) {
+                                                oneVuln = processOneRequest(httpResponseReceived, requestSm3Hash);
+                                            }
 
+                                        } catch (Exception e) {
+                                            e.printStackTrace();
+                                        } finally {
+                                            semaphore.release();
+                                            if (oneVuln.isBlank()) {
+                                                sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "", httpResponseReceived.bodyToString().length(), null, httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
+                                            } else {
+                                                sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, oneVuln, httpResponseReceived.bodyToString().length(), HttpRequestResponse.httpRequestResponse(httpResponseReceived.initiatingRequest(), HttpResponse.httpResponse()), httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
+                                            }
+
+                                        }
+                                    } catch (InterruptedException e) {
+                                        sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "手动停止", httpResponseReceived.bodyToString().length(), null, httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
+                                    } catch (Exception e) {
+                                        e.printStackTrace();
+                                    }
+
+
+                                }
+                            } else if (DetSql.switchChexk.isSelected() && httpResponseReceived.bodyToString().length() != 0 && httpResponseReceived.bodyToString().length() < 50000) {
+                                if (MyFilterRequest.fromProxySource(httpResponseReceived) && MyFilterRequest.filterOneRequest(httpResponseReceived)) {
+                                    String requestSm3Hash = byteToHex(cryptoUtils.generateDigest(ByteArray.byteArray(MyFilterRequest.getUnique(httpResponseReceived)), DigestAlgorithm.SM3).getBytes());
+                                    Thread.currentThread().setName(requestSm3Hash);
+                                    if (!attackMap.containsKey(requestSm3Hash)) {
+                                        int oneLogSize = 0;
+                                        lk.lock();
+
+                                        try {
+                                            oneLogSize = sourceTableModel.log.size();
+                                            sourceTableModel.add(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "run", httpResponseReceived.bodyToString().length(), HttpRequestResponse.httpRequestResponse(httpResponseReceived.initiatingRequest(), HttpResponse.httpResponse()), httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()));
+                                        } catch (Exception e) {
+                                            e.printStackTrace();
+                                        } finally {
+                                            lk.unlock();
+                                            attackMap.put(requestSm3Hash, new ArrayList<>());
+                                        }
+                                        try {
+                                            String oneVuln = "";
+                                            semaphore2.acquire();
+                                            try {
+                                                if (!Thread.currentThread().isInterrupted()) {
+                                                    oneVuln = processOneRequest(httpResponseReceived, requestSm3Hash);
+                                                }
+
+                                            } catch (Exception e) {
+                                                e.printStackTrace();
+                                            } finally {
+                                                semaphore2.release();
+                                                if (oneVuln.isBlank()) {
+                                                    sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "", httpResponseReceived.bodyToString().length(), null, httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
+                                                } else {
+                                                    sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, oneVuln, httpResponseReceived.bodyToString().length(), HttpRequestResponse.httpRequestResponse(httpResponseReceived.initiatingRequest(), HttpResponse.httpResponse()), httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
+                                                }
+
+                                            }
+                                        } catch (InterruptedException e) {
+                                            sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "手动停止", httpResponseReceived.bodyToString().length(), null, httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
+                                        } catch (Exception e) {
+                                            e.printStackTrace();
+                                        }
+                                    }
+
+                                } else if (DetSql.vulnChexk.isSelected() && MyFilterRequest.fromRepeaterSource(httpResponseReceived) && MyFilterRequest.filterOneRequest(httpResponseReceived)) {
+                                    String requestSm3Hash = String.valueOf(System.currentTimeMillis());
+                                    Thread.currentThread().setName(requestSm3Hash);
+                                    int oneLogSize = 0;
+                                    lk.lock();
+                                    try {
+                                        oneLogSize = sourceTableModel.log.size();
+                                        sourceTableModel.add(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "run", httpResponseReceived.bodyToString().length(), HttpRequestResponse.httpRequestResponse(httpResponseReceived.initiatingRequest(), HttpResponse.httpResponse()), httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()));
                                     } catch (Exception e) {
                                         e.printStackTrace();
                                     } finally {
-                                        semaphore2.release();
-                                        if (oneVuln.isBlank()) {
-                                            sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "", httpResponseReceived.bodyToString().length(), null, httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
-                                        } else {
-                                            sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, oneVuln, httpResponseReceived.bodyToString().length(), HttpRequestResponse.httpRequestResponse(httpResponseReceived.initiatingRequest(), HttpResponse.httpResponse()), httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
+                                        lk.unlock();
+                                        attackMap.put(requestSm3Hash, new ArrayList<>());
+                                    }
+
+                                    try {
+                                        String oneVuln = "";
+                                        semaphore2.acquire();
+                                        try {
+                                            if (!Thread.currentThread().isInterrupted()) {
+                                                oneVuln = processOneRequest(httpResponseReceived, requestSm3Hash);
+                                            }
+
+                                        } catch (Exception e) {
+                                            e.printStackTrace();
+                                        } finally {
+                                            semaphore2.release();
+                                            if (oneVuln.isBlank()) {
+                                                sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "", httpResponseReceived.bodyToString().length(), null, httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
+                                            } else {
+                                                sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, oneVuln, httpResponseReceived.bodyToString().length(), HttpRequestResponse.httpRequestResponse(httpResponseReceived.initiatingRequest(), HttpResponse.httpResponse()), httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
+                                            }
+
                                         }
-
+                                    } catch (InterruptedException e) {
+                                        sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "手动停止", httpResponseReceived.bodyToString().length(), null, httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
+                                    } catch (Exception e) {
+                                        e.printStackTrace();
                                     }
-                                } catch (InterruptedException e) {
-                                    sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "手动停止", httpResponseReceived.bodyToString().length(), null, httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
-                                } catch (Exception e) {
-                                    e.printStackTrace();
                                 }
                             }
-
-                        } else if (DetSql.vulnChexk.isSelected() && MyFilterRequest.fromRepeaterSource(httpResponseReceived) && MyFilterRequest.filterOneRequest(httpResponseReceived)) {
-                            String requestSm3Hash = String.valueOf(System.currentTimeMillis());
-                            Thread.currentThread().setName(requestSm3Hash);
-                            int oneLogSize = 0;
-                            lk.lock();
-                            try {
-                                oneLogSize = sourceTableModel.log.size();
-                                sourceTableModel.add(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "run", httpResponseReceived.bodyToString().length(), HttpRequestResponse.httpRequestResponse(httpResponseReceived.initiatingRequest(), HttpResponse.httpResponse()), httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()));
-                            } catch (Exception e) {
-                                e.printStackTrace();
-                            } finally {
-                                lk.unlock();
-                                attackMap.put(requestSm3Hash, new ArrayList<>());
-                            }
-
-                            try {
-                                String oneVuln = "";
-                                semaphore2.acquire();
-                                try {
-                                    if (!Thread.currentThread().isInterrupted()) {
-                                        oneVuln = processOneRequest(httpResponseReceived, requestSm3Hash);
-                                    }
-
-                                } catch (Exception e) {
-                                    e.printStackTrace();
-                                } finally {
-                                    semaphore2.release();
-                                    if (oneVuln.isBlank()) {
-                                        sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "", httpResponseReceived.bodyToString().length(), null, httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
-                                    } else {
-                                        sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, oneVuln, httpResponseReceived.bodyToString().length(), HttpRequestResponse.httpRequestResponse(httpResponseReceived.initiatingRequest(), HttpResponse.httpResponse()), httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
-                                    }
-
-                                }
-                            } catch (InterruptedException e) {
-                                sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "手动停止", httpResponseReceived.bodyToString().length(), null, httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
-                            } catch (Exception e) {
-                                e.printStackTrace();
-                            }
+                        } catch (Exception e) {
+                            e.printStackTrace();
                         }
                     }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-        }.start();
+                }.start();
+
+
         return ResponseReceivedAction.continueWith(httpResponseReceived);
     }
 
@@ -987,8 +993,250 @@ public class MyHttpHandler implements HttpHandler {
                     }
                 }
 
+            }else if (!httpResponseReceived.initiatingRequest().parameters(HttpParameterType.XML).isEmpty()) {
+
+
+                List<ParsedHttpParameter> parameters = httpResponseReceived.initiatingRequest().parameters(HttpParameterType.XML);
+                String sourceRequestIndex = new String(httpResponseReceived.initiatingRequest().toByteArray().getBytes(), StandardCharsets.UTF_8);
+                int bodyStartIndex = httpResponseReceived.initiatingRequest().bodyOffset();
+
+                //err
+                for (ParsedHttpParameter parameter : parameters) {
+                    int valueEnd = parameter.valueOffsets().endIndexExclusive();
+                    String paramName = parameter.name();
+                    String prefix = sourceRequestIndex.substring(bodyStartIndex, valueEnd);
+                    String suffix = sourceRequestIndex.substring(valueEnd);
+                    for (String errPoc : errPocsj) {
+                        String pocBody = prefix + errPoc + suffix;
+                        HttpRequest pocHttpRequest = sourceHttpRequest.withBody(pocBody);
+                        HttpRequestResponse pocHttpRequestResponse = callMyRequest(pocHttpRequest, 2);
+                        String pocResponseBody = new String(pocHttpRequestResponse.response().body().getBytes(), StandardCharsets.UTF_8);
+                        String resBool = ErrSqlCheck(pocResponseBody);
+                        if (resBool != null) {
+                            PocLogEntry logEntry = new PocLogEntry(paramName, errPoc, null, "errsql(" + resBool + ")", String.valueOf(pocHttpRequestResponse.response().bodyToString().length()), String.valueOf(pocHttpRequestResponse.response().statusCode()), String.format("%.3f", (pocHttpRequestResponse.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), pocHttpRequestResponse, requestSm3Hash);
+                            getAttackList.add(logEntry);
+                            err_flag = true;
+                        }
+                    }
+                }
+
+                if (!DetSql.errorChexk.isSelected()) {
+                    //数字
+                    outerloop:
+                    for (ParsedHttpParameter parameter : parameters)  {
+                        String paramName = parameter.name();
+                        String paramValue = parameter.value();
+
+                        try {
+                            int parseInt = Integer.parseInt(paramValue);
+                        } catch (NumberFormatException e) {
+                            continue;
+                        }
+                        int valueEnd = parameter.valueOffsets().endIndexExclusive();
+                        String prefix = sourceRequestIndex.substring(bodyStartIndex, valueEnd);
+                        String suffix = sourceRequestIndex.substring(valueEnd);
+                        List<PocLogEntry> pocLogEntries = new ArrayList<>();
+                        String pocResponseBody = "";
+                        //"-0-0-0"
+                        for (int j = 0; j < 1; j++) {
+                            String numBody = prefix + "-0-0-0" + suffix;
+                            HttpRequest xmlNumHttpRequest = sourceHttpRequest.withBody(numBody);
+
+                            HttpRequestResponse httpSendRequestResponse = callMyRequest(xmlNumHttpRequest, 2);
+
+                            pocResponseBody = new String(httpSendRequestResponse.response().body().getBytes(), StandardCharsets.UTF_8);
+                            List<Double> oneDoubleList = MyCompare.averageLevenshtein(sourceBody, pocResponseBody);
+                            if (Collections.max(oneDoubleList) > 0.9) {
+                                String mySimimarity = MyCompare.formatPercent(Collections.max(oneDoubleList));
+                                pocLogEntries.add(new PocLogEntry(paramName, "-0-0-0", mySimimarity, "numsql", String.valueOf(httpSendRequestResponse.response().bodyToString().length()), String.valueOf(httpSendRequestResponse.response().statusCode()), String.format("%.3f", (httpSendRequestResponse.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), httpSendRequestResponse, requestSm3Hash));
+                            } else {
+                                continue outerloop;
+                            }
+                        }
+                        String poc2ResponseBody = "";
+                        for (int j = 0; j < 1; j++) {
+                            //"-abc"
+
+                            String numBody2 = prefix + "-abc" + suffix;
+                            HttpRequest xmlNumHttpRequest2 = sourceHttpRequest.withBody(numBody2);
+                            HttpRequestResponse httpSendRequestResponse2 = callMyRequest(xmlNumHttpRequest2, 2);
+
+
+                            poc2ResponseBody = new String(httpSendRequestResponse2.response().body().getBytes(), StandardCharsets.UTF_8);
+                            List<Double> oneDoubleList2 = MyCompare.averageLevenshtein(sourceBody, poc2ResponseBody);
+                            if (Collections.min(oneDoubleList2) <= 0.9) {
+                                String mySimimarity = MyCompare.formatPercent(Collections.min(oneDoubleList2));
+                                pocLogEntries.add(new PocLogEntry(paramName, "-abc", mySimimarity, "numsql", String.valueOf(httpSendRequestResponse2.response().bodyToString().length()), String.valueOf(httpSendRequestResponse2.response().statusCode()), String.format("%.3f", (httpSendRequestResponse2.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), httpSendRequestResponse2, requestSm3Hash));
+                            } else {
+                                continue outerloop;
+                            }
+                        }
+
+                        List<Double> oneDoubleList3 = MyCompare.averageLevenshtein(pocResponseBody, poc2ResponseBody);
+                        if (Collections.min(oneDoubleList3) <= 0.9) {
+                            getAttackList.addAll(pocLogEntries);
+                            num_flag = true;
+                        }
+
+
+                    }
+                    //STRING
+                    stringloop:
+                    for (ParsedHttpParameter parameter : parameters) {
+
+                        int valueEnd = parameter.valueOffsets().endIndexExclusive();
+
+                        String paramName = parameter.name();
+                        String prefix = sourceRequestIndex.substring(bodyStartIndex, valueEnd);
+                        String suffix = sourceRequestIndex.substring(valueEnd);
+                        List<PocLogEntry> pocLogEntries = new ArrayList<>();
+                        String firstPocResponseBody = "";
+                        for (int i = 0; i < 1; i++) {
+                            //单引号
+                            String yinBody = prefix + "'" + suffix;
+                            HttpRequest yinHttpRequest = sourceHttpRequest.withBody(yinBody);
+                            HttpRequestResponse yinHttpRequestResponse = callMyRequest(yinHttpRequest, 2);
+                            firstPocResponseBody = new String(yinHttpRequestResponse.response().body().getBytes(), StandardCharsets.UTF_8);
+                            List<Double> firstDoubleList = MyCompare.averageLevenshtein(sourceBody, firstPocResponseBody);
+                            if (Collections.min(firstDoubleList) <= 0.9) {
+                                String firstSimimarity = MyCompare.formatPercent(Collections.min(firstDoubleList));
+                                pocLogEntries.add(new PocLogEntry(paramName, "'", firstSimimarity, "stringsql", String.valueOf(yinHttpRequestResponse.response().bodyToString().length()), String.valueOf(yinHttpRequestResponse.response().statusCode()), String.format("%.3f", (yinHttpRequestResponse.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), yinHttpRequestResponse, requestSm3Hash));
+                            } else {
+                                continue stringloop;
+                            }
+                        }
+                        for (int i = 0; i < 1; i++) {
+                            //string两个单引号
+                            String dyinBody = prefix + "''" + suffix;
+                            HttpRequest dyinHttpRequest = sourceHttpRequest.withBody(dyinBody);
+                            HttpRequestResponse dyinHttpRequestResponse = callMyRequest(dyinHttpRequest, 2);
+                            String dyinPocResponseBody = new String(dyinHttpRequestResponse.response().body().getBytes(), StandardCharsets.UTF_8);
+                            List<Double> secondDoubleList = MyCompare.averageLevenshtein(firstPocResponseBody, dyinPocResponseBody);
+                            if (Collections.min(secondDoubleList) <= 0.9) {
+                                String secondSimimarity = MyCompare.formatPercent(Collections.min(secondDoubleList));
+                                pocLogEntries.add(new PocLogEntry(paramName, "''", secondSimimarity, "stringsql", String.valueOf(dyinHttpRequestResponse.response().bodyToString().length()), String.valueOf(dyinHttpRequestResponse.response().statusCode()), String.format("%.3f", (dyinHttpRequestResponse.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), dyinHttpRequestResponse, requestSm3Hash));
+                            } else {
+                                continue stringloop;
+                            }
+                        }
+
+                        for (int i = 0; i < 1; i++) {
+                            //"'+'"
+                            String dyinBody3 = prefix + "'+'" + suffix;
+                            HttpRequest dyinHttpRequest3 = sourceHttpRequest.withBody(dyinBody3);
+                            HttpRequestResponse dyinHttpRequestResponse3 = callMyRequest(dyinHttpRequest3, 2);
+                            String dyinPocResponseBody3 = new String(dyinHttpRequestResponse3.response().body().getBytes(), StandardCharsets.UTF_8);
+                            List<Double> secondDoubleList3 = MyCompare.averageLevenshtein(sourceBody, dyinPocResponseBody3);
+                            if (Collections.max(secondDoubleList3) > 0.9) {
+                                String secondSimimarity3 = MyCompare.formatPercent(Collections.max(secondDoubleList3));
+                                pocLogEntries.add(new PocLogEntry(paramName, "'+'", secondSimimarity3, "stringsql", String.valueOf(dyinHttpRequestResponse3.response().bodyToString().length()), String.valueOf(dyinHttpRequestResponse3.response().statusCode()), String.format("%.3f", (dyinHttpRequestResponse3.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), dyinHttpRequestResponse3, requestSm3Hash));
+                                getAttackList.addAll(pocLogEntries);
+                                string_flag = true;
+                                continue stringloop;
+                            }
+                        }
+
+                        for (int i = 0; i < 1; i++) {
+                            //"'||'"
+                            String dyinBody4 = prefix + "'||'" + suffix;
+                            HttpRequest dyinHttpRequest4 = sourceHttpRequest.withBody(dyinBody4);
+                            HttpRequestResponse dyinHttpRequestResponse4 = callMyRequest(dyinHttpRequest4, 2);
+                            String dyinPocResponseBody4 = new String(dyinHttpRequestResponse4.response().body().getBytes(), StandardCharsets.UTF_8);
+                            List<Double> secondDoubleList4 = MyCompare.averageLevenshtein(sourceBody, dyinPocResponseBody4);
+                            if (Collections.max(secondDoubleList4) > 0.9) {
+                                String lastSimimarity = MyCompare.formatPercent(Collections.max(secondDoubleList4));
+                                pocLogEntries.add(new PocLogEntry(paramName, "'||'", lastSimimarity, "stringsql", String.valueOf(dyinHttpRequestResponse4.response().bodyToString().length()), String.valueOf(dyinHttpRequestResponse4.response().statusCode()), String.format("%.3f", (dyinHttpRequestResponse4.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), dyinHttpRequestResponse4, requestSm3Hash));
+                                getAttackList.addAll(pocLogEntries);
+                                string_flag = true;
+                            }
+                        }
+
+
+
+                    }
+                    //order
+                    orderloop:
+                    for (ParsedHttpParameter parameter : parameters) {
+                        int valueStart = parameter.valueOffsets().startIndexInclusive();
+                        int valueEnd = parameter.valueOffsets().endIndexExclusive();
+
+                        if (valueStart != valueEnd) {
+
+                            String paramName = parameter.name();
+                            String prefix = sourceRequestIndex.substring(bodyStartIndex, valueEnd);
+                            String suffix = sourceRequestIndex.substring(valueEnd);
+                            List<PocLogEntry> pocLogEntries = new ArrayList<>();
+                            String pocResponseBody = "";
+                            for (int i = 0; i < 1; i++) {
+                                //",0"
+                                String pocBody = prefix + ",0" + suffix;
+                                HttpRequest pocHttpRequest = sourceHttpRequest.withBody(pocBody);
+                                HttpRequestResponse pocHttpRequestResponse = callMyRequest(pocHttpRequest, 2);
+                                pocResponseBody = new String(pocHttpRequestResponse.response().body().getBytes(), StandardCharsets.UTF_8);
+                                List<Double> oneDoubleList = MyCompare.averageJaccard(sourceBody, pocResponseBody);
+                                if (Collections.min(oneDoubleList) <= 0.9) {
+                                    String mySimimarity = MyCompare.formatPercent(Collections.min(oneDoubleList));
+                                    pocLogEntries.add(new PocLogEntry(paramName, ",0", mySimimarity, "ordersql", String.valueOf(pocHttpRequestResponse.response().bodyToString().length()), String.valueOf(pocHttpRequestResponse.response().statusCode()), String.format("%.3f", (pocHttpRequestResponse.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), pocHttpRequestResponse, requestSm3Hash));
+                                } else {
+                                    continue orderloop;
+                                }
+                            }
+                            String pocResponseBody1 = "";
+                            for (int i = 0; i < 1; i++) {
+                                //",XXXXXX"
+                                String pocBody1 = prefix + ",XXXXXX" + suffix;
+                                HttpRequest pocHttpRequest1 = sourceHttpRequest.withBody(pocBody1);
+                                HttpRequestResponse pocHttpRequestResponse1 = callMyRequest(pocHttpRequest1, 2);
+                                pocResponseBody1 = new String(pocHttpRequestResponse1.response().body().getBytes(), StandardCharsets.UTF_8);
+                                List<Double> oneDoubleList1 = MyCompare.averageJaccard(sourceBody, pocResponseBody1);
+                                if (Collections.min(oneDoubleList1) <= 0.9) {
+                                    String mySimimarity1 = MyCompare.formatPercent(Collections.min(oneDoubleList1));
+                                    pocLogEntries.add(new PocLogEntry(paramName, ",XXXXXX", mySimimarity1, "ordersql", String.valueOf(pocHttpRequestResponse1.response().bodyToString().length()), String.valueOf(pocHttpRequestResponse1.response().statusCode()), String.format("%.3f", (pocHttpRequestResponse1.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), pocHttpRequestResponse1, requestSm3Hash));
+                                } else {
+                                    continue orderloop;
+                                }
+                            }
+
+                            List<Double> oneDoubleList2 = MyCompare.averageJaccard(pocResponseBody, pocResponseBody1);
+                            if (Collections.max(oneDoubleList2) <= 0.9) {
+                                continue;
+                            }
+                            for (int i = 0; i < 1; i++) {
+                                // ",1", ",2",
+                                String pocBody2 = prefix + ",1" + suffix;
+                                HttpRequest pocHttpRequest2 = sourceHttpRequest.withBody(pocBody2);
+                                HttpRequestResponse pocHttpRequestResponse2 = callMyRequest(pocHttpRequest2, 2);
+                                String pocResponseBody2 = new String(pocHttpRequestResponse2.response().body().getBytes(), StandardCharsets.UTF_8);
+                                List<Double> oneDoubleList3 = MyCompare.averageJaccard(sourceBody, pocResponseBody2);
+                                if (Collections.max(oneDoubleList3) > 0.9) {
+                                    String mySimimarity = MyCompare.formatPercent(Collections.max(oneDoubleList3));
+                                    pocLogEntries.add(new PocLogEntry(paramName, ",1", mySimimarity, "ordersql", String.valueOf(pocHttpRequestResponse2.response().bodyToString().length()), String.valueOf(pocHttpRequestResponse2.response().statusCode()), String.format("%.3f", (pocHttpRequestResponse2.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), pocHttpRequestResponse2, requestSm3Hash));
+                                    getAttackList.addAll(pocLogEntries);
+                                    order_flag = true;
+                                    continue orderloop;
+                                }
+
+                            }
+                            for (int i = 0; i < 1; i++) {
+                                String pocBody3 = prefix + ",2" + suffix;
+                                HttpRequest pocHttpRequest3 = sourceHttpRequest.withBody(pocBody3);
+                                HttpRequestResponse pocHttpRequestResponse3 = callMyRequest(pocHttpRequest3, 2);
+                                String pocResponseBody3 = new String(pocHttpRequestResponse3.response().body().getBytes(), StandardCharsets.UTF_8);
+                                List<Double> oneDoubleList4 = MyCompare.averageJaccard(sourceBody, pocResponseBody3);
+                                if (Collections.max(oneDoubleList4) > 0.9) {
+                                    String mySimimarityx = MyCompare.formatPercent(Collections.max(oneDoubleList4));
+                                    pocLogEntries.add(new PocLogEntry(paramName, ",2", mySimimarityx, "ordersql", String.valueOf(pocHttpRequestResponse3.response().bodyToString().length()), String.valueOf(pocHttpRequestResponse3.response().statusCode()), String.format("%.3f", (pocHttpRequestResponse3.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), pocHttpRequestResponse3, requestSm3Hash));
+                                    getAttackList.addAll(pocLogEntries);
+                                    order_flag = true;
+                                }
+                            }
+                        }
+
+                    }
+                }
+
             }
-        }
+        }//POST 处理结束
         //处理cookie
         if (DetSql.cookieChexk.isSelected() && !httpResponseReceived.initiatingRequest().parameters(HttpParameterType.COOKIE).isEmpty()) {
             List<ParsedHttpParameter> parameters = httpResponseReceived.initiatingRequest().parameters(HttpParameterType.COOKIE);
