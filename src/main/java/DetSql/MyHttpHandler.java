@@ -153,185 +153,182 @@ public class MyHttpHandler implements HttpHandler {
     @Override
     public ResponseReceivedAction handleHttpResponseReceived(HttpResponseReceived httpResponseReceived) {
 
-                new Thread() {
-                    @Override
-                    public void run() {
-                        try {
+        new Thread(() -> {
+            try {
 
-                            if (DetSql.switchChexk.isSelected() && httpResponseReceived.bodyToString().length() != 0 && httpResponseReceived.bodyToString().length() < 10000) {
-                                if (MyFilterRequest.fromProxySource(httpResponseReceived) && MyFilterRequest.filterOneRequest(httpResponseReceived)) {
-                                    String requestSm3Hash = byteToHex(cryptoUtils.generateDigest(ByteArray.byteArray(MyFilterRequest.getUnique(httpResponseReceived)), DigestAlgorithm.SM3).getBytes());
-                                    Thread.currentThread().setName(requestSm3Hash);
-                                    if (!attackMap.containsKey(requestSm3Hash)) {
-                                        int oneLogSize = 0;
-                                        lk.lock();
-                                        try {
-                                            oneLogSize = sourceTableModel.log.size();
-                                            sourceTableModel.add(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "run", httpResponseReceived.bodyToString().length(), HttpRequestResponse.httpRequestResponse(httpResponseReceived.initiatingRequest(), HttpResponse.httpResponse()), httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()));
-                                        } catch (Exception e) {
-                                            e.printStackTrace();
-                                        } finally {
-                                            lk.unlock();
-                                            attackMap.put(requestSm3Hash, new ArrayList<>());
-                                        }
-                                        try {
-                                            String oneVuln = "";
-                                            semaphore.acquire();
-                                            try {
-                                                if (!Thread.currentThread().isInterrupted()) {
-                                                    oneVuln = processOneRequest(httpResponseReceived, requestSm3Hash);
-                                                }
-
-                                            } catch (Exception e) {
-                                                e.printStackTrace();
-                                            } finally {
-                                                semaphore.release();
-
-                                                if (oneVuln.isBlank()) {
-                                                    sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "", httpResponseReceived.bodyToString().length(), null, httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
-                                                } else {
-                                                    sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, oneVuln, httpResponseReceived.bodyToString().length(), HttpRequestResponse.httpRequestResponse(httpResponseReceived.initiatingRequest(), HttpResponse.httpResponse()), httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
-                                                }
-                                            }
-                                        } catch (InterruptedException e) {
-                                            sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "手动停止", httpResponseReceived.bodyToString().length(), null, httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
-                                        } catch (Exception e) {
-                                            e.printStackTrace();
-                                        }
-
-
-                                    }
-
-                                } else if (DetSql.vulnChexk.isSelected() && MyFilterRequest.fromRepeaterSource(httpResponseReceived) && MyFilterRequest.filterOneRequest(httpResponseReceived)) {
-                                    String requestSm3Hash = String.valueOf(System.currentTimeMillis());
-                                    Thread.currentThread().setName(requestSm3Hash);
-                                    int oneLogSize = 0;
-                                    lk.lock();
-                                    try {
-                                        oneLogSize = sourceTableModel.log.size();
-                                        sourceTableModel.add(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "run", httpResponseReceived.bodyToString().length(), HttpRequestResponse.httpRequestResponse(httpResponseReceived.initiatingRequest(), HttpResponse.httpResponse()), httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()));
-                                    } catch (Exception e) {
-                                        e.printStackTrace();
-                                    } finally {
-                                        lk.unlock();
-                                        attackMap.put(requestSm3Hash, new ArrayList<>());
-                                    }
-                                    try {
-                                        String oneVuln = "";
-                                        semaphore.acquire();
-                                        try {
-                                            if (!Thread.currentThread().isInterrupted()) {
-                                                oneVuln = processOneRequest(httpResponseReceived, requestSm3Hash);
-                                            }
-
-                                        } catch (Exception e) {
-                                            e.printStackTrace();
-                                        } finally {
-                                            semaphore.release();
-                                            if (oneVuln.isBlank()) {
-                                                sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "", httpResponseReceived.bodyToString().length(), null, httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
-                                            } else {
-                                                sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, oneVuln, httpResponseReceived.bodyToString().length(), HttpRequestResponse.httpRequestResponse(httpResponseReceived.initiatingRequest(), HttpResponse.httpResponse()), httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
-                                            }
-
-                                        }
-                                    } catch (InterruptedException e) {
-                                        sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "手动停止", httpResponseReceived.bodyToString().length(), null, httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
-                                    } catch (Exception e) {
-                                        e.printStackTrace();
-                                    }
-
-
-                                }
-                            } else if (DetSql.switchChexk.isSelected() && httpResponseReceived.bodyToString().length() != 0 && httpResponseReceived.bodyToString().length() < 50000) {
-                                if (MyFilterRequest.fromProxySource(httpResponseReceived) && MyFilterRequest.filterOneRequest(httpResponseReceived)) {
-                                    String requestSm3Hash = byteToHex(cryptoUtils.generateDigest(ByteArray.byteArray(MyFilterRequest.getUnique(httpResponseReceived)), DigestAlgorithm.SM3).getBytes());
-                                    Thread.currentThread().setName(requestSm3Hash);
-                                    if (!attackMap.containsKey(requestSm3Hash)) {
-                                        int oneLogSize = 0;
-                                        lk.lock();
-
-                                        try {
-                                            oneLogSize = sourceTableModel.log.size();
-                                            sourceTableModel.add(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "run", httpResponseReceived.bodyToString().length(), HttpRequestResponse.httpRequestResponse(httpResponseReceived.initiatingRequest(), HttpResponse.httpResponse()), httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()));
-                                        } catch (Exception e) {
-                                            e.printStackTrace();
-                                        } finally {
-                                            lk.unlock();
-                                            attackMap.put(requestSm3Hash, new ArrayList<>());
-                                        }
-                                        try {
-                                            String oneVuln = "";
-                                            semaphore2.acquire();
-                                            try {
-                                                if (!Thread.currentThread().isInterrupted()) {
-                                                    oneVuln = processOneRequest(httpResponseReceived, requestSm3Hash);
-                                                }
-
-                                            } catch (Exception e) {
-                                                e.printStackTrace();
-                                            } finally {
-                                                semaphore2.release();
-                                                if (oneVuln.isBlank()) {
-                                                    sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "", httpResponseReceived.bodyToString().length(), null, httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
-                                                } else {
-                                                    sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, oneVuln, httpResponseReceived.bodyToString().length(), HttpRequestResponse.httpRequestResponse(httpResponseReceived.initiatingRequest(), HttpResponse.httpResponse()), httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
-                                                }
-
-                                            }
-                                        } catch (InterruptedException e) {
-                                            sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "手动停止", httpResponseReceived.bodyToString().length(), null, httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
-                                        } catch (Exception e) {
-                                            e.printStackTrace();
-                                        }
-                                    }
-
-                                } else if (DetSql.vulnChexk.isSelected() && MyFilterRequest.fromRepeaterSource(httpResponseReceived) && MyFilterRequest.filterOneRequest(httpResponseReceived)) {
-                                    String requestSm3Hash = String.valueOf(System.currentTimeMillis());
-                                    Thread.currentThread().setName(requestSm3Hash);
-                                    int oneLogSize = 0;
-                                    lk.lock();
-                                    try {
-                                        oneLogSize = sourceTableModel.log.size();
-                                        sourceTableModel.add(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "run", httpResponseReceived.bodyToString().length(), HttpRequestResponse.httpRequestResponse(httpResponseReceived.initiatingRequest(), HttpResponse.httpResponse()), httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()));
-                                    } catch (Exception e) {
-                                        e.printStackTrace();
-                                    } finally {
-                                        lk.unlock();
-                                        attackMap.put(requestSm3Hash, new ArrayList<>());
-                                    }
-
-                                    try {
-                                        String oneVuln = "";
-                                        semaphore2.acquire();
-                                        try {
-                                            if (!Thread.currentThread().isInterrupted()) {
-                                                oneVuln = processOneRequest(httpResponseReceived, requestSm3Hash);
-                                            }
-
-                                        } catch (Exception e) {
-                                            e.printStackTrace();
-                                        } finally {
-                                            semaphore2.release();
-                                            if (oneVuln.isBlank()) {
-                                                sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "", httpResponseReceived.bodyToString().length(), null, httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
-                                            } else {
-                                                sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, oneVuln, httpResponseReceived.bodyToString().length(), HttpRequestResponse.httpRequestResponse(httpResponseReceived.initiatingRequest(), HttpResponse.httpResponse()), httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
-                                            }
-
-                                        }
-                                    } catch (InterruptedException e) {
-                                        sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "手动停止", httpResponseReceived.bodyToString().length(), null, httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
-                                    } catch (Exception e) {
-                                        e.printStackTrace();
-                                    }
-                                }
+                if (DetSql.switchChexk.isSelected() && httpResponseReceived.bodyToString().length() != 0 && httpResponseReceived.bodyToString().length() < 10000) {
+                    if (MyFilterRequest.fromProxySource(httpResponseReceived) && MyFilterRequest.filterOneRequest(httpResponseReceived)) {
+                        String requestSm3Hash = byteToHex(cryptoUtils.generateDigest(ByteArray.byteArray(MyFilterRequest.getUnique(httpResponseReceived)), DigestAlgorithm.SM3).getBytes());
+                        Thread.currentThread().setName(requestSm3Hash);
+                        if (!attackMap.containsKey(requestSm3Hash)) {
+                            int oneLogSize = 0;
+                            lk.lock();
+                            try {
+                                oneLogSize = sourceTableModel.log.size();
+                                sourceTableModel.add(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "run", httpResponseReceived.bodyToString().length(), HttpRequestResponse.httpRequestResponse(httpResponseReceived.initiatingRequest(), HttpResponse.httpResponse()), httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()));
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            } finally {
+                                lk.unlock();
+                                attackMap.put(requestSm3Hash, new ArrayList<>());
                             }
+                            try {
+                                String oneVuln = "";
+                                semaphore.acquire();
+                                try {
+                                    if (!Thread.currentThread().isInterrupted()) {
+                                        oneVuln = processOneRequest(httpResponseReceived, requestSm3Hash);
+                                    }
+
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                } finally {
+                                    semaphore.release();
+
+                                    if (oneVuln.isBlank()) {
+                                        sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "", httpResponseReceived.bodyToString().length(), null, httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
+                                    } else {
+                                        sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, oneVuln, httpResponseReceived.bodyToString().length(), HttpRequestResponse.httpRequestResponse(httpResponseReceived.initiatingRequest(), HttpResponse.httpResponse()), httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
+                                    }
+                                }
+                            } catch (InterruptedException e) {
+                                sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "手动停止", httpResponseReceived.bodyToString().length(), null, httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+
+
+                        }
+
+                    } else if (DetSql.vulnChexk.isSelected() && MyFilterRequest.fromRepeaterSource(httpResponseReceived) && MyFilterRequest.filterOneRequest(httpResponseReceived)) {
+                        String requestSm3Hash = String.valueOf(System.currentTimeMillis());
+                        Thread.currentThread().setName(requestSm3Hash);
+                        int oneLogSize = 0;
+                        lk.lock();
+                        try {
+                            oneLogSize = sourceTableModel.log.size();
+                            sourceTableModel.add(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "run", httpResponseReceived.bodyToString().length(), HttpRequestResponse.httpRequestResponse(httpResponseReceived.initiatingRequest(), HttpResponse.httpResponse()), httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()));
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        } finally {
+                            lk.unlock();
+                            attackMap.put(requestSm3Hash, new ArrayList<>());
+                        }
+                        try {
+                            String oneVuln = "";
+                            semaphore.acquire();
+                            try {
+                                if (!Thread.currentThread().isInterrupted()) {
+                                    oneVuln = processOneRequest(httpResponseReceived, requestSm3Hash);
+                                }
+
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            } finally {
+                                semaphore.release();
+                                if (oneVuln.isBlank()) {
+                                    sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "", httpResponseReceived.bodyToString().length(), null, httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
+                                } else {
+                                    sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, oneVuln, httpResponseReceived.bodyToString().length(), HttpRequestResponse.httpRequestResponse(httpResponseReceived.initiatingRequest(), HttpResponse.httpResponse()), httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
+                                }
+
+                            }
+                        } catch (InterruptedException e) {
+                            sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "手动停止", httpResponseReceived.bodyToString().length(), null, httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+
+
+                    }
+                } else if (DetSql.switchChexk.isSelected() && httpResponseReceived.bodyToString().length() != 0 && httpResponseReceived.bodyToString().length() < 50000) {
+                    if (MyFilterRequest.fromProxySource(httpResponseReceived) && MyFilterRequest.filterOneRequest(httpResponseReceived)) {
+                        String requestSm3Hash = byteToHex(cryptoUtils.generateDigest(ByteArray.byteArray(MyFilterRequest.getUnique(httpResponseReceived)), DigestAlgorithm.SM3).getBytes());
+                        Thread.currentThread().setName(requestSm3Hash);
+                        if (!attackMap.containsKey(requestSm3Hash)) {
+                            int oneLogSize = 0;
+                            lk.lock();
+
+                            try {
+                                oneLogSize = sourceTableModel.log.size();
+                                sourceTableModel.add(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "run", httpResponseReceived.bodyToString().length(), HttpRequestResponse.httpRequestResponse(httpResponseReceived.initiatingRequest(), HttpResponse.httpResponse()), httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()));
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            } finally {
+                                lk.unlock();
+                                attackMap.put(requestSm3Hash, new ArrayList<>());
+                            }
+                            try {
+                                String oneVuln = "";
+                                semaphore2.acquire();
+                                try {
+                                    if (!Thread.currentThread().isInterrupted()) {
+                                        oneVuln = processOneRequest(httpResponseReceived, requestSm3Hash);
+                                    }
+
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                } finally {
+                                    semaphore2.release();
+                                    if (oneVuln.isBlank()) {
+                                        sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "", httpResponseReceived.bodyToString().length(), null, httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
+                                    } else {
+                                        sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, oneVuln, httpResponseReceived.bodyToString().length(), HttpRequestResponse.httpRequestResponse(httpResponseReceived.initiatingRequest(), HttpResponse.httpResponse()), httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
+                                    }
+
+                                }
+                            } catch (InterruptedException e) {
+                                sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "手动停止", httpResponseReceived.bodyToString().length(), null, httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                        }
+
+                    } else if (DetSql.vulnChexk.isSelected() && MyFilterRequest.fromRepeaterSource(httpResponseReceived) && MyFilterRequest.filterOneRequest(httpResponseReceived)) {
+                        String requestSm3Hash = String.valueOf(System.currentTimeMillis());
+                        Thread.currentThread().setName(requestSm3Hash);
+                        int oneLogSize = 0;
+                        lk.lock();
+                        try {
+                            oneLogSize = sourceTableModel.log.size();
+                            sourceTableModel.add(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "run", httpResponseReceived.bodyToString().length(), HttpRequestResponse.httpRequestResponse(httpResponseReceived.initiatingRequest(), HttpResponse.httpResponse()), httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()));
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        } finally {
+                            lk.unlock();
+                            attackMap.put(requestSm3Hash, new ArrayList<>());
+                        }
+
+                        try {
+                            String oneVuln = "";
+                            semaphore2.acquire();
+                            try {
+                                if (!Thread.currentThread().isInterrupted()) {
+                                    oneVuln = processOneRequest(httpResponseReceived, requestSm3Hash);
+                                }
+
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            } finally {
+                                semaphore2.release();
+                                if (oneVuln.isBlank()) {
+                                    sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "", httpResponseReceived.bodyToString().length(), null, httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
+                                } else {
+                                    sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, oneVuln, httpResponseReceived.bodyToString().length(), HttpRequestResponse.httpRequestResponse(httpResponseReceived.initiatingRequest(), HttpResponse.httpResponse()), httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
+                                }
+
+                            }
+                        } catch (InterruptedException e) {
+                            sourceTableModel.add2(new SourceLogEntry(oneLogSize, httpResponseReceived.toolSource().toolType().toolName(), requestSm3Hash, "手动停止", httpResponseReceived.bodyToString().length(), null, httpResponseReceived.initiatingRequest().httpService().toString(), httpResponseReceived.initiatingRequest().method(), httpResponseReceived.initiatingRequest().pathWithoutQuery()), oneLogSize);
                         } catch (Exception e) {
                             e.printStackTrace();
                         }
                     }
-                }.start();
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }).start();
 
 
         return ResponseReceivedAction.continueWith(httpResponseReceived);
@@ -993,7 +990,7 @@ public class MyHttpHandler implements HttpHandler {
                     }
                 }
 
-            }else if (!httpResponseReceived.initiatingRequest().parameters(HttpParameterType.XML).isEmpty()) {
+            } else if (!httpResponseReceived.initiatingRequest().parameters(HttpParameterType.XML).isEmpty()) {
 
 
                 List<ParsedHttpParameter> parameters = httpResponseReceived.initiatingRequest().parameters(HttpParameterType.XML);
@@ -1023,7 +1020,7 @@ public class MyHttpHandler implements HttpHandler {
                 if (!DetSql.errorChexk.isSelected()) {
                     //数字
                     outerloop:
-                    for (ParsedHttpParameter parameter : parameters)  {
+                    for (ParsedHttpParameter parameter : parameters) {
                         String paramName = parameter.name();
                         String paramValue = parameter.value();
 
@@ -1150,7 +1147,6 @@ public class MyHttpHandler implements HttpHandler {
                                 string_flag = true;
                             }
                         }
-
 
 
                     }

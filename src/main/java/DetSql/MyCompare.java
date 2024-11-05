@@ -55,7 +55,8 @@ public class MyCompare {
         percentFormat.setMinimumFractionDigits(1); // 设置小数点后最少的数字位数
         return percentFormat.format(number);
     }
-    public static double levenshtein(String str1, String str2){
+
+    public static double levenshtein(String str1, String str2) {
         int distance = LevenshteinDistance.getDefaultInstance().apply(str1, str2);
         return 1 - (double) distance / Math.max(str1.length(), str2.length());
     }
@@ -123,6 +124,7 @@ public class MyCompare {
 
         return commonNum / mergeNum;
     }
+
     public static double jaccard(String str1, String str2) {
 
         return new JaccardSimilarity().apply(str1, str2);
@@ -135,7 +137,7 @@ public class MyCompare {
             list.add(1.0);
         } else if (s1.isEmpty() || s2.isEmpty()) {
             list.add(0.0);
-        } else if (Math.abs(s1.length()-s2.length())>=100) {
+        } else if (Math.abs(s1.length() - s2.length()) >= 100) {
             list.add(0.9);
             double levenshtein = levenshtein(s1, s2);
             list.add(levenshtein);
@@ -153,16 +155,17 @@ public class MyCompare {
             list.add(1.0);
         } else if (s1.isEmpty() || s2.isEmpty()) {
             list.add(0.0);
-        } else if (Math.abs(s1.length()-s2.length())>=100) {
+        } else if (Math.abs(s1.length() - s2.length()) >= 100) {
             list.add(0.9);
             double jaccard = jaccard(s1, s2);
             list.add(jaccard);
-        }else {
+        } else {
             double jaccard = jaccard(s1, s2);
             list.add(jaccard);
         }
         return list;
     }
+
     public static List<Double> averageCosine(String s1, String s2) {
         List<Double> list = new ArrayList<>();
         //double cosine = calculateCosineSimilarity(s1, s2);

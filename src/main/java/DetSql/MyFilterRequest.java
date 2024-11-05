@@ -83,7 +83,7 @@ public class MyFilterRequest {
             return !httpResponseReceived.initiatingRequest().parameters(HttpParameterType.URL).isEmpty();
         }
         if (httpResponseReceived.initiatingRequest().method().equals("POST")) {
-            return (!httpResponseReceived.initiatingRequest().parameters(HttpParameterType.BODY).isEmpty()) || (!httpResponseReceived.initiatingRequest().parameters(HttpParameterType.JSON).isEmpty())||(!httpResponseReceived.initiatingRequest().parameters(HttpParameterType.XML).isEmpty());
+            return (!httpResponseReceived.initiatingRequest().parameters(HttpParameterType.BODY).isEmpty()) || (!httpResponseReceived.initiatingRequest().parameters(HttpParameterType.JSON).isEmpty()) || (!httpResponseReceived.initiatingRequest().parameters(HttpParameterType.XML).isEmpty());
         }
         return false;
     }
@@ -117,7 +117,7 @@ public class MyFilterRequest {
                 for (ParsedHttpParameter jsonParameter : jsonParameters) {
                     sb.append(jsonParameter.name());
                 }
-            }else if (!xmlParameters.isEmpty()) {
+            } else if (!xmlParameters.isEmpty()) {
                 for (ParsedHttpParameter xmlParameter : xmlParameters) {
                     sb.append(xmlParameter.name());
                 }
@@ -150,7 +150,7 @@ public class MyFilterRequest {
                 for (ParsedHttpParameter jsonParameter : jsonParameters) {
                     sb.append(jsonParameter.name());
                 }
-            }else if (!xmlParameters.isEmpty()) {
+            } else if (!xmlParameters.isEmpty()) {
                 for (ParsedHttpParameter xmlParameter : xmlParameters) {
                     sb.append(xmlParameter.name());
                 }

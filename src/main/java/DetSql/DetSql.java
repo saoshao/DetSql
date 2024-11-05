@@ -437,6 +437,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider {
         }
         return sb.toString();
     }
+
     public String unicodeEncode(String string) {
         char[] utfBytes = string.toCharArray();
         String unicodeBytes = "";
