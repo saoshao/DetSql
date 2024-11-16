@@ -168,10 +168,7 @@ public class MyCompare {
 
     public static List<Double> averageCosine(String s1, String s2) {
         List<Double> list = new ArrayList<>();
-        //double cosine = calculateCosineSimilarity(s1, s2);
-        //double levenshtein = levenshtein(s1, s2);
         double cosine = calculateCosineSimilarity(s1, s2);
-        //double averageRes = (levenshtein + jaccard + cosine) / 3;
         if (s1.length() == s2.length()) {
             list.add(1.0);
         } else if (s1.length() == 0 || s2.length() == 0) {

@@ -148,7 +148,6 @@ public class MyHttpHandler implements HttpHandler {
     public RequestToBeSentAction handleHttpRequestToBeSent(HttpRequestToBeSent httpRequestToBeSent) {
         return RequestToBeSentAction.continueWith(httpRequestToBeSent);
     }
-
     @Override
     public ResponseReceivedAction handleHttpResponseReceived(HttpResponseReceived httpResponseReceived) {
 

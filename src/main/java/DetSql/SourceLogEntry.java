@@ -61,7 +61,6 @@ public class SourceLogEntry {
     public void setHttpRequestResponse(HttpRequestResponse httpRequestResponse) {
         this.httpRequestResponse = httpRequestResponse;
     }
-
     public String getHttpService() {
         return httpService;
     }

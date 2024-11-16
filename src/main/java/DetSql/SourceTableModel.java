@@ -47,8 +47,6 @@ public class SourceTableModel extends AbstractTableModel {
     @Override
     public synchronized Object getValueAt(int rowIndex, int columnIndex) {
         SourceLogEntry logEntry = log.get(rowIndex);
-
-
         return switch (columnIndex) {
             case 0 -> logEntry.getId();
             case 1 -> logEntry.getTool();
@@ -73,7 +71,6 @@ public class SourceTableModel extends AbstractTableModel {
         log.set(index, logEntry);
         fireTableRowsInserted(index, index);
     }
-
     public synchronized SourceLogEntry get(int rowIndex) {
         return log.get(rowIndex);
     }

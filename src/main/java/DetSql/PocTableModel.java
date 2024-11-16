@@ -47,7 +47,6 @@ public class PocTableModel extends AbstractTableModel {
     @Override
     public synchronized Object getValueAt(int rowIndex, int columnIndex) {
         PocLogEntry logEntry = log.get(rowIndex);
-
         return switch (columnIndex) {
             case 0 -> logEntry.getName();
             case 1 -> logEntry.getPoc();

@@ -157,7 +157,6 @@ public class MyFilterRequest {
             }
         }
         String paramString = sb.toString();
-
         return method + httpServices + littlePath + paramString;
     }
 

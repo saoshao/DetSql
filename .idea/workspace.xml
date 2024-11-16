@@ -4,12 +4,16 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="0837a292-8016-4607-b749-b5b165f58135" name="更改" comment="Update README.md">
+    <list default="true" id="0837a292-8016-4607-b749-b5b165f58135" name="更改" comment="Update 1.3">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/pom.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/DetSql/DetSql.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/DetSql/DetSql.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/DetSql/MyCompare.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/DetSql/MyCompare.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/DetSql/MyFilterRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/DetSql/MyFilterRequest.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/DetSql/MyHttpHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/DetSql/MyHttpHandler.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/DetSql/PocLogEntry.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/DetSql/PocLogEntry.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/DetSql/PocTableModel.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/DetSql/PocTableModel.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/DetSql/SourceLogEntry.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/DetSql/SourceLogEntry.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/DetSql/SourceTableModel.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/DetSql/SourceTableModel.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -53,33 +57,33 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
-    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;D:/javatest/testpluginparam/testpluginparam&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;onboarding.tips.debug.path&quot;: &quot;D:/javatest/DetSql/DetSql/src/main/java/DetSql/Main.java&quot;,
-    &quot;project.structure.last.edited&quot;: &quot;工件&quot;,
-    &quot;project.structure.proportion&quot;: &quot;0.0&quot;,
-    &quot;project.structure.side.proportion&quot;: &quot;0.0&quot;,
-    &quot;run.code.analysis.last.selected.profile&quot;: &quot;pProject Default&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;http.proxy&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;,
-    &quot;应用程序.Demo.executor&quot;: &quot;Run&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "RunOnceActivity.OpenProjectViewOnStart": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
+    "git-widget-placeholder": "master",
+    "kotlin-language-version-configured": "true",
+    "last_opened_file_path": "D:/javatest/hellomaven/hellomaven",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "onboarding.tips.debug.path": "D:/javatest/DetSql/DetSql/src/main/java/DetSql/Main.java",
+    "project.structure.last.edited": "工件",
+    "project.structure.proportion": "0.0",
+    "project.structure.side.proportion": "0.0",
+    "run.code.analysis.last.selected.profile": "pProject Default",
+    "settings.editor.selected.configurable": "project.propVCSSupport.CommitDialog",
+    "vue.rearranger.settings.migration": "true",
+    "应用程序.Demo.executor": "Run"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
-      <recent name="D:\javatest\DetSql\DetSql\src\main\java\DetSql" />
       <recent name="D:\javatest\DetSql\DetSql" />
+      <recent name="D:\javatest\DetSql\DetSql\src\main\java\DetSql" />
     </key>
     <key name="CopyClassDialog.RECENTS_KEY">
       <recent name="DetSql" />
@@ -121,7 +125,16 @@
       <workItem from="1728844279747" duration="4358000" />
       <workItem from="1729089157448" duration="900000" />
       <workItem from="1729323577052" duration="18568000" />
-      <workItem from="1729403571384" duration="169000" />
+      <workItem from="1729403571384" duration="1766000" />
+      <workItem from="1730805397447" duration="2261000" />
+      <workItem from="1730807893260" duration="3115000" />
+      <workItem from="1730813555388" duration="597000" />
+      <workItem from="1730814335336" duration="943000" />
+      <workItem from="1730815637983" duration="312000" />
+      <workItem from="1731500869760" duration="6503000" />
+      <workItem from="1731686759093" duration="3512000" />
+      <workItem from="1731725192818" duration="22409000" />
+      <workItem from="1731756682762" duration="9727000" />
     </task>
     <task id="LOCAL-00001" summary="first commit">
       <option name="closed" value="true" />
@@ -371,7 +384,63 @@
       <option name="project" value="LOCAL" />
       <updated>1728849866667</updated>
     </task>
-    <option name="localTasksCounter" value="32" />
+    <task id="LOCAL-00032" summary="Update 1.2">
+      <option name="closed" value="true" />
+      <created>1729403824013</created>
+      <option name="number" value="00032" />
+      <option name="presentableId" value="LOCAL-00032" />
+      <option name="project" value="LOCAL" />
+      <updated>1729403824013</updated>
+    </task>
+    <task id="LOCAL-00033" summary="Update README.md">
+      <option name="closed" value="true" />
+      <created>1730805550598</created>
+      <option name="number" value="00033" />
+      <option name="presentableId" value="LOCAL-00033" />
+      <option name="project" value="LOCAL" />
+      <updated>1730805550598</updated>
+    </task>
+    <task id="LOCAL-00034" summary="Update 1.2">
+      <option name="closed" value="true" />
+      <created>1730806882685</created>
+      <option name="number" value="00034" />
+      <option name="presentableId" value="LOCAL-00034" />
+      <option name="project" value="LOCAL" />
+      <updated>1730806882685</updated>
+    </task>
+    <task id="LOCAL-00035" summary="Update README.md">
+      <option name="closed" value="true" />
+      <created>1730813612007</created>
+      <option name="number" value="00035" />
+      <option name="presentableId" value="LOCAL-00035" />
+      <option name="project" value="LOCAL" />
+      <updated>1730813612007</updated>
+    </task>
+    <task id="LOCAL-00036" summary="Update README.md">
+      <option name="closed" value="true" />
+      <created>1730815170945</created>
+      <option name="number" value="00036" />
+      <option name="presentableId" value="LOCAL-00036" />
+      <option name="project" value="LOCAL" />
+      <updated>1730815170945</updated>
+    </task>
+    <task id="LOCAL-00037" summary="Update 1.3">
+      <option name="closed" value="true" />
+      <created>1731755667414</created>
+      <option name="number" value="00037" />
+      <option name="presentableId" value="LOCAL-00037" />
+      <option name="project" value="LOCAL" />
+      <updated>1731755667414</updated>
+    </task>
+    <task id="LOCAL-00038" summary="Update 1.3">
+      <option name="closed" value="true" />
+      <created>1731765986207</created>
+      <option name="number" value="00038" />
+      <option name="presentableId" value="LOCAL-00038" />
+      <option name="project" value="LOCAL" />
+      <updated>1731765986207</updated>
+    </task>
+    <option name="localTasksCounter" value="39" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -395,8 +464,10 @@
     <MESSAGE value="update README.md" />
     <MESSAGE value="update 1.1" />
     <MESSAGE value="Update 1.1" />
+    <MESSAGE value="Update 1.2" />
     <MESSAGE value="Update README.md" />
-    <option name="LAST_COMMIT_MESSAGE" value="Update README.md" />
+    <MESSAGE value="Update 1.3" />
+    <option name="LAST_COMMIT_MESSAGE" value="Update 1.3" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

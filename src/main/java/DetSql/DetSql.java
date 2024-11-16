@@ -112,7 +112,6 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider {
         springLayout.putConstraint(SpringLayout.NORTH, requestViewer.uiComponent(), 0, SpringLayout.NORTH, finRoot);
         springLayout.putConstraint(SpringLayout.WEST, requestViewer.uiComponent(), 0, SpringLayout.WEST,  finRoot);
         springLayout.putConstraint(SpringLayout.EAST, requestViewer.uiComponent(), 0, SpringLayout.EAST,  finRoot);
-        //springLayout.putConstraint(SpringLayout.SOUTH, requestViewer.uiComponent(), 400, SpringLayout.NORTH,  finRoot);
         springLayout.putConstraint(SpringLayout.SOUTH, requestViewer.uiComponent(), -125, SpringLayout.SOUTH,  finRoot);
         tabbedPane2.addTab("Request", finRoot);
 
@@ -124,7 +123,6 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider {
         rspringLayout.putConstraint(SpringLayout.NORTH, responseViewer.uiComponent(), 0, SpringLayout.NORTH, rfinRoot);
         rspringLayout.putConstraint(SpringLayout.WEST, responseViewer.uiComponent(), 0, SpringLayout.WEST,  rfinRoot);
         rspringLayout.putConstraint(SpringLayout.EAST, responseViewer.uiComponent(), 0, SpringLayout.EAST,  rfinRoot);
-        //springLayout.putConstraint(SpringLayout.SOUTH, requestViewer.uiComponent(), 400, SpringLayout.NORTH,  finRoot);
         rspringLayout.putConstraint(SpringLayout.SOUTH, responseViewer.uiComponent(), -125, SpringLayout.SOUTH,  rfinRoot);
         tabbedPane3.addTab("Response", rfinRoot);
         JTable table1 = new JTable(tableModel) {

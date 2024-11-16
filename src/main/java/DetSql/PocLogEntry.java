@@ -92,7 +92,6 @@ public class PocLogEntry {
     public String getMyHash() {
         return myHash;
     }
-
     public void setMyHash(String myHash) {
         this.myHash = myHash;
     }
