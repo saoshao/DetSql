@@ -84,7 +84,6 @@ public class MyHttpHandler implements HttpHandler {
             "SQLServer\\s+JDBC\\s+Driver",
             "Incorrect\\s+syntax\\s+near",
             "java\\.sql\\.SQLException",
-            "java\\.sql\\.SQLException",
             "MySQLSyntaxErrorException",
             "<b>Warning</b>:\\s+ibase_",
             "valid\\s+MySQL\\s+result",
@@ -409,7 +408,7 @@ public class MyHttpHandler implements HttpHandler {
                     for (int j = 0; j < 1; j++) {
                         //"'+'"
                         List<HttpParameter> poc3HttpParameters = new ArrayList<>(newHttpParameters);
-                        poc3HttpParameters.set(i, HttpParameter.urlParameter(paramName, paramValue + "'+'"));
+                        poc3HttpParameters.set(i, HttpParameter.urlParameter(paramName, paramValue + "'%2B'"));
                         HttpRequest poc3HttpRequest = sourceHttpRequest.withUpdatedParameters(poc3HttpParameters);
                         HttpRequestResponse httpSendRequestResponse3 = callMyRequest(poc3HttpRequest, 2);
                         String poc3ResponseBody = new String(httpSendRequestResponse3.response().body().getBytes(), StandardCharsets.UTF_8);
@@ -538,39 +537,39 @@ public class MyHttpHandler implements HttpHandler {
                     }
 
                     List<Double> oneDoubleList3 = MyCompare.averageJaccard(pocResponseBody, poc2ResponseBody);
-                    if (Collections.max(oneDoubleList3) <= 0.9) {
-                        continue;
-                    }
-                    for (int j = 0; j < 1; j++) {
-                        List<HttpParameter> poc3HttpParameters = new ArrayList<>(newHttpParameters);
-                        poc3HttpParameters.set(i, HttpParameter.urlParameter(paramName, paramValue + ",1"));
-                        HttpRequest poc3HttpRequest = sourceHttpRequest.withUpdatedParameters(poc3HttpParameters);
-                        HttpRequestResponse httpSendRequestResponse3 = callMyRequest(poc3HttpRequest, 2);
-                        String poc3ResponseBody = new String(httpSendRequestResponse3.response().body().getBytes(), StandardCharsets.UTF_8);
-                        List<Double> oneDoubleList4 = MyCompare.averageJaccard(sourceBody, poc3ResponseBody);
-                        if (Collections.max(oneDoubleList4) > 0.9) {
-                            String mySimimarity = MyCompare.formatPercent(Collections.max(oneDoubleList4));
-                            pocLogEntries.add(new PocLogEntry(paramName, ",1", mySimimarity, "ordersql", String.valueOf(httpSendRequestResponse3.response().bodyToString().length()), String.valueOf(httpSendRequestResponse3.response().statusCode()), String.format("%.3f", (httpSendRequestResponse3.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), httpSendRequestResponse3, requestSm3Hash));
-                            getAttackList.addAll(pocLogEntries);
-                            order_flag = true;
-                            continue orderloop;
+                    if (Collections.max(oneDoubleList3) > 0.9) {
+                        for (int j = 0; j < 1; j++) {
+                            List<HttpParameter> poc3HttpParameters = new ArrayList<>(newHttpParameters);
+                            poc3HttpParameters.set(i, HttpParameter.urlParameter(paramName, paramValue + ",1"));
+                            HttpRequest poc3HttpRequest = sourceHttpRequest.withUpdatedParameters(poc3HttpParameters);
+                            HttpRequestResponse httpSendRequestResponse3 = callMyRequest(poc3HttpRequest, 2);
+                            String poc3ResponseBody = new String(httpSendRequestResponse3.response().body().getBytes(), StandardCharsets.UTF_8);
+                            List<Double> oneDoubleList4 = MyCompare.averageJaccard(sourceBody, poc3ResponseBody);
+                            if (Collections.max(oneDoubleList4) > 0.9 && Collections.min(MyCompare.averageJaccard(pocResponseBody, poc3ResponseBody))<=0.9) {
+                                String mySimimarity = MyCompare.formatPercent(Collections.max(oneDoubleList4));
+                                pocLogEntries.add(new PocLogEntry(paramName, ",1", mySimimarity, "ordersql", String.valueOf(httpSendRequestResponse3.response().bodyToString().length()), String.valueOf(httpSendRequestResponse3.response().statusCode()), String.format("%.3f", (httpSendRequestResponse3.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), httpSendRequestResponse3, requestSm3Hash));
+                                getAttackList.addAll(pocLogEntries);
+                                order_flag = true;
+                                continue orderloop;
+                            }
                         }
-                    }
-                    for (int j = 0; j < 1; j++) {
-                        List<HttpParameter> poc4HttpParameters = new ArrayList<>(newHttpParameters);
-                        poc4HttpParameters.set(i, HttpParameter.urlParameter(paramName, paramValue + ",2"));
-                        HttpRequest poc4HttpRequest = sourceHttpRequest.withUpdatedParameters(poc4HttpParameters);
-                        HttpRequestResponse httpSendRequestResponse4 = callMyRequest(poc4HttpRequest, 2);
+                        for (int j = 0; j < 1; j++) {
+                            List<HttpParameter> poc4HttpParameters = new ArrayList<>(newHttpParameters);
+                            poc4HttpParameters.set(i, HttpParameter.urlParameter(paramName, paramValue + ",2"));
+                            HttpRequest poc4HttpRequest = sourceHttpRequest.withUpdatedParameters(poc4HttpParameters);
+                            HttpRequestResponse httpSendRequestResponse4 = callMyRequest(poc4HttpRequest, 2);
 
-                        String poc4ResponseBody = new String(httpSendRequestResponse4.response().body().getBytes(), StandardCharsets.UTF_8);
-                        List<Double> oneDoubleList5 = MyCompare.averageJaccard(sourceBody, poc4ResponseBody);
-                        if (Collections.max(oneDoubleList5) > 0.9) {
-                            String mySimimarityx = MyCompare.formatPercent(Collections.max(oneDoubleList5));
-                            pocLogEntries.add(new PocLogEntry(paramName, ",2", mySimimarityx, "ordersql", String.valueOf(httpSendRequestResponse4.response().bodyToString().length()), String.valueOf(httpSendRequestResponse4.response().statusCode()), String.format("%.3f", (httpSendRequestResponse4.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), httpSendRequestResponse4, requestSm3Hash));
-                            getAttackList.addAll(pocLogEntries);
-                            order_flag = true;
+                            String poc4ResponseBody = new String(httpSendRequestResponse4.response().body().getBytes(), StandardCharsets.UTF_8);
+                            List<Double> oneDoubleList5 = MyCompare.averageJaccard(sourceBody, poc4ResponseBody);
+                            if (Collections.max(oneDoubleList5) > 0.9&& Collections.min(MyCompare.averageJaccard(pocResponseBody, poc4ResponseBody))<=0.9) {
+                                String mySimimarityx = MyCompare.formatPercent(Collections.max(oneDoubleList5));
+                                pocLogEntries.add(new PocLogEntry(paramName, ",2", mySimimarityx, "ordersql", String.valueOf(httpSendRequestResponse4.response().bodyToString().length()), String.valueOf(httpSendRequestResponse4.response().statusCode()), String.format("%.3f", (httpSendRequestResponse4.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), httpSendRequestResponse4, requestSm3Hash));
+                                getAttackList.addAll(pocLogEntries);
+                                order_flag = true;
+                            }
                         }
                     }
+
 
                 }
             }
@@ -771,41 +770,41 @@ public class MyHttpHandler implements HttpHandler {
                         }
 
                         List<Double> oneDoubleList3 = MyCompare.averageJaccard(pocResponseBody, poc2ResponseBody);
-                        if (Collections.max(oneDoubleList3) <= 0.9) {
-                            continue;
-                        }
-                        for (int j = 0; j < 1; j++) {
-                            // ",1", ",2", ",TRUE"
-                            List<HttpParameter> poc3HttpParameters = new ArrayList<>(newHttpParameters);
-                            poc3HttpParameters.set(i, HttpParameter.bodyParameter(paramName, paramValue + ",1"));
-                            HttpRequest poc3HttpRequest = sourceHttpRequest.withUpdatedParameters(poc3HttpParameters);
-                            HttpRequestResponse httpSendRequestResponse3 = callMyRequest(poc3HttpRequest, 2);
+                        if (Collections.max(oneDoubleList3) > 0.9) {
+                            for (int j = 0; j < 1; j++) {
+                                // ",1", ",2", ",TRUE"
+                                List<HttpParameter> poc3HttpParameters = new ArrayList<>(newHttpParameters);
+                                poc3HttpParameters.set(i, HttpParameter.bodyParameter(paramName, paramValue + ",1"));
+                                HttpRequest poc3HttpRequest = sourceHttpRequest.withUpdatedParameters(poc3HttpParameters);
+                                HttpRequestResponse httpSendRequestResponse3 = callMyRequest(poc3HttpRequest, 2);
 
-                            String poc3ResponseBody = new String(httpSendRequestResponse3.response().body().getBytes(), StandardCharsets.UTF_8);
-                            List<Double> oneDoubleList4 = MyCompare.averageJaccard(sourceBody, poc3ResponseBody);
-                            if (Collections.max(oneDoubleList4) > 0.9) {
-                                String mySimimarity = MyCompare.formatPercent(Collections.max(oneDoubleList4));
-                                pocLogEntries.add(new PocLogEntry(paramName, ",1", mySimimarity, "ordersql", String.valueOf(httpSendRequestResponse3.response().bodyToString().length()), String.valueOf(httpSendRequestResponse3.response().statusCode()), String.format("%.3f", (httpSendRequestResponse3.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), httpSendRequestResponse3, requestSm3Hash));
-                                getAttackList.addAll(pocLogEntries);
-                                order_flag = true;
-                                continue orderloop;
+                                String poc3ResponseBody = new String(httpSendRequestResponse3.response().body().getBytes(), StandardCharsets.UTF_8);
+                                List<Double> oneDoubleList4 = MyCompare.averageJaccard(sourceBody, poc3ResponseBody);
+                                if (Collections.max(oneDoubleList4) > 0.9&& Collections.min(MyCompare.averageJaccard(pocResponseBody, poc3ResponseBody))<=0.9) {
+                                    String mySimimarity = MyCompare.formatPercent(Collections.max(oneDoubleList4));
+                                    pocLogEntries.add(new PocLogEntry(paramName, ",1", mySimimarity, "ordersql", String.valueOf(httpSendRequestResponse3.response().bodyToString().length()), String.valueOf(httpSendRequestResponse3.response().statusCode()), String.format("%.3f", (httpSendRequestResponse3.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), httpSendRequestResponse3, requestSm3Hash));
+                                    getAttackList.addAll(pocLogEntries);
+                                    order_flag = true;
+                                    continue orderloop;
+                                }
+                            }
+                            for (int k = 0; k < 1; k++) {
+                                List<HttpParameter> poc4HttpParameters = new ArrayList<>(newHttpParameters);
+                                poc4HttpParameters.set(i, HttpParameter.bodyParameter(paramName, paramValue + ",2"));
+                                HttpRequest poc4HttpRequest = sourceHttpRequest.withUpdatedParameters(poc4HttpParameters);
+                                HttpRequestResponse httpSendRequestResponse4 = callMyRequest(poc4HttpRequest, 2);
+
+                                String poc4ResponseBody = new String(httpSendRequestResponse4.response().body().getBytes(), StandardCharsets.UTF_8);
+                                List<Double> oneDoubleList5 = MyCompare.averageJaccard(sourceBody, poc4ResponseBody);
+                                if (Collections.max(oneDoubleList5) > 0.9&& Collections.min(MyCompare.averageJaccard(pocResponseBody, poc4ResponseBody))<=0.9) {
+                                    String mySimimarityx = MyCompare.formatPercent(Collections.max(oneDoubleList5));
+                                    pocLogEntries.add(new PocLogEntry(paramName, ",2", mySimimarityx, "ordersql", String.valueOf(httpSendRequestResponse4.response().bodyToString().length()), String.valueOf(httpSendRequestResponse4.response().statusCode()), String.format("%.3f", (httpSendRequestResponse4.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), httpSendRequestResponse4, requestSm3Hash));
+                                    getAttackList.addAll(pocLogEntries);
+                                    order_flag = true;
+                                }
                             }
                         }
-                        for (int k = 0; k < 1; k++) {
-                            List<HttpParameter> poc4HttpParameters = new ArrayList<>(newHttpParameters);
-                            poc4HttpParameters.set(i, HttpParameter.bodyParameter(paramName, paramValue + ",2"));
-                            HttpRequest poc4HttpRequest = sourceHttpRequest.withUpdatedParameters(poc4HttpParameters);
-                            HttpRequestResponse httpSendRequestResponse4 = callMyRequest(poc4HttpRequest, 2);
 
-                            String poc4ResponseBody = new String(httpSendRequestResponse4.response().body().getBytes(), StandardCharsets.UTF_8);
-                            List<Double> oneDoubleList5 = MyCompare.averageJaccard(sourceBody, poc4ResponseBody);
-                            if (Collections.max(oneDoubleList5) > 0.9) {
-                                String mySimimarityx = MyCompare.formatPercent(Collections.max(oneDoubleList5));
-                                pocLogEntries.add(new PocLogEntry(paramName, ",2", mySimimarityx, "ordersql", String.valueOf(httpSendRequestResponse4.response().bodyToString().length()), String.valueOf(httpSendRequestResponse4.response().statusCode()), String.format("%.3f", (httpSendRequestResponse4.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), httpSendRequestResponse4, requestSm3Hash));
-                                getAttackList.addAll(pocLogEntries);
-                                order_flag = true;
-                            }
-                        }
                     }
                 }
 
@@ -953,38 +952,38 @@ public class MyHttpHandler implements HttpHandler {
                             }
 
                             List<Double> oneDoubleList2 = MyCompare.averageJaccard(pocResponseBody, pocResponseBody1);
-                            if (Collections.max(oneDoubleList2) <= 0.9) {
-                                continue;
-                            }
-                            for (int i = 0; i < 1; i++) {
-                                // ",1", ",2",
-                                String pocBody2 = prefix + ",1" + suffix;
-                                HttpRequest pocHttpRequest2 = sourceHttpRequest.withBody(pocBody2);
-                                HttpRequestResponse pocHttpRequestResponse2 = callMyRequest(pocHttpRequest2, 2);
-                                String pocResponseBody2 = new String(pocHttpRequestResponse2.response().body().getBytes(), StandardCharsets.UTF_8);
-                                List<Double> oneDoubleList3 = MyCompare.averageJaccard(sourceBody, pocResponseBody2);
-                                if (Collections.max(oneDoubleList3) > 0.9) {
-                                    String mySimimarity = MyCompare.formatPercent(Collections.max(oneDoubleList3));
-                                    pocLogEntries.add(new PocLogEntry(paramName, ",1", mySimimarity, "ordersql", String.valueOf(pocHttpRequestResponse2.response().bodyToString().length()), String.valueOf(pocHttpRequestResponse2.response().statusCode()), String.format("%.3f", (pocHttpRequestResponse2.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), pocHttpRequestResponse2, requestSm3Hash));
-                                    getAttackList.addAll(pocLogEntries);
-                                    order_flag = true;
-                                    continue orderloop;
-                                }
+                            if (Collections.max(oneDoubleList2) > 0.9) {
+                                for (int i = 0; i < 1; i++) {
+                                    // ",1", ",2",
+                                    String pocBody2 = prefix + ",1" + suffix;
+                                    HttpRequest pocHttpRequest2 = sourceHttpRequest.withBody(pocBody2);
+                                    HttpRequestResponse pocHttpRequestResponse2 = callMyRequest(pocHttpRequest2, 2);
+                                    String pocResponseBody2 = new String(pocHttpRequestResponse2.response().body().getBytes(), StandardCharsets.UTF_8);
+                                    List<Double> oneDoubleList3 = MyCompare.averageJaccard(sourceBody, pocResponseBody2);
+                                    if (Collections.max(oneDoubleList3) > 0.9&& Collections.min(MyCompare.averageJaccard(pocResponseBody, pocResponseBody2))<=0.9) {
+                                        String mySimimarity = MyCompare.formatPercent(Collections.max(oneDoubleList3));
+                                        pocLogEntries.add(new PocLogEntry(paramName, ",1", mySimimarity, "ordersql", String.valueOf(pocHttpRequestResponse2.response().bodyToString().length()), String.valueOf(pocHttpRequestResponse2.response().statusCode()), String.format("%.3f", (pocHttpRequestResponse2.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), pocHttpRequestResponse2, requestSm3Hash));
+                                        getAttackList.addAll(pocLogEntries);
+                                        order_flag = true;
+                                        continue orderloop;
+                                    }
 
-                            }
-                            for (int i = 0; i < 1; i++) {
-                                String pocBody3 = prefix + ",2" + suffix;
-                                HttpRequest pocHttpRequest3 = sourceHttpRequest.withBody(pocBody3);
-                                HttpRequestResponse pocHttpRequestResponse3 = callMyRequest(pocHttpRequest3, 2);
-                                String pocResponseBody3 = new String(pocHttpRequestResponse3.response().body().getBytes(), StandardCharsets.UTF_8);
-                                List<Double> oneDoubleList4 = MyCompare.averageJaccard(sourceBody, pocResponseBody3);
-                                if (Collections.max(oneDoubleList4) > 0.9) {
-                                    String mySimimarityx = MyCompare.formatPercent(Collections.max(oneDoubleList4));
-                                    pocLogEntries.add(new PocLogEntry(paramName, ",2", mySimimarityx, "ordersql", String.valueOf(pocHttpRequestResponse3.response().bodyToString().length()), String.valueOf(pocHttpRequestResponse3.response().statusCode()), String.format("%.3f", (pocHttpRequestResponse3.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), pocHttpRequestResponse3, requestSm3Hash));
-                                    getAttackList.addAll(pocLogEntries);
-                                    order_flag = true;
+                                }
+                                for (int i = 0; i < 1; i++) {
+                                    String pocBody3 = prefix + ",2" + suffix;
+                                    HttpRequest pocHttpRequest3 = sourceHttpRequest.withBody(pocBody3);
+                                    HttpRequestResponse pocHttpRequestResponse3 = callMyRequest(pocHttpRequest3, 2);
+                                    String pocResponseBody3 = new String(pocHttpRequestResponse3.response().body().getBytes(), StandardCharsets.UTF_8);
+                                    List<Double> oneDoubleList4 = MyCompare.averageJaccard(sourceBody, pocResponseBody3);
+                                    if (Collections.max(oneDoubleList4) > 0.9&& Collections.min(MyCompare.averageJaccard(pocResponseBody, pocResponseBody3))<=0.9) {
+                                        String mySimimarityx = MyCompare.formatPercent(Collections.max(oneDoubleList4));
+                                        pocLogEntries.add(new PocLogEntry(paramName, ",2", mySimimarityx, "ordersql", String.valueOf(pocHttpRequestResponse3.response().bodyToString().length()), String.valueOf(pocHttpRequestResponse3.response().statusCode()), String.format("%.3f", (pocHttpRequestResponse3.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), pocHttpRequestResponse3, requestSm3Hash));
+                                        getAttackList.addAll(pocLogEntries);
+                                        order_flag = true;
+                                    }
                                 }
                             }
+
                         }
 
                     }
@@ -1194,38 +1193,38 @@ public class MyHttpHandler implements HttpHandler {
                             }
 
                             List<Double> oneDoubleList2 = MyCompare.averageJaccard(pocResponseBody, pocResponseBody1);
-                            if (Collections.max(oneDoubleList2) <= 0.9) {
-                                continue;
-                            }
-                            for (int i = 0; i < 1; i++) {
-                                // ",1", ",2",
-                                String pocBody2 = prefix + ",1" + suffix;
-                                HttpRequest pocHttpRequest2 = sourceHttpRequest.withBody(pocBody2);
-                                HttpRequestResponse pocHttpRequestResponse2 = callMyRequest(pocHttpRequest2, 2);
-                                String pocResponseBody2 = new String(pocHttpRequestResponse2.response().body().getBytes(), StandardCharsets.UTF_8);
-                                List<Double> oneDoubleList3 = MyCompare.averageJaccard(sourceBody, pocResponseBody2);
-                                if (Collections.max(oneDoubleList3) > 0.9) {
-                                    String mySimimarity = MyCompare.formatPercent(Collections.max(oneDoubleList3));
-                                    pocLogEntries.add(new PocLogEntry(paramName, ",1", mySimimarity, "ordersql", String.valueOf(pocHttpRequestResponse2.response().bodyToString().length()), String.valueOf(pocHttpRequestResponse2.response().statusCode()), String.format("%.3f", (pocHttpRequestResponse2.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), pocHttpRequestResponse2, requestSm3Hash));
-                                    getAttackList.addAll(pocLogEntries);
-                                    order_flag = true;
-                                    continue orderloop;
-                                }
+                            if (Collections.max(oneDoubleList2) > 0.9) {
+                                for (int i = 0; i < 1; i++) {
+                                    // ",1", ",2",
+                                    String pocBody2 = prefix + ",1" + suffix;
+                                    HttpRequest pocHttpRequest2 = sourceHttpRequest.withBody(pocBody2);
+                                    HttpRequestResponse pocHttpRequestResponse2 = callMyRequest(pocHttpRequest2, 2);
+                                    String pocResponseBody2 = new String(pocHttpRequestResponse2.response().body().getBytes(), StandardCharsets.UTF_8);
+                                    List<Double> oneDoubleList3 = MyCompare.averageJaccard(sourceBody, pocResponseBody2);
+                                    if (Collections.max(oneDoubleList3) > 0.9&& Collections.min(MyCompare.averageJaccard(pocResponseBody, pocResponseBody2))<=0.9) {
+                                        String mySimimarity = MyCompare.formatPercent(Collections.max(oneDoubleList3));
+                                        pocLogEntries.add(new PocLogEntry(paramName, ",1", mySimimarity, "ordersql", String.valueOf(pocHttpRequestResponse2.response().bodyToString().length()), String.valueOf(pocHttpRequestResponse2.response().statusCode()), String.format("%.3f", (pocHttpRequestResponse2.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), pocHttpRequestResponse2, requestSm3Hash));
+                                        getAttackList.addAll(pocLogEntries);
+                                        order_flag = true;
+                                        continue orderloop;
+                                    }
 
-                            }
-                            for (int i = 0; i < 1; i++) {
-                                String pocBody3 = prefix + ",2" + suffix;
-                                HttpRequest pocHttpRequest3 = sourceHttpRequest.withBody(pocBody3);
-                                HttpRequestResponse pocHttpRequestResponse3 = callMyRequest(pocHttpRequest3, 2);
-                                String pocResponseBody3 = new String(pocHttpRequestResponse3.response().body().getBytes(), StandardCharsets.UTF_8);
-                                List<Double> oneDoubleList4 = MyCompare.averageJaccard(sourceBody, pocResponseBody3);
-                                if (Collections.max(oneDoubleList4) > 0.9) {
-                                    String mySimimarityx = MyCompare.formatPercent(Collections.max(oneDoubleList4));
-                                    pocLogEntries.add(new PocLogEntry(paramName, ",2", mySimimarityx, "ordersql", String.valueOf(pocHttpRequestResponse3.response().bodyToString().length()), String.valueOf(pocHttpRequestResponse3.response().statusCode()), String.format("%.3f", (pocHttpRequestResponse3.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), pocHttpRequestResponse3, requestSm3Hash));
-                                    getAttackList.addAll(pocLogEntries);
-                                    order_flag = true;
+                                }
+                                for (int i = 0; i < 1; i++) {
+                                    String pocBody3 = prefix + ",2" + suffix;
+                                    HttpRequest pocHttpRequest3 = sourceHttpRequest.withBody(pocBody3);
+                                    HttpRequestResponse pocHttpRequestResponse3 = callMyRequest(pocHttpRequest3, 2);
+                                    String pocResponseBody3 = new String(pocHttpRequestResponse3.response().body().getBytes(), StandardCharsets.UTF_8);
+                                    List<Double> oneDoubleList4 = MyCompare.averageJaccard(sourceBody, pocResponseBody3);
+                                    if (Collections.max(oneDoubleList4) > 0.9&& Collections.min(MyCompare.averageJaccard(pocResponseBody, pocResponseBody3))<=0.9) {
+                                        String mySimimarityx = MyCompare.formatPercent(Collections.max(oneDoubleList4));
+                                        pocLogEntries.add(new PocLogEntry(paramName, ",2", mySimimarityx, "ordersql", String.valueOf(pocHttpRequestResponse3.response().bodyToString().length()), String.valueOf(pocHttpRequestResponse3.response().statusCode()), String.format("%.3f", (pocHttpRequestResponse3.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), pocHttpRequestResponse3, requestSm3Hash));
+                                        getAttackList.addAll(pocLogEntries);
+                                        order_flag = true;
+                                    }
                                 }
                             }
+
                         }
 
                     }
@@ -1421,39 +1420,39 @@ public class MyHttpHandler implements HttpHandler {
                         }
                     }
                     List<Double> oneDoubleList3 = MyCompare.averageJaccard(pocResponseBody, poc2ResponseBody);
-                    if (Collections.max(oneDoubleList3) <= 0.9) {
-                        continue;
-                    }
-                    for (int j = 0; j < 1; j++) {
-                        // ",1", ",2",
-                        List<HttpParameter> poc3HttpParameters = new ArrayList<>(newHttpParameters);
-                        poc3HttpParameters.set(i, HttpParameter.cookieParameter(paramName, paramValue + ",1"));
-                        HttpRequest poc3HttpRequest = sourceHttpRequest.withUpdatedParameters(poc3HttpParameters);
-                        HttpRequestResponse httpSendRequestResponse3 = callMyRequest(poc3HttpRequest, 2);
-                        String poc3ResponseBody = new String(httpSendRequestResponse3.response().body().getBytes(), StandardCharsets.UTF_8);
-                        List<Double> oneDoubleList4 = MyCompare.averageJaccard(sourceBody, poc3ResponseBody);
-                        if (Collections.max(oneDoubleList4) > 0.9) {
-                            String mySimimarity = MyCompare.formatPercent(Collections.max(oneDoubleList4));
-                            pocLogEntries.add(new PocLogEntry(paramName, ",1", mySimimarity, "ordersql", String.valueOf(httpSendRequestResponse3.response().bodyToString().length()), String.valueOf(httpSendRequestResponse3.response().statusCode()), String.format("%.3f", (httpSendRequestResponse3.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), httpSendRequestResponse3, requestSm3Hash));
-                            getAttackList.addAll(pocLogEntries);
-                            order_flag = true;
-                            continue orderloop;
+                    if (Collections.max(oneDoubleList3) > 0.9) {
+                        for (int j = 0; j < 1; j++) {
+                            // ",1", ",2",
+                            List<HttpParameter> poc3HttpParameters = new ArrayList<>(newHttpParameters);
+                            poc3HttpParameters.set(i, HttpParameter.cookieParameter(paramName, paramValue + ",1"));
+                            HttpRequest poc3HttpRequest = sourceHttpRequest.withUpdatedParameters(poc3HttpParameters);
+                            HttpRequestResponse httpSendRequestResponse3 = callMyRequest(poc3HttpRequest, 2);
+                            String poc3ResponseBody = new String(httpSendRequestResponse3.response().body().getBytes(), StandardCharsets.UTF_8);
+                            List<Double> oneDoubleList4 = MyCompare.averageJaccard(sourceBody, poc3ResponseBody);
+                            if (Collections.max(oneDoubleList4) > 0.9&& Collections.min(MyCompare.averageJaccard(pocResponseBody, poc3ResponseBody))<=0.9) {
+                                String mySimimarity = MyCompare.formatPercent(Collections.max(oneDoubleList4));
+                                pocLogEntries.add(new PocLogEntry(paramName, ",1", mySimimarity, "ordersql", String.valueOf(httpSendRequestResponse3.response().bodyToString().length()), String.valueOf(httpSendRequestResponse3.response().statusCode()), String.format("%.3f", (httpSendRequestResponse3.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), httpSendRequestResponse3, requestSm3Hash));
+                                getAttackList.addAll(pocLogEntries);
+                                order_flag = true;
+                                continue orderloop;
+                            }
+                        }
+                        for (int j = 0; j < 1; j++) {
+                            List<HttpParameter> poc4HttpParameters = new ArrayList<>(newHttpParameters);
+                            poc4HttpParameters.set(i, HttpParameter.cookieParameter(paramName, paramValue + ",2"));
+                            HttpRequest poc4HttpRequest = sourceHttpRequest.withUpdatedParameters(poc4HttpParameters);
+                            HttpRequestResponse httpSendRequestResponse4 = callMyRequest(poc4HttpRequest, 2);
+                            String poc4ResponseBody = new String(httpSendRequestResponse4.response().body().getBytes(), StandardCharsets.UTF_8);
+                            List<Double> oneDoubleList5 = MyCompare.averageJaccard(sourceBody, poc4ResponseBody);
+                            if (Collections.max(oneDoubleList5) > 0.9&& Collections.min(MyCompare.averageJaccard(pocResponseBody, poc4ResponseBody))<=0.9) {
+                                String mySimimarityx = MyCompare.formatPercent(Collections.max(oneDoubleList5));
+                                pocLogEntries.add(new PocLogEntry(paramName, ",2", mySimimarityx, "ordersql", String.valueOf(httpSendRequestResponse4.response().bodyToString().length()), String.valueOf(httpSendRequestResponse4.response().statusCode()), String.format("%.3f", (httpSendRequestResponse4.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), httpSendRequestResponse4, requestSm3Hash));
+                                getAttackList.addAll(pocLogEntries);
+                                order_flag = true;
+                            }
                         }
                     }
-                    for (int j = 0; j < 1; j++) {
-                        List<HttpParameter> poc4HttpParameters = new ArrayList<>(newHttpParameters);
-                        poc4HttpParameters.set(i, HttpParameter.cookieParameter(paramName, paramValue + ",2"));
-                        HttpRequest poc4HttpRequest = sourceHttpRequest.withUpdatedParameters(poc4HttpParameters);
-                        HttpRequestResponse httpSendRequestResponse4 = callMyRequest(poc4HttpRequest, 2);
-                        String poc4ResponseBody = new String(httpSendRequestResponse4.response().body().getBytes(), StandardCharsets.UTF_8);
-                        List<Double> oneDoubleList5 = MyCompare.averageJaccard(sourceBody, poc4ResponseBody);
-                        if (Collections.max(oneDoubleList5) > 0.9) {
-                            String mySimimarityx = MyCompare.formatPercent(Collections.max(oneDoubleList5));
-                            pocLogEntries.add(new PocLogEntry(paramName, ",2", mySimimarityx, "ordersql", String.valueOf(httpSendRequestResponse4.response().bodyToString().length()), String.valueOf(httpSendRequestResponse4.response().statusCode()), String.format("%.3f", (httpSendRequestResponse4.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), httpSendRequestResponse4, requestSm3Hash));
-                            getAttackList.addAll(pocLogEntries);
-                            order_flag = true;
-                        }
-                    }
+
                 }
             }
         }
