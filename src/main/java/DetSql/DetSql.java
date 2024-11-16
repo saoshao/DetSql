@@ -105,9 +105,28 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider {
         HttpRequestEditor requestViewer = userInterface.createHttpRequestEditor(READ_ONLY);
         HttpResponseEditor responseViewer = userInterface.createHttpResponseEditor(READ_ONLY);
         JTabbedPane tabbedPane2 = new JTabbedPane();
-        tabbedPane2.addTab("Request", requestViewer.uiComponent());
+        JPanel finRoot = new JPanel();
+        SpringLayout springLayout = new SpringLayout();
+        finRoot.setLayout(springLayout);
+        finRoot.add(requestViewer.uiComponent());
+        springLayout.putConstraint(SpringLayout.NORTH, requestViewer.uiComponent(), 0, SpringLayout.NORTH, finRoot);
+        springLayout.putConstraint(SpringLayout.WEST, requestViewer.uiComponent(), 0, SpringLayout.WEST,  finRoot);
+        springLayout.putConstraint(SpringLayout.EAST, requestViewer.uiComponent(), 0, SpringLayout.EAST,  finRoot);
+        //springLayout.putConstraint(SpringLayout.SOUTH, requestViewer.uiComponent(), 400, SpringLayout.NORTH,  finRoot);
+        springLayout.putConstraint(SpringLayout.SOUTH, requestViewer.uiComponent(), -125, SpringLayout.SOUTH,  finRoot);
+        tabbedPane2.addTab("Request", finRoot);
+
         JTabbedPane tabbedPane3 = new JTabbedPane();
-        tabbedPane3.addTab("Response", responseViewer.uiComponent());
+        JPanel rfinRoot = new JPanel();
+        SpringLayout rspringLayout = new SpringLayout();
+        rfinRoot.setLayout(rspringLayout);
+        rfinRoot.add(responseViewer.uiComponent());
+        rspringLayout.putConstraint(SpringLayout.NORTH, responseViewer.uiComponent(), 0, SpringLayout.NORTH, rfinRoot);
+        rspringLayout.putConstraint(SpringLayout.WEST, responseViewer.uiComponent(), 0, SpringLayout.WEST,  rfinRoot);
+        rspringLayout.putConstraint(SpringLayout.EAST, responseViewer.uiComponent(), 0, SpringLayout.EAST,  rfinRoot);
+        //springLayout.putConstraint(SpringLayout.SOUTH, requestViewer.uiComponent(), 400, SpringLayout.NORTH,  finRoot);
+        rspringLayout.putConstraint(SpringLayout.SOUTH, responseViewer.uiComponent(), -125, SpringLayout.SOUTH,  rfinRoot);
+        tabbedPane3.addTab("Response", rfinRoot);
         JTable table1 = new JTable(tableModel) {
             @Override
             public void changeSelection(int rowIndex, int columnIndex, boolean toggle, boolean extend) {
@@ -175,7 +194,8 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider {
                     splitPane3.setResizeWeight(0.5);
                     splitPane1.setBottomComponent(splitPane3);
                 }
-                tabbedPane1.addTab("DashBoard", splitPane1);
+
+                tabbedPane1.addTab("DashBoard",splitPane1);
 
                 //======== panel1 ========
                 tabbedPane1.addTab("Config", getConfigComponent());
@@ -198,8 +218,18 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider {
                 root.setPreferredSize(preferredSize);
             }
         }
+//        JPanel finRoot = new JPanel();
+//        SpringLayout springLayout = new SpringLayout();
+//        finRoot.setLayout(springLayout);
+//        finRoot.add(root);
+//        springLayout.putConstraint(SpringLayout.NORTH, root, 0, SpringLayout.NORTH, finRoot);
+//        springLayout.putConstraint(SpringLayout.WEST, root, 0, SpringLayout.WEST, finRoot);
+//        springLayout.putConstraint(SpringLayout.EAST, root, 0, SpringLayout.EAST, finRoot);
+//        springLayout.putConstraint(SpringLayout.SOUTH, root, 40, SpringLayout.SOUTH, finRoot);
+
         return root;
     }
+
 
     private Component getConfigComponent() {
         Container container = new JPanel();
