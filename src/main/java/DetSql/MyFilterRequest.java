@@ -1,5 +1,8 @@
-package DetSql;
+/*
+ * @saoshao<1224165231@qq.com>
+ */
 
+package DetSql;
 import burp.api.montoya.core.ToolType;
 import burp.api.montoya.http.handler.HttpResponseReceived;
 import burp.api.montoya.http.message.HttpRequestResponse;

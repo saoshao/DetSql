@@ -1,3 +1,6 @@
+/*
+ * @saoshao<1224165231@qq.com>
+ */
 package DetSql;
 
 import burp.api.montoya.BurpExtension;
@@ -18,6 +21,8 @@ import com.google.gson.JsonParser;
 import org.apache.commons.lang3.StringEscapeUtils;
 
 import javax.swing.*;
+import javax.swing.table.TableModel;
+import javax.swing.table.TableRowSorter;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -45,6 +50,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider {
     public static JCheckBox cookieChexk;
     public static JCheckBox errorChexk;
     public static JCheckBox vulnChexk;
+    public static JTable table1;
 
     @Override
     public void initialize(MontoyaApi montoyaApi) {
@@ -60,7 +66,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider {
         api.userInterface().registerContextMenuItemsProvider(this);
         api.logging().logToOutput("################################################");
         api.logging().logToOutput("[#]  load successfully");
-        api.logging().logToOutput("[#]  DetSql v1.3");
+        api.logging().logToOutput("[#]  DetSql v1.4");
         api.logging().logToOutput("[#]  Author: saoshao");
         api.logging().logToOutput("[#]  Email: 1224165231@qq.com");
         api.logging().logToOutput("[#]  Github: https://github.com/saoshao/DetSql");
@@ -125,10 +131,10 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider {
         rspringLayout.putConstraint(SpringLayout.EAST, responseViewer.uiComponent(), 0, SpringLayout.EAST,  rfinRoot);
         rspringLayout.putConstraint(SpringLayout.SOUTH, responseViewer.uiComponent(), -125, SpringLayout.SOUTH,  rfinRoot);
         tabbedPane3.addTab("Response", rfinRoot);
-        JTable table1 = new JTable(tableModel) {
+        table1 = new JTable(tableModel) {
             @Override
             public void changeSelection(int rowIndex, int columnIndex, boolean toggle, boolean extend) {
-                SourceLogEntry logEntry = tableModel.get(rowIndex);
+                SourceLogEntry logEntry = tableModel.get(DetSql.table1.convertRowIndexToModel(rowIndex));
                 if (logEntry.getHttpRequestResponse() != null) {
                     requestViewer.setRequest(logEntry.getHttpRequestResponse().request());
                     responseViewer.setResponse(logEntry.getHttpRequestResponse().response());
@@ -141,6 +147,35 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider {
 
             }
         };
+        //table1.setRowSorter(null);
+//        if(tableModel.getRowCount()>0){
+//            table1.setAutoCreateRowSorter(true);
+//            tableModel.fireTableDataChanged();
+//        }
+
+//        //设置点击表头，数据自动排序
+        TableRowSorter<SourceTableModel> sorter = new TableRowSorter<>(tableModel);
+//        //获得列的数量
+//        //int columnCount = tableModel.getColumnCount();
+//            //这里可以根据需要修改
+        sorter.setComparator(0, new Comparator<Object>() {
+            @Override
+            public int compare(Object o1, Object o2) {
+                String str1 = o1.toString();
+                String str2 = o2.toString();
+                return Integer.parseInt(str1)-Integer.parseInt(str2);
+            }
+        });
+        sorter.setComparator(5, new Comparator<Object>() {
+            @Override
+            public int compare(Object o1, Object o2) {
+                String str1 = o1.toString();
+                String str2 = o2.toString();
+                return Integer.parseInt(str1)-Integer.parseInt(str2);
+            }
+        });
+//
+        table1.setRowSorter(sorter);
         JTable table2 = new JTable(pocTableModel) {
             @Override
             public void changeSelection(int rowIndex, int columnIndex, boolean toggle, boolean extend) {

@@ -1,9 +1,5 @@
 /*
- * Copyright (c) 2023. PortSwigger Ltd. All rights reserved.
- *
- * This code may be used to extend the functionality of Burp Suite Community Edition
- * and Burp Suite Professional, provided that this usage does not violate the
- * license terms for those products.
+ * @saoshao<1224165231@qq.com>
  */
 
 package DetSql;
@@ -19,6 +15,14 @@ public class SourceTableModel extends AbstractTableModel {
     public SourceTableModel() {
         this.log = new ArrayList<>();
     }
+
+//    @Override
+//    public Class<?> getColumnClass(int columnIndex) {
+//        if(columnIndex==0){
+//            return Integer.class;
+//        }
+//        return super.getColumnClass(columnIndex);
+//    }
 
     @Override
     public synchronized int getRowCount() {
@@ -67,9 +71,14 @@ public class SourceTableModel extends AbstractTableModel {
         fireTableRowsInserted(index, index);
     }
 
-    public synchronized void add2(SourceLogEntry logEntry, int index) {
+    public synchronized void addx(SourceLogEntry logEntry, int index) {
         log.set(index, logEntry);
+
         fireTableRowsInserted(index, index);
+    }
+    public synchronized void add2(SourceLogEntry logEntry, int index,int viewindex) {
+        log.set(index, logEntry);
+        fireTableCellUpdated(viewindex,6);
     }
     public synchronized SourceLogEntry get(int rowIndex) {
         return log.get(rowIndex);

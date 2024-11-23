@@ -1,9 +1,5 @@
 /*
- * Copyright (c) 2023. PortSwigger Ltd. All rights reserved.
- *
- * This code may be used to extend the functionality of Burp Suite Community Edition
- * and Burp Suite Professional, provided that this usage does not violate the
- * license terms for those products.
+ * @saoshao<1224165231@qq.com>
  */
 
 package DetSql;
