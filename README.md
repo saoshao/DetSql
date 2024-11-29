@@ -143,13 +143,15 @@
 
 ![](https://files.mdnice.com/user/72769/7d7e68ae-69a9-4a98-8966-793593771004.png)
 
+<br/>
+
 >删除日志页面
 
 为方便分析，dashboard处添加了右键删除日志的功能，可删除选择的日志；或者删除不存在漏洞的所有日志，包括vulnstate值为空和手动停止的日志
 
 ![](https://files.mdnice.com/user/72769/b2c16b68-1e07-4fb8-9341-d472b73c3449.png)
-<br/>
 
+<br/>
 
 ## 辅助面板（codetool）
 
