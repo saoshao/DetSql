@@ -149,7 +149,7 @@
 
 为方便分析，dashboard处添加了右键删除日志的功能，可删除选择的日志；或者删除不存在漏洞的所有日志，包括vulnstate值为空和手动停止的日志
 
-![](https://files.mdnice.com/user/72769/b2c16b68-1e07-4fb8-9341-d472b73c3449.png)
+![f99e1a2b56245c44581f1f0d0a63610](https://github.com/user-attachments/assets/d6e61b73-a9ee-4bd3-b577-c3711a7f9db7)
 
 <br/>
 
