@@ -15,8 +15,6 @@ import java.util.List;
 import java.util.Set;
 
 public class MyFilterRequest {
-
-
     public static Set<String> whiteListSet = new HashSet<>();
 
     public static Set<String> blackListSet = new HashSet<>();

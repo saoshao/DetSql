@@ -7,6 +7,7 @@ import burp.api.montoya.BurpExtension;
 import burp.api.montoya.MontoyaApi;
 import burp.api.montoya.core.ByteArray;
 import burp.api.montoya.http.message.HttpRequestResponse;
+import burp.api.montoya.http.message.requests.HttpRequest;
 import burp.api.montoya.ui.UserInterface;
 import burp.api.montoya.ui.contextmenu.ContextMenuEvent;
 import burp.api.montoya.ui.contextmenu.ContextMenuItemsProvider;
@@ -21,11 +22,15 @@ import com.google.gson.JsonParser;
 import org.apache.commons.lang3.StringEscapeUtils;
 
 import javax.swing.*;
+import javax.swing.event.PopupMenuEvent;
+import javax.swing.event.PopupMenuListener;
 import javax.swing.table.TableModel;
 import javax.swing.table.TableRowSorter;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
@@ -41,6 +46,8 @@ import java.util.regex.Pattern;
 
 import static burp.api.montoya.ui.editor.EditorOptions.READ_ONLY;
 
+import javax.swing.event.MouseInputListener;
+
 public class DetSql implements BurpExtension, ContextMenuItemsProvider {
     MontoyaApi api;
     public MyHttpHandler myHttpHandler;
@@ -51,6 +58,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider {
     public static JCheckBox errorChexk;
     public static JCheckBox vulnChexk;
     public static JTable table1;
+
 
     @Override
     public void initialize(MontoyaApi montoyaApi) {
@@ -66,7 +74,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider {
         api.userInterface().registerContextMenuItemsProvider(this);
         api.logging().logToOutput("################################################");
         api.logging().logToOutput("[#]  load successfully");
-        api.logging().logToOutput("[#]  DetSql v1.4");
+        api.logging().logToOutput("[#]  DetSql v1.5");
         api.logging().logToOutput("[#]  Author: saoshao");
         api.logging().logToOutput("[#]  Email: 1224165231@qq.com");
         api.logging().logToOutput("[#]  Github: https://github.com/saoshao/DetSql");
@@ -116,9 +124,9 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider {
         finRoot.setLayout(springLayout);
         finRoot.add(requestViewer.uiComponent());
         springLayout.putConstraint(SpringLayout.NORTH, requestViewer.uiComponent(), 0, SpringLayout.NORTH, finRoot);
-        springLayout.putConstraint(SpringLayout.WEST, requestViewer.uiComponent(), 0, SpringLayout.WEST,  finRoot);
-        springLayout.putConstraint(SpringLayout.EAST, requestViewer.uiComponent(), 0, SpringLayout.EAST,  finRoot);
-        springLayout.putConstraint(SpringLayout.SOUTH, requestViewer.uiComponent(), -125, SpringLayout.SOUTH,  finRoot);
+        springLayout.putConstraint(SpringLayout.WEST, requestViewer.uiComponent(), 0, SpringLayout.WEST, finRoot);
+        springLayout.putConstraint(SpringLayout.EAST, requestViewer.uiComponent(), 0, SpringLayout.EAST, finRoot);
+        springLayout.putConstraint(SpringLayout.SOUTH, requestViewer.uiComponent(), -125, SpringLayout.SOUTH, finRoot);
         tabbedPane2.addTab("Request", finRoot);
 
         JTabbedPane tabbedPane3 = new JTabbedPane();
@@ -127,9 +135,9 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider {
         rfinRoot.setLayout(rspringLayout);
         rfinRoot.add(responseViewer.uiComponent());
         rspringLayout.putConstraint(SpringLayout.NORTH, responseViewer.uiComponent(), 0, SpringLayout.NORTH, rfinRoot);
-        rspringLayout.putConstraint(SpringLayout.WEST, responseViewer.uiComponent(), 0, SpringLayout.WEST,  rfinRoot);
-        rspringLayout.putConstraint(SpringLayout.EAST, responseViewer.uiComponent(), 0, SpringLayout.EAST,  rfinRoot);
-        rspringLayout.putConstraint(SpringLayout.SOUTH, responseViewer.uiComponent(), -125, SpringLayout.SOUTH,  rfinRoot);
+        rspringLayout.putConstraint(SpringLayout.WEST, responseViewer.uiComponent(), 0, SpringLayout.WEST, rfinRoot);
+        rspringLayout.putConstraint(SpringLayout.EAST, responseViewer.uiComponent(), 0, SpringLayout.EAST, rfinRoot);
+        rspringLayout.putConstraint(SpringLayout.SOUTH, responseViewer.uiComponent(), -125, SpringLayout.SOUTH, rfinRoot);
         tabbedPane3.addTab("Response", rfinRoot);
         table1 = new JTable(tableModel) {
             @Override
@@ -139,10 +147,14 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider {
                     requestViewer.setRequest(logEntry.getHttpRequestResponse().request());
                     responseViewer.setResponse(logEntry.getHttpRequestResponse().response());
                     super.changeSelection(rowIndex, columnIndex, toggle, extend);
+                    String sm3Hash = logEntry.getMyHash();
+                    List<PocLogEntry> pocLogEntries = myHttpHandler.attackMap.get(sm3Hash);
+                    pocTableModel.add(pocLogEntries);
+                }else{
+                    requestViewer.setRequest(HttpRequest.httpRequest());
+                    super.changeSelection(rowIndex, columnIndex, toggle, extend);
                 }
-                String sm3Hash = logEntry.getMyHash();
-                List<PocLogEntry> pocLogEntries = myHttpHandler.attackMap.get(sm3Hash);
-                pocTableModel.add(pocLogEntries);
+
 
 
             }
@@ -163,7 +175,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider {
             public int compare(Object o1, Object o2) {
                 String str1 = o1.toString();
                 String str2 = o2.toString();
-                return Integer.parseInt(str1)-Integer.parseInt(str2);
+                return Integer.parseInt(str1) - Integer.parseInt(str2);
             }
         });
         sorter.setComparator(5, new Comparator<Object>() {
@@ -171,11 +183,81 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider {
             public int compare(Object o1, Object o2) {
                 String str1 = o1.toString();
                 String str2 = o2.toString();
-                return Integer.parseInt(str1)-Integer.parseInt(str2);
+                return Integer.parseInt(str1) - Integer.parseInt(str2);
             }
         });
 //
         table1.setRowSorter(sorter);
+        table1.setEnabled(true);
+        table1.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
+        final JPopupMenu popupMenu = new JPopupMenu();
+        JMenuItem menuItem1 = new JMenuItem("delete selected rows");
+        JMenuItem menuItem2 = new JMenuItem("delete novuln history");
+        popupMenu.add(menuItem1);
+        popupMenu.add(menuItem2);
+        menuItem1.addActionListener(e -> {
+            api.logging().logToOutput("delete selected rows");
+            int[] selectedRows = table1.getSelectedRows();
+            for (int i = selectedRows.length - 1; i >= 0; i--) {
+                if (sourceTableModel.getValueAt(table1.convertRowIndexToModel(selectedRows[i]),6).equals("")||sourceTableModel.getValueAt(table1.convertRowIndexToModel(selectedRows[i]),6).equals("手动停止")){
+                    api.logging().logToOutput("rows:"+selectedRows[i]);
+                    api.logging().logToOutput("ID:"+table1.convertRowIndexToModel(selectedRows[i]));
+                    sourceTableModel.log.remove(new SourceLogEntry((int)sourceTableModel.getValueAt(table1.convertRowIndexToModel(selectedRows[i]),0),null,null,null,0,null,null,null,null));
+                    tableModel.fireTableRowsDeleted(selectedRows[i],selectedRows[i]);
+                }
+
+
+            }
+            api.logging().logToOutput("left id：");
+            for (SourceLogEntry sourceLogEntry : sourceTableModel.log) {
+                api.logging().logToOutput(sourceLogEntry.getId()+"");
+            }
+        });
+        menuItem2.addActionListener(e -> {
+            for (int i = sourceTableModel.log.size() - 1; i >= 0; i--) {
+                if (sourceTableModel.getValueAt(table1.convertRowIndexToModel(i),6).equals("")||sourceTableModel.getValueAt(table1.convertRowIndexToModel(i),6).equals("手动停止")){
+                    api.logging().logToOutput("rows:"+i);
+                    api.logging().logToOutput("ID:"+table1.convertRowIndexToModel(i));
+                    sourceTableModel.log.remove(new SourceLogEntry((int)sourceTableModel.getValueAt(table1.convertRowIndexToModel(i),0),null,null,null,0,null,null,null,null));
+                    tableModel.fireTableRowsDeleted(i,i);
+                }
+
+
+            }
+        });
+// 为弹出菜单添加事件监听器
+        popupMenu.addPopupMenuListener(new PopupMenuListener() {
+            @Override
+            public void popupMenuWillBecomeVisible(PopupMenuEvent e) {
+                // 当菜单即将可见时的处理逻辑
+            }
+
+            @Override
+            public void popupMenuWillBecomeInvisible(PopupMenuEvent e) {
+                // 当菜单即将不可见时的处理逻辑
+            }
+
+            @Override
+            public void popupMenuCanceled(PopupMenuEvent e) {
+                // 当右键点击但未显示菜单（例如点击其他地方）时的处理逻辑
+            }
+        });
+// 为JTable添加鼠标监听器来显示弹出菜单
+        table1.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                if (e.isPopupTrigger()) {
+                    popupMenu.show(table1, e.getX(), e.getY());
+                }
+            }
+
+            @Override
+            public void mousePressed(MouseEvent e) {
+                if (e.isPopupTrigger()) {
+                    popupMenu.show(table1, e.getX(), e.getY());
+                }
+            }
+        });
         JTable table2 = new JTable(pocTableModel) {
             @Override
             public void changeSelection(int rowIndex, int columnIndex, boolean toggle, boolean extend) {
@@ -228,7 +310,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider {
                     splitPane1.setBottomComponent(splitPane3);
                 }
 
-                tabbedPane1.addTab("DashBoard",splitPane1);
+                tabbedPane1.addTab("DashBoard", splitPane1);
 
                 //======== panel1 ========
                 tabbedPane1.addTab("Config", getConfigComponent());
@@ -262,6 +344,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider {
 
         return root;
     }
+
 
 
     private Component getConfigComponent() {

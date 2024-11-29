@@ -76,11 +76,12 @@ public class SourceTableModel extends AbstractTableModel {
 
         fireTableRowsInserted(index, index);
     }
-    public synchronized void add2(SourceLogEntry logEntry, int index,int viewindex) {
-        log.set(index, logEntry);
+    public synchronized void add2(SourceLogEntry sourceLogEntry, int index,int viewindex) {
+        log.set(index,sourceLogEntry);
         fireTableCellUpdated(viewindex,6);
     }
     public synchronized SourceLogEntry get(int rowIndex) {
         return log.get(rowIndex);
     }
+
 }

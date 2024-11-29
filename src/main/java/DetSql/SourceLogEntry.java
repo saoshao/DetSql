@@ -100,4 +100,11 @@ public class SourceLogEntry {
         this.method = method;
         this.path = path;
     }
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        SourceLogEntry comSource = (SourceLogEntry) o;
+        return id == comSource.id;
+    }
 }

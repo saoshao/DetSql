@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="0837a292-8016-4607-b749-b5b165f58135" name="更改" comment="Update 1.3">
+    <list default="true" id="0837a292-8016-4607-b749-b5b165f58135" name="更改" comment="Update 1.4">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/pom.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/DetSql/DetSql.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/DetSql/DetSql.java" afterDir="false" />
@@ -65,16 +65,16 @@
     &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
     &quot;git-widget-placeholder&quot;: &quot;master&quot;,
     &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;D:/javatest/hellomaven/hellomaven&quot;,
+    &quot;last_opened_file_path&quot;: &quot;D:/javatest/practice&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
     &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
     &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
     &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
     &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
     &quot;onboarding.tips.debug.path&quot;: &quot;D:/javatest/DetSql/DetSql/src/main/java/DetSql/Main.java&quot;,
-    &quot;project.structure.last.edited&quot;: &quot;工件&quot;,
+    &quot;project.structure.last.edited&quot;: &quot;模块&quot;,
     &quot;project.structure.proportion&quot;: &quot;0.0&quot;,
-    &quot;project.structure.side.proportion&quot;: &quot;0.0&quot;,
+    &quot;project.structure.side.proportion&quot;: &quot;0.2&quot;,
     &quot;run.code.analysis.last.selected.profile&quot;: &quot;pProject Default&quot;,
     &quot;settings.editor.selected.configurable&quot;: &quot;project.propVCSSupport.CommitDialog&quot;,
     &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;,
@@ -138,7 +138,11 @@
       <workItem from="1731756682762" duration="9727000" />
       <workItem from="1732284531679" duration="6766000" />
       <workItem from="1732339416230" duration="3284000" />
-      <workItem from="1732347951858" duration="10109000" />
+      <workItem from="1732347951858" duration="11392000" />
+      <workItem from="1732539471876" duration="5185000" />
+      <workItem from="1732630372855" duration="5794000" />
+      <workItem from="1732704047454" duration="11943000" />
+      <workItem from="1732870321582" duration="493000" />
     </task>
     <task id="LOCAL-00001" summary="first commit">
       <option name="closed" value="true" />
@@ -444,7 +448,15 @@
       <option name="project" value="LOCAL" />
       <updated>1731765986207</updated>
     </task>
-    <option name="localTasksCounter" value="39" />
+    <task id="LOCAL-00039" summary="Update 1.4">
+      <option name="closed" value="true" />
+      <created>1732363176473</created>
+      <option name="number" value="00039" />
+      <option name="presentableId" value="LOCAL-00039" />
+      <option name="project" value="LOCAL" />
+      <updated>1732363176473</updated>
+    </task>
+    <option name="localTasksCounter" value="40" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -471,7 +483,8 @@
     <MESSAGE value="Update 1.2" />
     <MESSAGE value="Update README.md" />
     <MESSAGE value="Update 1.3" />
-    <option name="LAST_COMMIT_MESSAGE" value="Update 1.3" />
+    <MESSAGE value="Update 1.4" />
+    <option name="LAST_COMMIT_MESSAGE" value="Update 1.4" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

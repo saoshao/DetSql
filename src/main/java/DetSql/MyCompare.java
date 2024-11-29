@@ -141,8 +141,8 @@ public class MyCompare {
             list.add(0.0);
         } else if (Math.abs(s1.length() - s2.length()) >= 100) {
             list.add(0.9);
-            double levenshtein = levenshtein(s1, s2);
-            list.add(levenshtein);
+//            double levenshtein = levenshtein(s1, s2);
+//            list.add(levenshtein);
         } else {
             double levenshtein = levenshtein(s1, s2);
             list.add(levenshtein);
@@ -159,8 +159,8 @@ public class MyCompare {
             list.add(0.0);
         } else if (Math.abs(s1.length() - s2.length()) >= 100) {
             list.add(0.9);
-            double jaccard = jaccard(s1, s2);
-            list.add(jaccard);
+//            double jaccard = jaccard(s1, s2);
+//            list.add(jaccard);
         } else {
             double jaccard = jaccard(s1, s2);
             list.add(jaccard);
