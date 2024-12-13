@@ -6,7 +6,11 @@ package DetSql;
 import burp.api.montoya.BurpExtension;
 import burp.api.montoya.MontoyaApi;
 import burp.api.montoya.core.ByteArray;
+import burp.api.montoya.http.handler.HttpResponseReceived;
 import burp.api.montoya.http.message.HttpRequestResponse;
+import burp.api.montoya.http.message.params.HttpParameter;
+import burp.api.montoya.http.message.params.HttpParameterType;
+import burp.api.montoya.http.message.params.ParsedHttpParameter;
 import burp.api.montoya.http.message.requests.HttpRequest;
 import burp.api.montoya.ui.UserInterface;
 import burp.api.montoya.ui.contextmenu.ContextMenuEvent;
@@ -74,7 +78,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider {
         api.userInterface().registerContextMenuItemsProvider(this);
         api.logging().logToOutput("################################################");
         api.logging().logToOutput("[#]  load successfully");
-        api.logging().logToOutput("[#]  DetSql v1.5");
+        api.logging().logToOutput("[#]  DetSql v1.6");
         api.logging().logToOutput("[#]  Author: saoshao");
         api.logging().logToOutput("[#]  Email: 1224165231@qq.com");
         api.logging().logToOutput("[#]  Github: https://github.com/saoshao/DetSql");
@@ -86,8 +90,12 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider {
         List<Component> listMenuItems = new ArrayList<>();
         JMenu jMenu2 = new JMenu("DetSql");
         JMenuItem menuItem2 = new JMenuItem("end this data");
+        JMenuItem menuItem3 = new JMenuItem("send to DetSql");
+
         listMenuItems.add(jMenu2);
         jMenu2.add(menuItem2);
+        jMenu2.add(menuItem3);
+
         menuItem2.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent actionEvent) {
@@ -102,6 +110,13 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider {
                         break;
                     }
                 }
+            }
+        });
+        menuItem3.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                HttpRequestResponse selectHttpRequestResponse = event.messageEditorRequestResponse().get().requestResponse();
+                myHttpHandler.createProcessThread(selectHttpRequestResponse);
             }
         });
         return listMenuItems;
@@ -196,22 +211,22 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider {
         popupMenu.add(menuItem1);
         popupMenu.add(menuItem2);
         menuItem1.addActionListener(e -> {
-            api.logging().logToOutput("delete selected rows");
+            //api.logging().logToOutput("delete selected rows");
             int[] selectedRows = table1.getSelectedRows();
             for (int i = selectedRows.length - 1; i >= 0; i--) {
-                if (sourceTableModel.getValueAt(table1.convertRowIndexToModel(selectedRows[i]),6).equals("")||sourceTableModel.getValueAt(table1.convertRowIndexToModel(selectedRows[i]),6).equals("手动停止")){
-                    api.logging().logToOutput("rows:"+selectedRows[i]);
-                    api.logging().logToOutput("ID:"+table1.convertRowIndexToModel(selectedRows[i]));
+                if (!sourceTableModel.getValueAt(table1.convertRowIndexToModel(selectedRows[i]),6).equals("run")){
+                    //api.logging().logToOutput("rows:"+selectedRows[i]);
+                    //api.logging().logToOutput("ID:"+table1.convertRowIndexToModel(selectedRows[i]));
                     sourceTableModel.log.remove(new SourceLogEntry((int)sourceTableModel.getValueAt(table1.convertRowIndexToModel(selectedRows[i]),0),null,null,null,0,null,null,null,null));
                     tableModel.fireTableRowsDeleted(selectedRows[i],selectedRows[i]);
                 }
 
 
             }
-            api.logging().logToOutput("left id：");
-            for (SourceLogEntry sourceLogEntry : sourceTableModel.log) {
-                api.logging().logToOutput(sourceLogEntry.getId()+"");
-            }
+            //api.logging().logToOutput("left id：");
+//            for (SourceLogEntry sourceLogEntry : sourceTableModel.log) {
+//                api.logging().logToOutput(sourceLogEntry.getId()+"");
+//            }
         });
         menuItem2.addActionListener(e -> {
             for (int i = sourceTableModel.log.size() - 1; i >= 0; i--) {
