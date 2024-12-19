@@ -52,7 +52,7 @@ import static burp.api.montoya.ui.editor.EditorOptions.READ_ONLY;
 
 import javax.swing.event.MouseInputListener;
 
-public class DetSql implements BurpExtension, ContextMenuItemsProvider {
+public class DetSql implements BurpExtension, ContextMenuItemsProvider{
     MontoyaApi api;
     public MyHttpHandler myHttpHandler;
     public SourceTableModel sourceTableModel;
@@ -63,6 +63,11 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider {
     public static JCheckBox vulnChexk;
     public static JTable table1;
 
+
+    public static JTextField textField;
+    public static JTextField blackTextField;
+    public static JTextField suffixTextField;
+    public static JTextField errorPocTextField;
 
     @Override
     public void initialize(MontoyaApi montoyaApi) {
@@ -75,10 +80,52 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider {
         attackMap = new ConcurrentHashMap<>();
         myHttpHandler = new MyHttpHandler(api, sourceTableModel, pocTableModel, attackMap);
         api.http().registerHttpHandler(myHttpHandler);
+        api.extension().registerUnloadingHandler(new MyExtensionUnloadingHandler());
         api.userInterface().registerContextMenuItemsProvider(this);
+
+        Properties prop = new Properties();
+        try {
+            FileReader fileReader = new FileReader(System.getProperty("user.home")+ File.separator+"DetSqlConfig.txt");
+            prop.load(fileReader);
+            textField.setText(prop.getProperty("whitelist", ""));
+            if (!prop.getProperty("whitelist", "").isBlank()) {
+                MyFilterRequest.whiteListSet = new HashSet<>(Arrays.asList(prop.getProperty("whitelist", "").split("\\|")));
+            } else {
+                MyFilterRequest.whiteListSet = new HashSet<>();
+            }
+            blackTextField.setText(prop.getProperty("blacklist", ""));
+            if (!prop.getProperty("blacklist", "").isBlank()) {
+                MyFilterRequest.blackListSet = new HashSet<>(Arrays.asList(prop.getProperty("blacklist", "").split("\\|")));
+            } else {
+                MyFilterRequest.blackListSet = new HashSet<>();
+            }
+            suffixTextField.setText(prop.getProperty("suffixlist", "wma|csv|mov|doc|3g2|mp4|7z|3gp|xbm|jar|avi|ogv|mpv2|tiff|pnm|jpg|xpm|xul|epub|au|aac|midi|weba|tar|js|rtf|bin|woff|wmv|tif|css|gif|flv|ttf|html|eot|ods|odt|webm|mpg|mjs|bz|ics|ras|aifc|mpa|ppt|mpeg|pptx|oga|ra|aiff|asf|woff2|snd|xwd|csh|webp|xlsx|mpkg|vsd|mid|wav|svg|mp3|bz2|ico|jpe|pbm|gz|pdf|log|jpeg|rmi|txt|arc|rm|ppm|cod|jfif|ram|docx|mpe|odp|otf|pgm|cmx|m3u|mp2|cab|rar|bmp|rgb|png|azw|ogx|aif|zip|ief|htm|xls|mpp|swf|rmvb|abw"));
+            if (!prop.getProperty("suffixlist", "wma|csv|mov|doc|3g2|mp4|7z|3gp|xbm|jar|avi|ogv|mpv2|tiff|pnm|jpg|xpm|xul|epub|au|aac|midi|weba|tar|js|rtf|bin|woff|wmv|tif|css|gif|flv|ttf|html|eot|ods|odt|webm|mpg|mjs|bz|ics|ras|aifc|mpa|ppt|mpeg|pptx|oga|ra|aiff|asf|woff2|snd|xwd|csh|webp|xlsx|mpkg|vsd|mid|wav|svg|mp3|bz2|ico|jpe|pbm|gz|pdf|log|jpeg|rmi|txt|arc|rm|ppm|cod|jfif|ram|docx|mpe|odp|otf|pgm|cmx|m3u|mp2|cab|rar|bmp|rgb|png|azw|ogx|aif|zip|ief|htm|xls|mpp|swf|rmvb|abw").isBlank()) {
+                MyFilterRequest.unLegalExtensionSet = new HashSet<>(Arrays.asList(prop.getProperty("suffixlist", "wma|csv|mov|doc|3g2|mp4|7z|3gp|xbm|jar|avi|ogv|mpv2|tiff|pnm|jpg|xpm|xul|epub|au|aac|midi|weba|tar|js|rtf|bin|woff|wmv|tif|css|gif|flv|ttf|html|eot|ods|odt|webm|mpg|mjs|bz|ics|ras|aifc|mpa|ppt|mpeg|pptx|oga|ra|aiff|asf|woff2|snd|xwd|csh|webp|xlsx|mpkg|vsd|mid|wav|svg|mp3|bz2|ico|jpe|pbm|gz|pdf|log|jpeg|rmi|txt|arc|rm|ppm|cod|jfif|ram|docx|mpe|odp|otf|pgm|cmx|m3u|mp2|cab|rar|bmp|rgb|png|azw|ogx|aif|zip|ief|htm|xls|mpp|swf|rmvb|abw").split("\\|")));
+            } else {
+                MyFilterRequest.unLegalExtensionSet = new HashSet<>(Arrays.asList("wma", "csv", "mov", "doc", "3g2", "mp4", "7z", "3gp", "xbm", "jar", "avi", "ogv", "mpv2", "tiff", "pnm", "jpg", "xpm", "xul", "epub", "au", "aac", "midi", "weba", "tar", "js", "rtf", "bin", "woff", "wmv", "tif", "css", "gif", "flv", "ttf", "html", "eot", "ods", "odt", "webm", "mpg", "mjs", "bz", "ics", "ras", "aifc", "mpa", "ppt", "mpeg", "pptx", "oga", "ra", "aiff", "asf", "woff2", "snd", "xwd", "csh", "webp", "xlsx", "mpkg", "vsd", "mid", "wav", "svg", "mp3", "bz2", "ico", "jpe", "pbm", "gz", "pdf", "log", "jpeg", "rmi", "txt", "arc", "rm", "ppm", "cod", "jfif", "ram", "docx", "mpe", "odp", "otf", "pgm", "cmx", "m3u", "mp2", "cab", "rar", "bmp", "rgb", "png", "azw", "ogx", "aif", "zip", "ief", "htm", "xls", "mpp", "swf", "rmvb", "abw"));
+            }
+            errorPocTextField.setText(prop.getProperty("errpoclist", ""));
+            if (!prop.getProperty("errpoclist", "").isBlank()) {
+                MyHttpHandler.errPocs = prop.getProperty("errpoclist", "").split("\\|");
+                MyHttpHandler.errPocsj = prop.getProperty("errpoclist", "").split("\\|");
+            } else {
+                MyHttpHandler.errPocs = new String[]{"'", "%27", "%DF'", "%DF%27", "\"", "%22", "%DF\"", "%DF%22", "`"};
+                MyHttpHandler.errPocsj = new String[]{"'", "%27", "%DF'", "%DF%27", "\\\"", "%22", "%DF\\\"", "%DF%22", "\\u0022", "%DF\\u0022", "\\u0027", "%DF\\u0027", "`"};
+            }
+            switchChexk.setSelected(Boolean.parseBoolean(prop.getProperty("switch")));
+            cookieChexk.setSelected(Boolean.parseBoolean(prop.getProperty("cookiecheck")));
+            errorChexk.setSelected(Boolean.parseBoolean(prop.getProperty("errorcheck")));
+            vulnChexk.setSelected(Boolean.parseBoolean(prop.getProperty("repeatercheck")));
+
+            fileReader.close();
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
+        }
+
         api.logging().logToOutput("################################################");
         api.logging().logToOutput("[#]  load successfully");
-        api.logging().logToOutput("[#]  DetSql v1.6");
+        api.logging().logToOutput("[#]  DetSql v1.7");
         api.logging().logToOutput("[#]  Author: saoshao");
         api.logging().logToOutput("[#]  Email: 1224165231@qq.com");
         api.logging().logToOutput("[#]  Github: https://github.com/saoshao/DetSql");
@@ -141,7 +188,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider {
         springLayout.putConstraint(SpringLayout.NORTH, requestViewer.uiComponent(), 0, SpringLayout.NORTH, finRoot);
         springLayout.putConstraint(SpringLayout.WEST, requestViewer.uiComponent(), 0, SpringLayout.WEST, finRoot);
         springLayout.putConstraint(SpringLayout.EAST, requestViewer.uiComponent(), 0, SpringLayout.EAST, finRoot);
-        springLayout.putConstraint(SpringLayout.SOUTH, requestViewer.uiComponent(), -125, SpringLayout.SOUTH, finRoot);
+        springLayout.putConstraint(SpringLayout.SOUTH, requestViewer.uiComponent(), 0, SpringLayout.SOUTH, finRoot);
         tabbedPane2.addTab("Request", finRoot);
 
         JTabbedPane tabbedPane3 = new JTabbedPane();
@@ -152,7 +199,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider {
         rspringLayout.putConstraint(SpringLayout.NORTH, responseViewer.uiComponent(), 0, SpringLayout.NORTH, rfinRoot);
         rspringLayout.putConstraint(SpringLayout.WEST, responseViewer.uiComponent(), 0, SpringLayout.WEST, rfinRoot);
         rspringLayout.putConstraint(SpringLayout.EAST, responseViewer.uiComponent(), 0, SpringLayout.EAST, rfinRoot);
-        rspringLayout.putConstraint(SpringLayout.SOUTH, responseViewer.uiComponent(), -125, SpringLayout.SOUTH, rfinRoot);
+        rspringLayout.putConstraint(SpringLayout.SOUTH, responseViewer.uiComponent(), 0, SpringLayout.SOUTH, rfinRoot);
         tabbedPane3.addTab("Response", rfinRoot);
         table1 = new JTable(tableModel) {
             @Override
@@ -289,7 +336,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider {
 
         //======== root ========
         {
-            root.setLayout(null);
+            root.setLayout(new BorderLayout());
 
             //======== tabbedPane1 ========
             {
@@ -367,15 +414,15 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider {
         SpringLayout springLayout = new SpringLayout();
         container.setLayout(springLayout);
         JLabel topicLabel = new JLabel("白名单:");
-        final JTextField textField = new JTextField(30);
+        textField = new JTextField(30);
         JLabel blackLabel = new JLabel("黑名单:");
-        final JTextField blackTextField = new JTextField(30);
+        blackTextField = new JTextField(30);
 
         JLabel suffixLabel = new JLabel("禁止后缀:");
-        final JTextField suffixTextField = new JTextField(30);
+        suffixTextField = new JTextField(30);
         suffixTextField.setText("xul|mpa|mp3|bz2|m3u|pdf|pbm|docx|rm|jpe|jar|flv|svg|bz|tar|mp4|cod|log|xwd|mpp|css|jpeg|weba|odt|wma|azw|woff|mpe|ttf|mpkg|ogx|cmx|jpg|rar|png|bin|ppt|ico|webm|xpm|mov|doc|csh|au|rmvb|aif|vsd|ram|cab|ief|odp|js|mp2|xls|aac|woff2|tif|eot|mpv2|gz|ras|abw|xbm|html|asf|7z|oga|tiff|epub|ppm|gif|pptx|bmp|aiff|pnm|pgm|zip|3g2|wmv|ods|webp|swf|rtf|avi|ra|xlsx|csv|rgb|otf|mpg|ics|htm|mid|arc|snd|3gp|txt|jfif|midi|mpeg|rmi|aifc|ogv|wav|mjs");
         JLabel errorPocLabel = new JLabel("报错poc:");
-        final JTextField errorPocTextField = new JTextField(30);
+        errorPocTextField = new JTextField(30);
         JLabel configLabel = new JLabel("配置目录:");
         final JTextField configTextField = new JTextField(30);
         configTextField.setEditable(false);
