@@ -59,10 +59,14 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
     public ConcurrentHashMap<String, List<PocLogEntry>> attackMap;
     public static JCheckBox switchChexk;
     public static JCheckBox cookieChexk;
-    public static JCheckBox errorChexk;
+    public static JCheckBox errorChexk;//
     public static JCheckBox vulnChexk;
     public static JTable table1;
-
+    //补充4个
+    public static JCheckBox numChexk;//
+    public static JCheckBox stringChexk;//
+    public static JCheckBox orderChexk;//
+    //public static JCheckBox boolChexk;//
 
     public static JTextField textField;
     public static JTextField blackTextField;
@@ -82,50 +86,56 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
         api.http().registerHttpHandler(myHttpHandler);
         api.extension().registerUnloadingHandler(new MyExtensionUnloadingHandler());
         api.userInterface().registerContextMenuItemsProvider(this);
+        File configFile = new File(System.getProperty("user.home")+ File.separator+"DetSqlConfig.txt");
+        if (configFile.exists()) {
+            Properties prop = new Properties();
+            try {
+                FileReader fileReader = new FileReader(System.getProperty("user.home")+ File.separator+"DetSqlConfig.txt");
+                prop.load(fileReader);
+                textField.setText(prop.getProperty("whitelist", ""));
+                if (!prop.getProperty("whitelist", "").isBlank()) {
+                    MyFilterRequest.whiteListSet = new HashSet<>(Arrays.asList(prop.getProperty("whitelist", "").split("\\|")));
+                } else {
+                    MyFilterRequest.whiteListSet = new HashSet<>();
+                }
+                blackTextField.setText(prop.getProperty("blacklist", ""));
+                if (!prop.getProperty("blacklist", "").isBlank()) {
+                    MyFilterRequest.blackListSet = new HashSet<>(Arrays.asList(prop.getProperty("blacklist", "").split("\\|")));
+                } else {
+                    MyFilterRequest.blackListSet = new HashSet<>();
+                }
+                suffixTextField.setText(prop.getProperty("suffixlist", "wma|csv|mov|doc|3g2|mp4|7z|3gp|xbm|jar|avi|ogv|mpv2|tiff|pnm|jpg|xpm|xul|epub|au|aac|midi|weba|tar|js|rtf|bin|woff|wmv|tif|css|gif|flv|ttf|html|eot|ods|odt|webm|mpg|mjs|bz|ics|ras|aifc|mpa|ppt|mpeg|pptx|oga|ra|aiff|asf|woff2|snd|xwd|csh|webp|xlsx|mpkg|vsd|mid|wav|svg|mp3|bz2|ico|jpe|pbm|gz|pdf|log|jpeg|rmi|txt|arc|rm|ppm|cod|jfif|ram|docx|mpe|odp|otf|pgm|cmx|m3u|mp2|cab|rar|bmp|rgb|png|azw|ogx|aif|zip|ief|htm|xls|mpp|swf|rmvb|abw"));
+                if (!prop.getProperty("suffixlist", "wma|csv|mov|doc|3g2|mp4|7z|3gp|xbm|jar|avi|ogv|mpv2|tiff|pnm|jpg|xpm|xul|epub|au|aac|midi|weba|tar|js|rtf|bin|woff|wmv|tif|css|gif|flv|ttf|html|eot|ods|odt|webm|mpg|mjs|bz|ics|ras|aifc|mpa|ppt|mpeg|pptx|oga|ra|aiff|asf|woff2|snd|xwd|csh|webp|xlsx|mpkg|vsd|mid|wav|svg|mp3|bz2|ico|jpe|pbm|gz|pdf|log|jpeg|rmi|txt|arc|rm|ppm|cod|jfif|ram|docx|mpe|odp|otf|pgm|cmx|m3u|mp2|cab|rar|bmp|rgb|png|azw|ogx|aif|zip|ief|htm|xls|mpp|swf|rmvb|abw").isBlank()) {
+                    MyFilterRequest.unLegalExtensionSet = new HashSet<>(Arrays.asList(prop.getProperty("suffixlist", "wma|csv|mov|doc|3g2|mp4|7z|3gp|xbm|jar|avi|ogv|mpv2|tiff|pnm|jpg|xpm|xul|epub|au|aac|midi|weba|tar|js|rtf|bin|woff|wmv|tif|css|gif|flv|ttf|html|eot|ods|odt|webm|mpg|mjs|bz|ics|ras|aifc|mpa|ppt|mpeg|pptx|oga|ra|aiff|asf|woff2|snd|xwd|csh|webp|xlsx|mpkg|vsd|mid|wav|svg|mp3|bz2|ico|jpe|pbm|gz|pdf|log|jpeg|rmi|txt|arc|rm|ppm|cod|jfif|ram|docx|mpe|odp|otf|pgm|cmx|m3u|mp2|cab|rar|bmp|rgb|png|azw|ogx|aif|zip|ief|htm|xls|mpp|swf|rmvb|abw").split("\\|")));
+                } else {
+                    MyFilterRequest.unLegalExtensionSet = new HashSet<>(Arrays.asList("wma", "csv", "mov", "doc", "3g2", "mp4", "7z", "3gp", "xbm", "jar", "avi", "ogv", "mpv2", "tiff", "pnm", "jpg", "xpm", "xul", "epub", "au", "aac", "midi", "weba", "tar", "js", "rtf", "bin", "woff", "wmv", "tif", "css", "gif", "flv", "ttf", "html", "eot", "ods", "odt", "webm", "mpg", "mjs", "bz", "ics", "ras", "aifc", "mpa", "ppt", "mpeg", "pptx", "oga", "ra", "aiff", "asf", "woff2", "snd", "xwd", "csh", "webp", "xlsx", "mpkg", "vsd", "mid", "wav", "svg", "mp3", "bz2", "ico", "jpe", "pbm", "gz", "pdf", "log", "jpeg", "rmi", "txt", "arc", "rm", "ppm", "cod", "jfif", "ram", "docx", "mpe", "odp", "otf", "pgm", "cmx", "m3u", "mp2", "cab", "rar", "bmp", "rgb", "png", "azw", "ogx", "aif", "zip", "ief", "htm", "xls", "mpp", "swf", "rmvb", "abw"));
+                }
+                errorPocTextField.setText(prop.getProperty("errpoclist", ""));
+                if (!prop.getProperty("errpoclist", "").isBlank()) {
+                    MyHttpHandler.errPocs = prop.getProperty("errpoclist", "").split("\\|");
+                    MyHttpHandler.errPocsj = prop.getProperty("errpoclist", "").split("\\|");
+                } else {
+                    MyHttpHandler.errPocs = new String[]{"'", "%27", "%DF'", "%DF%27", "\"", "%22", "%DF\"", "%DF%22", "`"};
+                    MyHttpHandler.errPocsj = new String[]{"'", "%27", "%DF'", "%DF%27", "\\\"", "%22", "%DF\\\"", "%DF%22", "\\u0022", "%DF\\u0022", "\\u0027", "%DF\\u0027", "`"};
+                }
+                switchChexk.setSelected(Boolean.parseBoolean(prop.getProperty("switch")));
+                cookieChexk.setSelected(Boolean.parseBoolean(prop.getProperty("cookiecheck")));
+                errorChexk.setSelected(Boolean.parseBoolean(prop.getProperty("errorcheck")));
+                vulnChexk.setSelected(Boolean.parseBoolean(prop.getProperty("repeatercheck")));
 
-        Properties prop = new Properties();
-        try {
-            FileReader fileReader = new FileReader(System.getProperty("user.home")+ File.separator+"DetSqlConfig.txt");
-            prop.load(fileReader);
-            textField.setText(prop.getProperty("whitelist", ""));
-            if (!prop.getProperty("whitelist", "").isBlank()) {
-                MyFilterRequest.whiteListSet = new HashSet<>(Arrays.asList(prop.getProperty("whitelist", "").split("\\|")));
-            } else {
-                MyFilterRequest.whiteListSet = new HashSet<>();
+                numChexk.setSelected(Boolean.parseBoolean(prop.getProperty("numcheck")));
+                stringChexk.setSelected(Boolean.parseBoolean(prop.getProperty("stringcheck")));
+                orderChexk.setSelected(Boolean.parseBoolean(prop.getProperty("ordercheck")));
+                fileReader.close();
+            } catch (IOException ex) {
+                throw new RuntimeException(ex);
             }
-            blackTextField.setText(prop.getProperty("blacklist", ""));
-            if (!prop.getProperty("blacklist", "").isBlank()) {
-                MyFilterRequest.blackListSet = new HashSet<>(Arrays.asList(prop.getProperty("blacklist", "").split("\\|")));
-            } else {
-                MyFilterRequest.blackListSet = new HashSet<>();
-            }
-            suffixTextField.setText(prop.getProperty("suffixlist", "wma|csv|mov|doc|3g2|mp4|7z|3gp|xbm|jar|avi|ogv|mpv2|tiff|pnm|jpg|xpm|xul|epub|au|aac|midi|weba|tar|js|rtf|bin|woff|wmv|tif|css|gif|flv|ttf|html|eot|ods|odt|webm|mpg|mjs|bz|ics|ras|aifc|mpa|ppt|mpeg|pptx|oga|ra|aiff|asf|woff2|snd|xwd|csh|webp|xlsx|mpkg|vsd|mid|wav|svg|mp3|bz2|ico|jpe|pbm|gz|pdf|log|jpeg|rmi|txt|arc|rm|ppm|cod|jfif|ram|docx|mpe|odp|otf|pgm|cmx|m3u|mp2|cab|rar|bmp|rgb|png|azw|ogx|aif|zip|ief|htm|xls|mpp|swf|rmvb|abw"));
-            if (!prop.getProperty("suffixlist", "wma|csv|mov|doc|3g2|mp4|7z|3gp|xbm|jar|avi|ogv|mpv2|tiff|pnm|jpg|xpm|xul|epub|au|aac|midi|weba|tar|js|rtf|bin|woff|wmv|tif|css|gif|flv|ttf|html|eot|ods|odt|webm|mpg|mjs|bz|ics|ras|aifc|mpa|ppt|mpeg|pptx|oga|ra|aiff|asf|woff2|snd|xwd|csh|webp|xlsx|mpkg|vsd|mid|wav|svg|mp3|bz2|ico|jpe|pbm|gz|pdf|log|jpeg|rmi|txt|arc|rm|ppm|cod|jfif|ram|docx|mpe|odp|otf|pgm|cmx|m3u|mp2|cab|rar|bmp|rgb|png|azw|ogx|aif|zip|ief|htm|xls|mpp|swf|rmvb|abw").isBlank()) {
-                MyFilterRequest.unLegalExtensionSet = new HashSet<>(Arrays.asList(prop.getProperty("suffixlist", "wma|csv|mov|doc|3g2|mp4|7z|3gp|xbm|jar|avi|ogv|mpv2|tiff|pnm|jpg|xpm|xul|epub|au|aac|midi|weba|tar|js|rtf|bin|woff|wmv|tif|css|gif|flv|ttf|html|eot|ods|odt|webm|mpg|mjs|bz|ics|ras|aifc|mpa|ppt|mpeg|pptx|oga|ra|aiff|asf|woff2|snd|xwd|csh|webp|xlsx|mpkg|vsd|mid|wav|svg|mp3|bz2|ico|jpe|pbm|gz|pdf|log|jpeg|rmi|txt|arc|rm|ppm|cod|jfif|ram|docx|mpe|odp|otf|pgm|cmx|m3u|mp2|cab|rar|bmp|rgb|png|azw|ogx|aif|zip|ief|htm|xls|mpp|swf|rmvb|abw").split("\\|")));
-            } else {
-                MyFilterRequest.unLegalExtensionSet = new HashSet<>(Arrays.asList("wma", "csv", "mov", "doc", "3g2", "mp4", "7z", "3gp", "xbm", "jar", "avi", "ogv", "mpv2", "tiff", "pnm", "jpg", "xpm", "xul", "epub", "au", "aac", "midi", "weba", "tar", "js", "rtf", "bin", "woff", "wmv", "tif", "css", "gif", "flv", "ttf", "html", "eot", "ods", "odt", "webm", "mpg", "mjs", "bz", "ics", "ras", "aifc", "mpa", "ppt", "mpeg", "pptx", "oga", "ra", "aiff", "asf", "woff2", "snd", "xwd", "csh", "webp", "xlsx", "mpkg", "vsd", "mid", "wav", "svg", "mp3", "bz2", "ico", "jpe", "pbm", "gz", "pdf", "log", "jpeg", "rmi", "txt", "arc", "rm", "ppm", "cod", "jfif", "ram", "docx", "mpe", "odp", "otf", "pgm", "cmx", "m3u", "mp2", "cab", "rar", "bmp", "rgb", "png", "azw", "ogx", "aif", "zip", "ief", "htm", "xls", "mpp", "swf", "rmvb", "abw"));
-            }
-            errorPocTextField.setText(prop.getProperty("errpoclist", ""));
-            if (!prop.getProperty("errpoclist", "").isBlank()) {
-                MyHttpHandler.errPocs = prop.getProperty("errpoclist", "").split("\\|");
-                MyHttpHandler.errPocsj = prop.getProperty("errpoclist", "").split("\\|");
-            } else {
-                MyHttpHandler.errPocs = new String[]{"'", "%27", "%DF'", "%DF%27", "\"", "%22", "%DF\"", "%DF%22", "`"};
-                MyHttpHandler.errPocsj = new String[]{"'", "%27", "%DF'", "%DF%27", "\\\"", "%22", "%DF\\\"", "%DF%22", "\\u0022", "%DF\\u0022", "\\u0027", "%DF\\u0027", "`"};
-            }
-            switchChexk.setSelected(Boolean.parseBoolean(prop.getProperty("switch")));
-            cookieChexk.setSelected(Boolean.parseBoolean(prop.getProperty("cookiecheck")));
-            errorChexk.setSelected(Boolean.parseBoolean(prop.getProperty("errorcheck")));
-            vulnChexk.setSelected(Boolean.parseBoolean(prop.getProperty("repeatercheck")));
-
-            fileReader.close();
-        } catch (IOException ex) {
-            throw new RuntimeException(ex);
         }
+
 
         api.logging().logToOutput("################################################");
         api.logging().logToOutput("[#]  load successfully");
-        api.logging().logToOutput("[#]  DetSql v1.7");
+        api.logging().logToOutput("[#]  DetSql v1.8");
         api.logging().logToOutput("[#]  Author: saoshao");
         api.logging().logToOutput("[#]  Email: 1224165231@qq.com");
         api.logging().logToOutput("[#]  Github: https://github.com/saoshao/DetSql");
@@ -428,8 +438,13 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
         configTextField.setEditable(false);
         switchChexk = new JCheckBox("开关", false);
         cookieChexk = new JCheckBox("测试cookie", false);
-        errorChexk = new JCheckBox("只测报错", false);
+        errorChexk = new JCheckBox("测试报错类型", false);
         vulnChexk = new JCheckBox("接受repeater", false);
+
+        numChexk= new JCheckBox("测试数字类型", false);
+        stringChexk= new JCheckBox("测试字符类型", false);
+        orderChexk= new JCheckBox("测试order类型", false);
+
         JButton conBt = new JButton("确认");
         conBt.addActionListener(e -> {
             String whiteList = textField.getText();
@@ -505,6 +520,10 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
                     errorChexk.setSelected(Boolean.parseBoolean(prop.getProperty("errorcheck")));
                     vulnChexk.setSelected(Boolean.parseBoolean(prop.getProperty("repeatercheck")));
 
+                    numChexk.setSelected(Boolean.parseBoolean(prop.getProperty("numcheck")));
+                    stringChexk.setSelected(Boolean.parseBoolean(prop.getProperty("stringcheck")));
+                    orderChexk.setSelected(Boolean.parseBoolean(prop.getProperty("ordercheck")));
+
                     fileReader.close();
                 } catch (IOException ex) {
                     throw new RuntimeException(ex);
@@ -531,6 +550,10 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
                 prop.setProperty("cookiecheck", String.valueOf(cookieChexk.isSelected()));
                 prop.setProperty("errorcheck", String.valueOf(errorChexk.isSelected()));
                 prop.setProperty("repeatercheck", String.valueOf(vulnChexk.isSelected()));
+
+                prop.setProperty("numcheck", String.valueOf(DetSql.numChexk.isSelected()));
+                prop.setProperty("stringcheck", String.valueOf(DetSql.stringChexk.isSelected()));
+                prop.setProperty("ordercheck", String.valueOf(DetSql.orderChexk.isSelected()));
                 try {
                     FileWriter fw = new FileWriter(fileChooser.getSelectedFile());
                     prop.store(fw, null);
@@ -596,15 +619,32 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
         springLayout.putConstraint(SpringLayout.WEST, cookieChexk, st2, SpringLayout.EAST, switchChexk);
         springLayout.putConstraint(SpringLayout.NORTH, cookieChexk, 0, SpringLayout.NORTH, switchChexk);
 
-        container.add(errorChexk);
-        springLayout.putConstraint(SpringLayout.WEST, errorChexk, st2, SpringLayout.EAST, cookieChexk);
-        springLayout.putConstraint(SpringLayout.NORTH, errorChexk, 0, SpringLayout.NORTH, switchChexk);
+        //container.add(errorChexk);
+        //springLayout.putConstraint(SpringLayout.WEST, errorChexk, st2, SpringLayout.EAST, cookieChexk);
+        //springLayout.putConstraint(SpringLayout.NORTH, errorChexk, 0, SpringLayout.NORTH, switchChexk);
+
         container.add(vulnChexk);
-        springLayout.putConstraint(SpringLayout.WEST, vulnChexk, st2, SpringLayout.EAST, errorChexk);
+        springLayout.putConstraint(SpringLayout.WEST, vulnChexk, st2, SpringLayout.EAST, cookieChexk);
         springLayout.putConstraint(SpringLayout.NORTH, vulnChexk, 0, SpringLayout.NORTH, switchChexk);
 
+        container.add(errorChexk);
+        springLayout.putConstraint(SpringLayout.WEST, errorChexk, st2, SpringLayout.EAST, vulnChexk);
+        springLayout.putConstraint(SpringLayout.NORTH, errorChexk, 0, SpringLayout.NORTH, switchChexk);
+
+        container.add(numChexk);
+        springLayout.putConstraint(SpringLayout.WEST, numChexk, st2, SpringLayout.EAST, errorChexk);
+        springLayout.putConstraint(SpringLayout.NORTH, numChexk, 0, SpringLayout.NORTH, switchChexk);
+
+        container.add(stringChexk);
+        springLayout.putConstraint(SpringLayout.WEST, stringChexk, st2, SpringLayout.EAST, numChexk);
+        springLayout.putConstraint(SpringLayout.NORTH, stringChexk, 0, SpringLayout.NORTH, switchChexk);
+
+        container.add(orderChexk);
+        springLayout.putConstraint(SpringLayout.WEST, orderChexk, st2, SpringLayout.EAST, stringChexk);
+        springLayout.putConstraint(SpringLayout.NORTH, orderChexk, 0, SpringLayout.NORTH, switchChexk);
+
         container.add(conBt);
-        springLayout.putConstraint(SpringLayout.WEST, conBt, st2, SpringLayout.EAST, vulnChexk);
+        springLayout.putConstraint(SpringLayout.WEST, conBt, st2, SpringLayout.EAST, orderChexk);
         springLayout.putConstraint(SpringLayout.NORTH, conBt, 0, SpringLayout.NORTH, switchChexk);
 
         container.add(configLabel);

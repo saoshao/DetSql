@@ -20,6 +20,9 @@ public class MyExtensionUnloadingHandler implements ExtensionUnloadingHandler {
         prop.setProperty("switch", String.valueOf(DetSql.switchChexk.isSelected()));
         prop.setProperty("cookiecheck", String.valueOf(DetSql.cookieChexk.isSelected()));
         prop.setProperty("errorcheck", String.valueOf(DetSql.errorChexk.isSelected()));
+        prop.setProperty("numcheck", String.valueOf(DetSql.numChexk.isSelected()));
+        prop.setProperty("stringcheck", String.valueOf(DetSql.stringChexk.isSelected()));
+        prop.setProperty("ordercheck", String.valueOf(DetSql.orderChexk.isSelected()));
         prop.setProperty("repeatercheck", String.valueOf(DetSql.vulnChexk.isSelected()));
         try {
             FileWriter fw = new FileWriter(System.getProperty("user.home")+ File.separator+"DetSqlConfig.txt");
