@@ -3,6 +3,7 @@
  */
 package DetSql;
 
+import burp.api.montoya.MontoyaApi;
 import org.apache.commons.text.similarity.JaccardSimilarity;
 import org.apache.commons.text.similarity.LevenshteinDistance;
 
@@ -10,7 +11,6 @@ import java.text.NumberFormat;
 import java.util.*;
 
 public class MyCompare {
-
     public static double calculateCosineSimilarity(String s1, String s2) {
         Map<Character, Integer> v1 = generateVector(s1);
         Map<Character, Integer> v2 = generateVector(s2);
@@ -133,7 +133,7 @@ public class MyCompare {
     }
 
     //SqlNum,SqlString使用
-    public static List<Double> averageLevenshtein(String s1, String s2) {
+    public static List<Double> averageLevenshtein(String s1, String s2,String poc1,String poc2) {
         List<Double> list = new ArrayList<>();
         if (s1.length() == s2.length()) {
             list.add(1.0);
@@ -143,15 +143,41 @@ public class MyCompare {
             list.add(0.9);
 //            double levenshtein = levenshtein(s1, s2);
 //            list.add(levenshtein);
+        } else if (s1.length()<s2.length()&&(s2.startsWith(s1)||s2.endsWith(s1))) {
+            list.add(0.0);
+        } else if (s2.length()<s1.length()&&(s1.startsWith(s2)||s1.endsWith(s2))) {
+            list.add(0.0);
         } else {
-            double levenshtein = levenshtein(s1, s2);
-            list.add(levenshtein);
+            String[] newStrList;
+            if(s1.length()<s2.length()){
+                newStrList=upgradeStr(s1,s2);
+                if ((newStrList[0].replaceAll(poc1,"").isEmpty()&&!newStrList[1].replaceAll(poc2,"").isEmpty())||(!newStrList[0].replaceAll(poc1,"").isEmpty()&&newStrList[1].replaceAll(poc2,"").isEmpty())){
+                    list.add(0.0);
+                } else if (newStrList[0].replaceAll(poc1,"").isEmpty()&&newStrList[1].replaceAll(poc2,"").isEmpty()) {
+                    list.add(1.0);
+                } else{
+                    double levenshtein = levenshtein(newStrList[0], newStrList[1]);
+                    list.add(levenshtein);
+                }
+            }else{
+                newStrList=upgradeStr(s2,s1);
+                if ((newStrList[0].replaceAll(poc2,"").isEmpty()&&!newStrList[1].replaceAll(poc1,"").isEmpty())||(!newStrList[0].replaceAll(poc2,"").isEmpty()&&newStrList[1].replaceAll(poc1,"").isEmpty())){
+                    list.add(0.0);
+                } else if (newStrList[0].replaceAll(poc2,"").isEmpty()&&newStrList[1].replaceAll(poc1,"").isEmpty()) {
+                    list.add(1.0);
+                } else{
+                    double levenshtein = levenshtein(newStrList[0], newStrList[1]);
+                    list.add(levenshtein);
+                }
+            }
+
+
         }
         return list;
     }
 
     //SqlOrder使用
-    public static List<Double> averageJaccard(String s1, String s2) {
+    public static List<Double> averageJaccard(String s1, String s2,String poc1,String poc2) {
         List<Double> list = new ArrayList<>();
         if (s1.length() == s2.length()) {
             list.add(1.0);
@@ -159,11 +185,36 @@ public class MyCompare {
             list.add(0.0);
         } else if (Math.abs(s1.length() - s2.length()) >= 100) {
             list.add(0.9);
-//            double jaccard = jaccard(s1, s2);
-//            list.add(jaccard);
+        } else if (s1.length()<s2.length()&&(s2.startsWith(s1)||s2.endsWith(s1))) {
+            list.add(0.0);
+        } else if (s2.length()<s1.length()&&(s1.startsWith(s2)||s1.endsWith(s2))) {
+            list.add(0.0);
         } else {
-            double jaccard = jaccard(s1, s2);
-            list.add(jaccard);
+            String[] newStrList;
+            if(s1.length()<s2.length()){
+                newStrList=upgradeStr(s1,s2);
+
+                if ((newStrList[0].replaceAll(poc1,"").isEmpty()&&!newStrList[1].replaceAll(poc2,"").isEmpty())||(!newStrList[0].replaceAll(poc1,"").isEmpty()&&newStrList[1].replaceAll(poc2,"").isEmpty())){
+                    list.add(0.0);
+                } else if (newStrList[0].replaceAll(poc1,"").isEmpty()&&newStrList[1].replaceAll(poc2,"").isEmpty()) {
+                    list.add(1.0);
+                } else{
+                    double jaccard = jaccard(newStrList[0], newStrList[1]);
+                    list.add(jaccard);
+                }
+            }else{
+                newStrList=upgradeStr(s2,s1);
+                if ((newStrList[0].replaceAll(poc2,"").isEmpty()&&!newStrList[1].replaceAll(poc1,"").isEmpty())||(!newStrList[0].replaceAll(poc2,"").isEmpty()&&newStrList[1].replaceAll(poc1,"").isEmpty())){
+                    list.add(0.0);
+                } else if (newStrList[0].replaceAll(poc2,"").isEmpty()&&newStrList[1].replaceAll(poc1,"").isEmpty()) {
+                    list.add(1.0);
+                } else{
+                    double jaccard = jaccard(newStrList[0], newStrList[1]);
+                    list.add(jaccard);
+                }
+            }
+
+
         }
         return list;
     }
@@ -180,5 +231,29 @@ public class MyCompare {
         }
         list.add(1.0);
         return list;
+    }
+    public static String[] upgradeStr(String s1, String s2) {//s1比s2短
+        int len1 = s1.length();
+        int len2 = s2.length();
+        int startIndex=0;
+        int endIndex1=len1;
+        int endIndex2=len2;
+        for(int i=1;i<=len1;i++){
+            if(s1.charAt(i-1)!=s2.charAt(i-1)){
+                startIndex=i-1;
+                break;
+            }
+            startIndex=len1;
+        }
+        for (int j = 1; j <=len1-startIndex ; j++) {
+            if(s1.charAt(len1-j)!=s2.charAt(len2-j)){
+                endIndex1=len1-j+1;
+                endIndex2=len2-j+1;
+                break;
+            }
+            endIndex1=startIndex;
+            endIndex2=len2-len1+startIndex;
+        }
+        return new String[]{s1.substring(startIndex,endIndex1),s2.substring(startIndex,endIndex2)};
     }
 }

@@ -66,12 +66,15 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
     public static JCheckBox numChexk;//
     public static JCheckBox stringChexk;//
     public static JCheckBox orderChexk;//
-    //public static JCheckBox boolChexk;//
+    public static JCheckBox boolChexk;//
 
     public static JTextField textField;
     public static JTextField blackTextField;
     public static JTextField suffixTextField;
     public static JTextField errorPocTextField;
+    //新加参数黑名单框
+    public static JTextField blackParamsField;
+    JTextField configTextField;
 
     @Override
     public void initialize(MontoyaApi montoyaApi) {
@@ -91,6 +94,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
             Properties prop = new Properties();
             try {
                 FileReader fileReader = new FileReader(System.getProperty("user.home")+ File.separator+"DetSqlConfig.txt");
+                configTextField.setText(System.getProperty("user.home")+ File.separator+"DetSqlConfig.txt");
                 prop.load(fileReader);
                 textField.setText(prop.getProperty("whitelist", ""));
                 if (!prop.getProperty("whitelist", "").isBlank()) {
@@ -118,6 +122,12 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
                     MyHttpHandler.errPocs = new String[]{"'", "%27", "%DF'", "%DF%27", "\"", "%22", "%DF\"", "%DF%22", "`"};
                     MyHttpHandler.errPocsj = new String[]{"'", "%27", "%DF'", "%DF%27", "\\\"", "%22", "%DF\\\"", "%DF%22", "\\u0022", "%DF\\u0022", "\\u0027", "%DF\\u0027", "`"};
                 }
+                blackParamsField.setText(prop.getProperty("paramslist", ""));
+                if (!prop.getProperty("paramslist", "").isBlank()) {
+                    MyHttpHandler.blackParamsSet = new HashSet<>(Arrays.asList(prop.getProperty("paramslist", "").split("\\|")));
+                } else {
+                    MyHttpHandler.blackParamsSet = new HashSet<>();
+                }
                 switchChexk.setSelected(Boolean.parseBoolean(prop.getProperty("switch")));
                 cookieChexk.setSelected(Boolean.parseBoolean(prop.getProperty("cookiecheck")));
                 errorChexk.setSelected(Boolean.parseBoolean(prop.getProperty("errorcheck")));
@@ -126,6 +136,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
                 numChexk.setSelected(Boolean.parseBoolean(prop.getProperty("numcheck")));
                 stringChexk.setSelected(Boolean.parseBoolean(prop.getProperty("stringcheck")));
                 orderChexk.setSelected(Boolean.parseBoolean(prop.getProperty("ordercheck")));
+                boolChexk.setSelected(Boolean.parseBoolean(prop.getProperty("boolcheck")));
                 fileReader.close();
             } catch (IOException ex) {
                 throw new RuntimeException(ex);
@@ -135,7 +146,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
 
         api.logging().logToOutput("################################################");
         api.logging().logToOutput("[#]  load successfully");
-        api.logging().logToOutput("[#]  DetSql v1.8");
+        api.logging().logToOutput("[#]  DetSql v1.9");
         api.logging().logToOutput("[#]  Author: saoshao");
         api.logging().logToOutput("[#]  Email: 1224165231@qq.com");
         api.logging().logToOutput("[#]  Github: https://github.com/saoshao/DetSql");
@@ -423,18 +434,21 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
         Container container = new JPanel();
         SpringLayout springLayout = new SpringLayout();
         container.setLayout(springLayout);
-        JLabel topicLabel = new JLabel("白名单:");
+        JLabel topicLabel = new JLabel("域名白名单:");
         textField = new JTextField(30);
-        JLabel blackLabel = new JLabel("黑名单:");
+        JLabel blackLabel = new JLabel("域名黑名单:");
         blackTextField = new JTextField(30);
-
         JLabel suffixLabel = new JLabel("禁止后缀:");
         suffixTextField = new JTextField(30);
         suffixTextField.setText("xul|mpa|mp3|bz2|m3u|pdf|pbm|docx|rm|jpe|jar|flv|svg|bz|tar|mp4|cod|log|xwd|mpp|css|jpeg|weba|odt|wma|azw|woff|mpe|ttf|mpkg|ogx|cmx|jpg|rar|png|bin|ppt|ico|webm|xpm|mov|doc|csh|au|rmvb|aif|vsd|ram|cab|ief|odp|js|mp2|xls|aac|woff2|tif|eot|mpv2|gz|ras|abw|xbm|html|asf|7z|oga|tiff|epub|ppm|gif|pptx|bmp|aiff|pnm|pgm|zip|3g2|wmv|ods|webp|swf|rtf|avi|ra|xlsx|csv|rgb|otf|mpg|ics|htm|mid|arc|snd|3gp|txt|jfif|midi|mpeg|rmi|aifc|ogv|wav|mjs");
         JLabel errorPocLabel = new JLabel("报错poc:");
         errorPocTextField = new JTextField(30);
+        //新加参数黑名单
+        JLabel blackParams = new JLabel("参数黑名单:");
+        blackParamsField= new JTextField(30);
+
         JLabel configLabel = new JLabel("配置目录:");
-        final JTextField configTextField = new JTextField(30);
+        configTextField = new JTextField(30);
         configTextField.setEditable(false);
         switchChexk = new JCheckBox("开关", false);
         cookieChexk = new JCheckBox("测试cookie", false);
@@ -444,6 +458,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
         numChexk= new JCheckBox("测试数字类型", false);
         stringChexk= new JCheckBox("测试字符类型", false);
         orderChexk= new JCheckBox("测试order类型", false);
+        boolChexk= new JCheckBox("测试bool类型", false);
 
         JButton conBt = new JButton("确认");
         conBt.addActionListener(e -> {
@@ -459,7 +474,18 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
             } else {
                 MyFilterRequest.blackListSet.clear();
             }
+            String blackParamsList = blackParamsField.getText();
+//            api.logging().logToOutput(blackParamsList);
+//            api.logging().logToOutput(!blackParamsList.isBlank()+"");
+            if (!blackParamsList.isBlank()) {
+                MyHttpHandler.blackParamsSet = new HashSet<>(Arrays.asList(blackParamsList.trim().split("\\|")));
+//                for (String s : MyHttpHandler.blackParamsSet) {
+//                    api.logging().logToOutput(s);
+//                }
 
+            } else {
+                MyHttpHandler.blackParamsSet.clear();
+            }
             String unLegalExtension = suffixTextField.getText();
             if (!unLegalExtension.isBlank()) {
                 MyFilterRequest.unLegalExtensionSet = new HashSet<>(Arrays.asList(unLegalExtension.trim().split("\\|")));
@@ -501,6 +527,12 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
                     } else {
                         MyFilterRequest.blackListSet = new HashSet<>();
                     }
+                    blackParamsField.setText(prop.getProperty("paramslist", ""));
+                    if (!prop.getProperty("paramslist", "").isBlank()) {
+                        MyHttpHandler.blackParamsSet = new HashSet<>(Arrays.asList(prop.getProperty("paramslist", "").split("\\|")));
+                    } else {
+                        MyHttpHandler.blackParamsSet = new HashSet<>();
+                    }
                     suffixTextField.setText(prop.getProperty("suffixlist", "wma|csv|mov|doc|3g2|mp4|7z|3gp|xbm|jar|avi|ogv|mpv2|tiff|pnm|jpg|xpm|xul|epub|au|aac|midi|weba|tar|js|rtf|bin|woff|wmv|tif|css|gif|flv|ttf|html|eot|ods|odt|webm|mpg|mjs|bz|ics|ras|aifc|mpa|ppt|mpeg|pptx|oga|ra|aiff|asf|woff2|snd|xwd|csh|webp|xlsx|mpkg|vsd|mid|wav|svg|mp3|bz2|ico|jpe|pbm|gz|pdf|log|jpeg|rmi|txt|arc|rm|ppm|cod|jfif|ram|docx|mpe|odp|otf|pgm|cmx|m3u|mp2|cab|rar|bmp|rgb|png|azw|ogx|aif|zip|ief|htm|xls|mpp|swf|rmvb|abw"));
                     if (!prop.getProperty("suffixlist", "wma|csv|mov|doc|3g2|mp4|7z|3gp|xbm|jar|avi|ogv|mpv2|tiff|pnm|jpg|xpm|xul|epub|au|aac|midi|weba|tar|js|rtf|bin|woff|wmv|tif|css|gif|flv|ttf|html|eot|ods|odt|webm|mpg|mjs|bz|ics|ras|aifc|mpa|ppt|mpeg|pptx|oga|ra|aiff|asf|woff2|snd|xwd|csh|webp|xlsx|mpkg|vsd|mid|wav|svg|mp3|bz2|ico|jpe|pbm|gz|pdf|log|jpeg|rmi|txt|arc|rm|ppm|cod|jfif|ram|docx|mpe|odp|otf|pgm|cmx|m3u|mp2|cab|rar|bmp|rgb|png|azw|ogx|aif|zip|ief|htm|xls|mpp|swf|rmvb|abw").isBlank()) {
                         MyFilterRequest.unLegalExtensionSet = new HashSet<>(Arrays.asList(prop.getProperty("suffixlist", "wma|csv|mov|doc|3g2|mp4|7z|3gp|xbm|jar|avi|ogv|mpv2|tiff|pnm|jpg|xpm|xul|epub|au|aac|midi|weba|tar|js|rtf|bin|woff|wmv|tif|css|gif|flv|ttf|html|eot|ods|odt|webm|mpg|mjs|bz|ics|ras|aifc|mpa|ppt|mpeg|pptx|oga|ra|aiff|asf|woff2|snd|xwd|csh|webp|xlsx|mpkg|vsd|mid|wav|svg|mp3|bz2|ico|jpe|pbm|gz|pdf|log|jpeg|rmi|txt|arc|rm|ppm|cod|jfif|ram|docx|mpe|odp|otf|pgm|cmx|m3u|mp2|cab|rar|bmp|rgb|png|azw|ogx|aif|zip|ief|htm|xls|mpp|swf|rmvb|abw").split("\\|")));
@@ -523,6 +555,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
                     numChexk.setSelected(Boolean.parseBoolean(prop.getProperty("numcheck")));
                     stringChexk.setSelected(Boolean.parseBoolean(prop.getProperty("stringcheck")));
                     orderChexk.setSelected(Boolean.parseBoolean(prop.getProperty("ordercheck")));
+                    boolChexk.setSelected(Boolean.parseBoolean(prop.getProperty("boolcheck")));
 
                     fileReader.close();
                 } catch (IOException ex) {
@@ -554,6 +587,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
                 prop.setProperty("numcheck", String.valueOf(DetSql.numChexk.isSelected()));
                 prop.setProperty("stringcheck", String.valueOf(DetSql.stringChexk.isSelected()));
                 prop.setProperty("ordercheck", String.valueOf(DetSql.orderChexk.isSelected()));
+                prop.setProperty("boolcheck", String.valueOf(DetSql.boolChexk.isSelected()));
                 try {
                     FileWriter fw = new FileWriter(fileChooser.getSelectedFile());
                     prop.store(fw, null);
@@ -609,11 +643,19 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
         springLayout.putConstraint(SpringLayout.WEST, errorPocTextField, 0, SpringLayout.WEST, textField);
         springLayout.putConstraint(SpringLayout.NORTH, errorPocTextField, 0, SpringLayout.NORTH, errorPocLabel);
         springLayout.putConstraint(SpringLayout.EAST, errorPocTextField, Spring.minus(st), SpringLayout.EAST, container);
+        //新加参数黑名单
+        container.add(blackParams);
+        springLayout.putConstraint(SpringLayout.WEST, blackParams, 0, SpringLayout.WEST, errorPocLabel);
+        springLayout.putConstraint(SpringLayout.NORTH, blackParams, st, SpringLayout.SOUTH, errorPocLabel);
 
+        container.add(blackParamsField);
+        springLayout.putConstraint(SpringLayout.WEST, blackParamsField, 0, SpringLayout.WEST, textField);
+        springLayout.putConstraint(SpringLayout.NORTH, blackParamsField, 0, SpringLayout.NORTH, blackParams);
+        springLayout.putConstraint(SpringLayout.EAST, blackParamsField, Spring.minus(st), SpringLayout.EAST, container);
 
         container.add(switchChexk);
-        springLayout.putConstraint(SpringLayout.WEST, switchChexk, 0, SpringLayout.WEST, errorPocLabel);
-        springLayout.putConstraint(SpringLayout.NORTH, switchChexk, st, SpringLayout.SOUTH, errorPocLabel);
+        springLayout.putConstraint(SpringLayout.WEST, switchChexk, 0, SpringLayout.WEST, blackParams);
+        springLayout.putConstraint(SpringLayout.NORTH, switchChexk, st, SpringLayout.SOUTH, blackParams);
 
         container.add(cookieChexk);
         springLayout.putConstraint(SpringLayout.WEST, cookieChexk, st2, SpringLayout.EAST, switchChexk);
@@ -643,8 +685,12 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
         springLayout.putConstraint(SpringLayout.WEST, orderChexk, st2, SpringLayout.EAST, stringChexk);
         springLayout.putConstraint(SpringLayout.NORTH, orderChexk, 0, SpringLayout.NORTH, switchChexk);
 
+        container.add(boolChexk);
+        springLayout.putConstraint(SpringLayout.WEST, boolChexk, st2, SpringLayout.EAST, orderChexk);
+        springLayout.putConstraint(SpringLayout.NORTH, boolChexk, 0, SpringLayout.NORTH, switchChexk);
+
         container.add(conBt);
-        springLayout.putConstraint(SpringLayout.WEST, conBt, st2, SpringLayout.EAST, orderChexk);
+        springLayout.putConstraint(SpringLayout.WEST, conBt, st2, SpringLayout.EAST, boolChexk);
         springLayout.putConstraint(SpringLayout.NORTH, conBt, 0, SpringLayout.NORTH, switchChexk);
 
         container.add(configLabel);
@@ -891,4 +937,5 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
 
         return container;
     }
+
 }

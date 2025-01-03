@@ -4,10 +4,11 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="0837a292-8016-4607-b749-b5b165f58135" name="更改" comment="Update 1.7">
+    <list default="true" id="0837a292-8016-4607-b749-b5b165f58135" name="更改" comment="Update 1.8">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/pom.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/DetSql/DetSql.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/DetSql/DetSql.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/DetSql/MyCompare.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/DetSql/MyCompare.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/DetSql/MyExtensionUnloadingHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/DetSql/MyExtensionUnloadingHandler.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/DetSql/MyHttpHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/DetSql/MyHttpHandler.java" afterDir="false" />
     </list>
@@ -60,7 +61,7 @@
     &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
     &quot;git-widget-placeholder&quot;: &quot;master&quot;,
     &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;D:/javatest/practice&quot;,
+    &quot;last_opened_file_path&quot;: &quot;D:/javatest/DetSql/DetSql&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
     &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
     &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
@@ -151,6 +152,11 @@
       <workItem from="1734773391298" duration="4559000" />
       <workItem from="1734865098934" duration="1987000" />
       <workItem from="1734955685343" duration="6842000" />
+      <workItem from="1735128793071" duration="681000" />
+      <workItem from="1735644743103" duration="2040000" />
+      <workItem from="1735709944893" duration="16105000" />
+      <workItem from="1735820749856" duration="11088000" />
+      <workItem from="1735908317188" duration="13140000" />
     </task>
     <task id="LOCAL-00001" summary="first commit">
       <option name="closed" value="true" />
@@ -536,7 +542,15 @@
       <option name="project" value="LOCAL" />
       <updated>1734616135975</updated>
     </task>
-    <option name="localTasksCounter" value="49" />
+    <task id="LOCAL-00049" summary="Update 1.8">
+      <option name="closed" value="true" />
+      <created>1735128843914</created>
+      <option name="number" value="00049" />
+      <option name="presentableId" value="LOCAL-00049" />
+      <option name="project" value="LOCAL" />
+      <updated>1735128843914</updated>
+    </task>
+    <option name="localTasksCounter" value="50" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -567,7 +581,8 @@
     <MESSAGE value="Update 1.6" />
     <MESSAGE value="Update README.md" />
     <MESSAGE value="Update 1.7" />
-    <option name="LAST_COMMIT_MESSAGE" value="Update 1.7" />
+    <MESSAGE value="Update 1.8" />
+    <option name="LAST_COMMIT_MESSAGE" value="Update 1.8" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />
