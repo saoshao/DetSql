@@ -1,4 +1,14 @@
-# DetSql
+<div align="center">
+<h1>DetSql</h1>
+<div align="center">
+
+[![Repo stars](https://img.shields.io/github/stars/saoshao/DetSql)](https://github.com/saoshao/DetSql/stargazers)
+[![Downloads total](https://img.shields.io/github/downloads/saoshao/DetSql/total?label=Downloads)](https://github.com/saoshao/DetSql/releases)
+[![Repo tags](https://img.shields.io/github/v/tag/saoshao/DetSql?label=Latest)](https://github.com/saoshao/DetSql/tags)
+[![Downloads latest total](https://img.shields.io/github/downloads/saoshao/DetSql/latest/total?label=Downloads@latest)](https://github.com/saoshao/DetSql/releases)
+
+</div>
+</div>
 
 # 介绍
 
@@ -73,10 +83,27 @@
   <br/>
 - 先发送 poc3 请求，使用 Levenshtein 方法判断 respbody 和 respbody3 的相似度高于 90%，若满足则认为存在字符类型的注入，若不满足继续发送 poc4 请求判断 respbody 和 respbody4 的相似度是否高于 90%，若满足则认为存在字符类型的注入，标记该参数为 stringsql，否则认为不存在字符类型的注入。
 
-**_5.附加判断_**
+**_5.布尔类型注入_**
 <br/>
 
-- 除了前述通过计算相似度作为判断规则外还添加了响应长度的变化阈值作为判断辅助,从而丰富判断依据，例如两个响应长度相同时可直接判断相似度为百分之百，两个响应长度差超过某个值此处设为100，就将辅助判断的相似度定位百分之九十，在判断时如果希望此时的相似度较大（小）时为好，则会选择用算法计算出的相似度和辅助判断的相似度两者中较大（小）者去比较；如果两个响应的长度差很小，则会使用算法计算出的相似度去做比较。
+- 如果为 json 格式的数据，该键值 value 需被双引号包裹才会发起后续请求判断，否则该 value 将不再判断，
+  <br/>
+- 原始请求表示为：value->respbody，
+  <br/>
+- poc1 请求：value'||EXP(710)||'->respbody1
+  <br/>
+- poc2 请求：value'||EXP(290)||'->respbody2
+  <br/>
+- poc3 请求：value'||1/0||'->respbody3
+  <br/>
+- poc4 请求：value'||1/1||'->respbody4
+  <br/>
+- 发送poc1请求，使用 Levenshtein 方法判断respbody和respbody1的相似度低于90%，若满足则继续发送poc2请求，使用 Levenshtein 方法判断respbody1和respbody2的相似度低于90%，若满足则直接发送poc4请求，使用 Levenshtein 方法判断respbody2和respbody4的相似度高于90%，若满足则判断存在布尔类型注入，标记为boolsql。若respbody1和respbody2的相似度高于90%，则发送poc3请求，再使用 Levenshtein 方法判断respbody和respbody3的相似度高于90%，若满足则直接发送poc4请求，使用 Levenshtein 方法判断respbody2和respbody4的相似度高于90%，若满足则判断存在布尔类型注入。
+
+**_6.附加判断_**
+<br/>
+
+- 除了前述通过计算相似度作为判断规则外还添加了响应长度的变化阈值作为判断辅助,从而丰富判断依据，例如两个响应长度相同时可直接判断相似度为百分之百，两个响应长度差超过某个值此处设为100，就将辅助判断的相似度定位百分之九十，在判断时如果希望此时的相似度较大（小）时为好，则会选择用算法计算出的相似度和辅助判断的相似度两者中较大（小）者去比较；如果两个响应的长度差很小，这种情况会先将两个字符串前后缀相同部分删除，若删除后的字符串中出现明显为poc的内容，则也会删除，删除后如果两个字符串变为空则判断相似度为100%，一个为空一个不为空则相似度为0，不满足前述情况则再使用算法计算出的相似度去比较。
 
 # 使用方法
 
