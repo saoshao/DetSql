@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="0837a292-8016-4607-b749-b5b165f58135" name="更改" comment="Update 2.0" />
+    <list default="true" id="0837a292-8016-4607-b749-b5b165f58135" name="更改" comment="Update README.md" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -159,15 +159,7 @@
       <workItem from="1739274697344" duration="8022000" />
       <workItem from="1739364576660" duration="7065000" />
       <workItem from="1739462963609" duration="1218000" />
-      <workItem from="1739538174317" duration="3008000" />
-    </task>
-    <task id="LOCAL-00004" summary="2024.9.3修改">
-      <option name="closed" value="true" />
-      <created>1725376255630</created>
-      <option name="number" value="00004" />
-      <option name="presentableId" value="LOCAL-00004" />
-      <option name="project" value="LOCAL" />
-      <updated>1725376255631</updated>
+      <workItem from="1739538174317" duration="3654000" />
     </task>
     <task id="LOCAL-00005" summary="2024.9.3修改">
       <option name="closed" value="true" />
@@ -553,7 +545,15 @@
       <option name="project" value="LOCAL" />
       <updated>1739540587073</updated>
     </task>
-    <option name="localTasksCounter" value="53" />
+    <task id="LOCAL-00053" summary="Update README.md">
+      <option name="closed" value="true" />
+      <created>1739543032009</created>
+      <option name="number" value="00053" />
+      <option name="presentableId" value="LOCAL-00053" />
+      <option name="project" value="LOCAL" />
+      <updated>1739543032009</updated>
+    </task>
+    <option name="localTasksCounter" value="54" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -585,9 +585,9 @@
     <MESSAGE value="Update 1.7" />
     <MESSAGE value="Update 1.8" />
     <MESSAGE value="Update 1.9" />
-    <MESSAGE value="Update README.md" />
     <MESSAGE value="Update 2.0" />
-    <option name="LAST_COMMIT_MESSAGE" value="Update 2.0" />
+    <MESSAGE value="Update README.md" />
+    <option name="LAST_COMMIT_MESSAGE" value="Update README.md" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />
