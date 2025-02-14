@@ -133,9 +133,9 @@ public class MyCompare {
     }
 
     //SqlNum,SqlString使用
-    public static List<Double> averageLevenshtein(String s1, String s2,String poc1,String poc2) {
+    public static List<Double> averageLevenshtein(String s1, String s2,String poc1,String poc2,boolean html_flag) {
         List<Double> list = new ArrayList<>();
-        if (s1.length() == s2.length()) {
+        if (Math.abs(s1.length() - s2.length())<=1) {
             list.add(1.0);
         } else if (s1.isEmpty() || s2.isEmpty()) {
             list.add(0.0);
@@ -148,28 +148,34 @@ public class MyCompare {
         } else if (s2.length()<s1.length()&&(s1.startsWith(s2)||s1.endsWith(s2))) {
             list.add(0.0);
         } else {
-            String[] newStrList;
-            if(s1.length()<s2.length()){
-                newStrList=upgradeStr(s1,s2);
-                if ((newStrList[0].replaceAll(poc1,"").isEmpty()&&!newStrList[1].replaceAll(poc2,"").isEmpty())||(!newStrList[0].replaceAll(poc1,"").isEmpty()&&newStrList[1].replaceAll(poc2,"").isEmpty())){
-                    list.add(0.0);
-                } else if (newStrList[0].replaceAll(poc1,"").isEmpty()&&newStrList[1].replaceAll(poc2,"").isEmpty()) {
-                    list.add(1.0);
-                } else{
-                    double levenshtein = levenshtein(newStrList[0], newStrList[1]);
-                    list.add(levenshtein);
+            if(html_flag){
+                String[] newStrList;
+                if(s1.length()<s2.length()){
+                    newStrList=upgradeStr(s1,s2);
+                    if ((newStrList[0].replaceAll(poc1,"").isEmpty()&&!newStrList[1].replaceAll(poc2,"").isEmpty())||(!newStrList[0].replaceAll(poc1,"").isEmpty()&&newStrList[1].replaceAll(poc2,"").isEmpty())){
+                        list.add(0.0);
+                    } else if (newStrList[0].replaceAll(poc1,"").isEmpty()&&newStrList[1].replaceAll(poc2,"").isEmpty()) {
+                        list.add(1.0);
+                    } else{
+                        double levenshtein = levenshtein(newStrList[0], newStrList[1]);
+                        list.add(levenshtein);
+                    }
+                }else{
+                    newStrList=upgradeStr(s2,s1);
+                    if ((newStrList[0].replaceAll(poc2,"").isEmpty()&&!newStrList[1].replaceAll(poc1,"").isEmpty())||(!newStrList[0].replaceAll(poc2,"").isEmpty()&&newStrList[1].replaceAll(poc1,"").isEmpty())){
+                        list.add(0.0);
+                    } else if (newStrList[0].replaceAll(poc2,"").isEmpty()&&newStrList[1].replaceAll(poc1,"").isEmpty()) {
+                        list.add(1.0);
+                    } else{
+                        double levenshtein = levenshtein(newStrList[0], newStrList[1]);
+                        list.add(levenshtein);
+                    }
                 }
             }else{
-                newStrList=upgradeStr(s2,s1);
-                if ((newStrList[0].replaceAll(poc2,"").isEmpty()&&!newStrList[1].replaceAll(poc1,"").isEmpty())||(!newStrList[0].replaceAll(poc2,"").isEmpty()&&newStrList[1].replaceAll(poc1,"").isEmpty())){
-                    list.add(0.0);
-                } else if (newStrList[0].replaceAll(poc2,"").isEmpty()&&newStrList[1].replaceAll(poc1,"").isEmpty()) {
-                    list.add(1.0);
-                } else{
-                    double levenshtein = levenshtein(newStrList[0], newStrList[1]);
-                    list.add(levenshtein);
-                }
+                double levenshtein = levenshtein(s1, s2);
+                list.add(levenshtein);
             }
+
 
 
         }
@@ -177,9 +183,9 @@ public class MyCompare {
     }
 
     //SqlOrder使用
-    public static List<Double> averageJaccard(String s1, String s2,String poc1,String poc2) {
+    public static List<Double> averageJaccard(String s1, String s2,String poc1,String poc2,boolean html_flag) {
         List<Double> list = new ArrayList<>();
-        if (s1.length() == s2.length()) {
+        if (Math.abs(s1.length() - s2.length())<=1) {
             list.add(1.0);
         } else if (s1.isEmpty() || s2.isEmpty()) {
             list.add(0.0);
@@ -190,29 +196,35 @@ public class MyCompare {
         } else if (s2.length()<s1.length()&&(s1.startsWith(s2)||s1.endsWith(s2))) {
             list.add(0.0);
         } else {
-            String[] newStrList;
-            if(s1.length()<s2.length()){
-                newStrList=upgradeStr(s1,s2);
+            if(html_flag){
+                String[] newStrList;
+                if(s1.length()<s2.length()){
+                    newStrList=upgradeStr(s1,s2);
 
-                if ((newStrList[0].replaceAll(poc1,"").isEmpty()&&!newStrList[1].replaceAll(poc2,"").isEmpty())||(!newStrList[0].replaceAll(poc1,"").isEmpty()&&newStrList[1].replaceAll(poc2,"").isEmpty())){
-                    list.add(0.0);
-                } else if (newStrList[0].replaceAll(poc1,"").isEmpty()&&newStrList[1].replaceAll(poc2,"").isEmpty()) {
-                    list.add(1.0);
-                } else{
-                    double jaccard = jaccard(newStrList[0], newStrList[1]);
-                    list.add(jaccard);
+                    if ((newStrList[0].replaceAll(poc1,"").isEmpty()&&!newStrList[1].replaceAll(poc2,"").isEmpty())||(!newStrList[0].replaceAll(poc1,"").isEmpty()&&newStrList[1].replaceAll(poc2,"").isEmpty())){
+                        list.add(0.0);
+                    } else if (newStrList[0].replaceAll(poc1,"").isEmpty()&&newStrList[1].replaceAll(poc2,"").isEmpty()) {
+                        list.add(1.0);
+                    } else{
+                        double jaccard = jaccard(newStrList[0], newStrList[1]);
+                        list.add(jaccard);
+                    }
+                }else{
+                    newStrList=upgradeStr(s2,s1);
+                    if ((newStrList[0].replaceAll(poc2,"").isEmpty()&&!newStrList[1].replaceAll(poc1,"").isEmpty())||(!newStrList[0].replaceAll(poc2,"").isEmpty()&&newStrList[1].replaceAll(poc1,"").isEmpty())){
+                        list.add(0.0);
+                    } else if (newStrList[0].replaceAll(poc2,"").isEmpty()&&newStrList[1].replaceAll(poc1,"").isEmpty()) {
+                        list.add(1.0);
+                    } else{
+                        double jaccard = jaccard(newStrList[0], newStrList[1]);
+                        list.add(jaccard);
+                    }
                 }
             }else{
-                newStrList=upgradeStr(s2,s1);
-                if ((newStrList[0].replaceAll(poc2,"").isEmpty()&&!newStrList[1].replaceAll(poc1,"").isEmpty())||(!newStrList[0].replaceAll(poc2,"").isEmpty()&&newStrList[1].replaceAll(poc1,"").isEmpty())){
-                    list.add(0.0);
-                } else if (newStrList[0].replaceAll(poc2,"").isEmpty()&&newStrList[1].replaceAll(poc1,"").isEmpty()) {
-                    list.add(1.0);
-                } else{
-                    double jaccard = jaccard(newStrList[0], newStrList[1]);
-                    list.add(jaccard);
-                }
+                double jaccard = jaccard(s1, s2);
+                list.add(jaccard);
             }
+
 
 
         }
@@ -233,6 +245,9 @@ public class MyCompare {
         return list;
     }
     public static String[] upgradeStr(String s1, String s2) {//s1比s2短
+//        if(s2.length()<=3000){
+//            return new String[]{s1,s2};
+//        }
         int len1 = s1.length();
         int len2 = s2.length();
         int startIndex=0;

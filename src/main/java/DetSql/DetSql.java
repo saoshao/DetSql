@@ -51,6 +51,8 @@ import java.util.regex.Pattern;
 import static burp.api.montoya.ui.editor.EditorOptions.READ_ONLY;
 
 import javax.swing.event.MouseInputListener;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.Element;
 
 public class DetSql implements BurpExtension, ContextMenuItemsProvider{
     MontoyaApi api;
@@ -68,6 +70,8 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
     public static JCheckBox orderChexk;//
     public static JCheckBox boolChexk;//
 
+    public static JCheckBox diyChexk;//
+
     public static JTextField textField;
     public static JTextField blackTextField;
     public static JTextField suffixTextField;
@@ -75,6 +79,9 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
     //新加参数黑名单框
     public static JTextField blackParamsField;
     JTextField configTextField;
+    public static JTextArea diyTextArea;
+    public static JTextArea regexTextArea;
+    public static JTextField timeTextField;
 
     @Override
     public void initialize(MontoyaApi montoyaApi) {
@@ -128,6 +135,58 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
                 } else {
                     MyHttpHandler.blackParamsSet = new HashSet<>();
                 }
+                timeTextField.setText(prop.getProperty("delaytime", ""));
+                try{
+                    MyHttpHandler.intTime = Integer.parseInt(prop.getProperty("delaytime", ""));
+                }catch (NumberFormatException ne){
+                    MyHttpHandler.intTime=1000000;
+                }
+
+                diyTextArea.setText(prop.getProperty("diypayloads", ""));
+                if (!prop.getProperty("diypayloads", "").isBlank()) {
+                    MyHttpHandler.diyPayloads.clear();
+                    Element paragraph = diyTextArea.getDocument().getDefaultRootElement();
+                    int contentCount = paragraph.getElementCount();
+                    for (int i = 0; i < contentCount; i++) {
+                        Element ee = paragraph.getElement(i);
+                        int rangeStart = ee.getStartOffset();
+                        int rangeEnd = ee.getEndOffset();
+                        String line = null;
+                        try {
+                            line = diyTextArea.getText(rangeStart, rangeEnd - rangeStart).replaceFirst("[\n\r]+$", "");
+                            MyHttpHandler.diyPayloads.add(line);
+                        } catch (BadLocationException ex) {
+                            throw new RuntimeException(ex);
+                        }
+
+                    }
+                } else {
+                    MyHttpHandler.diyPayloads.clear();
+                }
+                //api.logging().logToOutput(MyHttpHandler.diyPayloads.toString());
+                regexTextArea.setText(prop.getProperty("diyregex", ""));
+                if (!prop.getProperty("diyregex", "").isBlank()) {
+                    MyHttpHandler.diyRegexs.clear();
+                    Element paragraph = regexTextArea.getDocument().getDefaultRootElement();
+                    int contentCount = paragraph.getElementCount();
+                    for (int i = 0; i < contentCount; i++) {
+                        Element ee = paragraph.getElement(i);
+                        int rangeStart = ee.getStartOffset();
+                        int rangeEnd = ee.getEndOffset();
+                        String line = null;
+                        try {
+                            line = regexTextArea.getText(rangeStart, rangeEnd - rangeStart).replaceFirst("[\n\r]+$", "");
+                            //api.logging().logToOutput(line);
+                            MyHttpHandler.diyRegexs.add(line);
+                        } catch (BadLocationException ex) {
+                            throw new RuntimeException(ex);
+                        }
+
+                    }
+                } else {
+                    MyHttpHandler.diyRegexs.clear();
+                }
+                //api.logging().logToOutput(MyHttpHandler.diyRegexs.toString());
                 switchChexk.setSelected(Boolean.parseBoolean(prop.getProperty("switch")));
                 cookieChexk.setSelected(Boolean.parseBoolean(prop.getProperty("cookiecheck")));
                 errorChexk.setSelected(Boolean.parseBoolean(prop.getProperty("errorcheck")));
@@ -137,6 +196,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
                 stringChexk.setSelected(Boolean.parseBoolean(prop.getProperty("stringcheck")));
                 orderChexk.setSelected(Boolean.parseBoolean(prop.getProperty("ordercheck")));
                 boolChexk.setSelected(Boolean.parseBoolean(prop.getProperty("boolcheck")));
+                diyChexk.setSelected(Boolean.parseBoolean(prop.getProperty("diycheck")));
                 fileReader.close();
             } catch (IOException ex) {
                 throw new RuntimeException(ex);
@@ -146,7 +206,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
 
         api.logging().logToOutput("################################################");
         api.logging().logToOutput("[#]  load successfully");
-        api.logging().logToOutput("[#]  DetSql v1.9");
+        api.logging().logToOutput("[#]  DetSql v2.0");
         api.logging().logToOutput("[#]  Author: saoshao");
         api.logging().logToOutput("[#]  Email: 1224165231@qq.com");
         api.logging().logToOutput("[#]  Github: https://github.com/saoshao/DetSql");
@@ -459,6 +519,21 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
         stringChexk= new JCheckBox("测试字符类型", false);
         orderChexk= new JCheckBox("测试order类型", false);
         boolChexk= new JCheckBox("测试bool类型", false);
+        diyChexk=new JCheckBox("测试diypayloads",false);
+        JLabel diyLabel = new JLabel("自定义payloads：");
+        diyTextArea=new JTextArea(20, 6);
+        JScrollPane diyScrollPane = new JScrollPane();
+        diyScrollPane.setViewportView(diyTextArea);
+        diyTextArea.setLineWrap(true);
+
+        JLabel resRegexLabel = new JLabel("响应正则匹配规则：");
+        regexTextArea=new JTextArea(10, 6);
+        JScrollPane regexScrollPane = new JScrollPane();
+        regexScrollPane.setViewportView(regexTextArea);
+        regexTextArea.setLineWrap(true);
+
+        JLabel timeLabel = new JLabel("延迟时间(ms)：");
+        timeTextField=new JTextField(6);
 
         JButton conBt = new JButton("确认");
         conBt.addActionListener(e -> {
@@ -500,6 +575,56 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
                 MyHttpHandler.errPocs = new String[]{"'", "%27", "%DF'", "%DF%27", "\"", "%22", "%DF\"", "%DF%22", "`"};
                 MyHttpHandler.errPocsj = new String[]{"'", "%27", "%DF'", "%DF%27", "\\\"", "%22", "%DF\\\"", "%DF%22", "\\u0022", "%DF\\u0022", "\\u0027", "%DF\\u0027", "`"};
             }
+            String diyPayloadsStr=diyTextArea.getText();
+            if (!diyPayloadsStr.isBlank()) {
+                MyHttpHandler.diyPayloads.clear();
+                Element paragraph = diyTextArea.getDocument().getDefaultRootElement();
+                int contentCount = paragraph.getElementCount();
+                for (int i = 0; i < contentCount; i++) {
+                    Element ee = paragraph.getElement(i);
+                    int rangeStart = ee.getStartOffset();
+                    int rangeEnd = ee.getEndOffset();
+                    String line = null;
+                    try {
+                        line = diyTextArea.getText(rangeStart, rangeEnd - rangeStart).replaceFirst("[\n\r]+$", "");
+                        MyHttpHandler.diyPayloads.add(line);
+                    } catch (BadLocationException ex) {
+                        throw new RuntimeException(ex);
+                    }
+
+                }
+            } else {
+                MyHttpHandler.diyPayloads.clear();
+            }
+            String diyRegexsStr=regexTextArea.getText();
+            if (!diyRegexsStr.isBlank()) {
+                MyHttpHandler.diyRegexs.clear();
+                Element paragraph = regexTextArea.getDocument().getDefaultRootElement();
+                int contentCount = paragraph.getElementCount();
+                for (int i = 0; i < contentCount; i++) {
+                    Element ee = paragraph.getElement(i);
+                    int rangeStart = ee.getStartOffset();
+                    int rangeEnd = ee.getEndOffset();
+                    String line = null;
+                    try {
+                        line = regexTextArea.getText(rangeStart, rangeEnd - rangeStart).replaceFirst("[\n\r]+$", "");
+                        MyHttpHandler.diyRegexs.add(line);
+                    } catch (BadLocationException ex) {
+                        throw new RuntimeException(ex);
+                    }
+
+                }
+            } else {
+                MyHttpHandler.diyRegexs.clear();
+            }
+            String timeStr =timeTextField.getText().trim();
+            try{
+                MyHttpHandler.intTime = Integer.parseInt(timeStr);
+            }catch (NumberFormatException ne){
+                MyHttpHandler.intTime=1000000;
+            }
+
+
         });
         JButton loadBt = new JButton("载入");
         loadBt.addActionListener(e -> {
@@ -689,8 +814,12 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
         springLayout.putConstraint(SpringLayout.WEST, boolChexk, st2, SpringLayout.EAST, orderChexk);
         springLayout.putConstraint(SpringLayout.NORTH, boolChexk, 0, SpringLayout.NORTH, switchChexk);
 
+        container.add(diyChexk);
+        springLayout.putConstraint(SpringLayout.WEST, diyChexk, st2, SpringLayout.EAST, boolChexk);
+        springLayout.putConstraint(SpringLayout.NORTH, diyChexk, 0, SpringLayout.NORTH, switchChexk);
+
         container.add(conBt);
-        springLayout.putConstraint(SpringLayout.WEST, conBt, st2, SpringLayout.EAST, boolChexk);
+        springLayout.putConstraint(SpringLayout.WEST, conBt, st2, SpringLayout.EAST, diyChexk);
         springLayout.putConstraint(SpringLayout.NORTH, conBt, 0, SpringLayout.NORTH, switchChexk);
 
         container.add(configLabel);
@@ -709,6 +838,33 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
         container.add(saveBt);
         springLayout.putConstraint(SpringLayout.NORTH, saveBt, 0, SpringLayout.NORTH, configLabel);
         springLayout.putConstraint(SpringLayout.EAST, saveBt, Spring.minus(st), SpringLayout.EAST, container);
+
+        container.add(diyLabel);
+        springLayout.putConstraint(SpringLayout.NORTH, diyLabel, st, SpringLayout.SOUTH, configLabel);
+        springLayout.putConstraint(SpringLayout.WEST, diyLabel, 0, SpringLayout.WEST, blackParams);
+        container.add(resRegexLabel);
+        //SpringLayout.Constraints contentLabeln = springLayout.getConstraints(resRegexLabel);
+        springLayout.putConstraint(SpringLayout.WEST, resRegexLabel, 10, SpringLayout.HORIZONTAL_CENTER, container);
+        springLayout.putConstraint(SpringLayout.NORTH, resRegexLabel, st, SpringLayout.SOUTH, configLabel);
+
+        container.add(diyScrollPane);
+        springLayout.putConstraint(SpringLayout.WEST, diyScrollPane, 0, SpringLayout.WEST, textField);
+        springLayout.putConstraint(SpringLayout.NORTH, diyScrollPane, 0, SpringLayout.NORTH, diyLabel);
+        springLayout.putConstraint(SpringLayout.EAST, diyScrollPane, -10, SpringLayout.HORIZONTAL_CENTER, container);
+
+        container.add(regexScrollPane);
+        springLayout.putConstraint(SpringLayout.WEST, regexScrollPane, 10, SpringLayout.EAST, resRegexLabel);
+        springLayout.putConstraint(SpringLayout.NORTH, regexScrollPane, 0, SpringLayout.NORTH, diyLabel);
+        springLayout.putConstraint(SpringLayout.EAST, regexScrollPane, Spring.minus(st), SpringLayout.EAST, container);
+
+        container.add(timeLabel);
+        springLayout.putConstraint(SpringLayout.WEST, timeLabel, 0, SpringLayout.WEST, resRegexLabel);
+        springLayout.putConstraint(SpringLayout.NORTH, timeLabel, st, SpringLayout.SOUTH, regexScrollPane);
+
+        container.add(timeTextField);
+        springLayout.putConstraint(SpringLayout.WEST, timeTextField, 0, SpringLayout.WEST, regexScrollPane);
+        springLayout.putConstraint(SpringLayout.NORTH, timeTextField, 0, SpringLayout.NORTH, timeLabel);
+
         return container;
     }
 
