@@ -34,8 +34,8 @@ public class MyHttpHandler implements HttpHandler {
     public Lock lk;
     public static String[] errPocs = {"'", "%27", "%DF'", "%DF%27", "\"", "%22", "%DF\"", "%DF%22", "`"};
     public static String[] errPocsj = {"'", "%27", "%DF'", "%DF%27", "\\\"", "%22", "%DF\\\"", "%DF%22", "\\u0022", "%DF\\u0022", "\\u0027", "%DF\\u0027", "`"};
-    public static Set<String> diyPayloads=new HashSet<>();;
-    public static Set<String> diyRegexs=new HashSet<>();;
+    public static Set<String> diyPayloads=new HashSet<>();
+    public static Set<String> diyRegexs=new HashSet<>();
     public static int intTime;
     private static final String[] rules = {
             "the\\s+used\\s+select\\s+statements\\s+have\\s+different\\s+number\\s+of\\s+columns",
@@ -131,8 +131,8 @@ public class MyHttpHandler implements HttpHandler {
             "数据库出错"
     };
     public int countId;
-    public static long timeoutms=5000;
     public static Set<String> blackParamsSet = new HashSet<>();
+    public static Set<String> whiteParamsSet = new HashSet<>();
     //RequestOptions requestOptions = RequestOptions.requestOptions().withResponseTimeout(timeoutms);
     public MyHttpHandler(MontoyaApi mapi, SourceTableModel sourceTableModel, PocTableModel pocTableModel, ConcurrentHashMap<String, List<PocLogEntry>> attackMap) {
         this.api = mapi;
@@ -2097,13 +2097,15 @@ public class MyHttpHandler implements HttpHandler {
         }
         return sb.toString();
     }
-    public String processOneRequest2( String requestSm3Hash,HttpRequestResponse httpRequestResponse) throws InterruptedException {
+    public String processOneRequest2(String requestSm3Hash,HttpRequestResponse httpRequestResponse) throws InterruptedException {
         boolean html_flag = httpRequestResponse.response().mimeType().description().equals("HTML");
         boolean err_flag = false;
         boolean num_flag = false;
         boolean order_flag = false;
         boolean string_flag = false;
         boolean bool_flag = false;
+
+        boolean diy_flag = false;
         HttpRequest sourceHttpRequest = httpRequestResponse.request().copyToTempFile();
         String sourceBody = new String(httpRequestResponse.response().body().getBytes(), StandardCharsets.UTF_8);
         List<PocLogEntry> getAttackList = attackMap.get(requestSm3Hash);
@@ -2134,6 +2136,37 @@ public class MyHttpHandler implements HttpHandler {
                             PocLogEntry logEntry = new PocLogEntry(paramName, poc, null, "errsql(" + resBool + ")", String.valueOf(pocHttpRequestResponse.response().bodyToString().length()), String.valueOf(pocHttpRequestResponse.response().statusCode()), String.format("%.3f", (pocHttpRequestResponse.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), pocHttpRequestResponse, requestSm3Hash);
                             getAttackList.add(logEntry);
                             err_flag = true;
+                        }
+                    }
+                }
+            }
+            //diy
+            if (DetSql.diyChexk.isSelected()&&!diyPayloads.isEmpty()&&(!DetSql.timeTextField.getText().isEmpty()||!diyRegexs.isEmpty())) {
+                for (int i = 0; i < newHttpParameters.size(); i++) {
+                    String paramName = newHttpParameters.get(i).name();
+                    if(!blackParamsSet.isEmpty()&&blackParamsSet.contains(paramName)){
+                        continue;
+                    }
+                    String paramValue = newHttpParameters.get(i).value();
+                    for (String poc : diyPayloads) {
+                        List<HttpParameter> pocHttpParameters = new ArrayList<>(newHttpParameters);
+                        pocHttpParameters.set(i, HttpParameter.urlParameter(paramName, paramValue + poc));
+                        HttpRequest pocHttpRequest = sourceHttpRequest.withUpdatedParameters(pocHttpParameters);
+                        HttpRequestResponse pocHttpRequestResponse = callMyRequest(pocHttpRequest, 2);
+                        String pocResponseBody = new String(pocHttpRequestResponse.response().body().getBytes(), StandardCharsets.UTF_8);
+
+                        if(!diyRegexs.isEmpty()){
+                            String resBool = diyRegexCheck(pocResponseBody);
+                            if (resBool != null) {
+                                PocLogEntry logEntry = new PocLogEntry(paramName, poc, null, "diypoc(" + resBool + ")", String.valueOf(pocHttpRequestResponse.response().bodyToString().length()), String.valueOf(pocHttpRequestResponse.response().statusCode()), String.format("%.3f", (pocHttpRequestResponse.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), pocHttpRequestResponse, requestSm3Hash);
+                                getAttackList.add(logEntry);
+                                diy_flag = true;
+                            }
+                        }
+                        if(!DetSql.timeTextField.getText().isEmpty()&&pocHttpRequestResponse.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()>intTime){
+                            PocLogEntry logEntry = new PocLogEntry(paramName, poc, null, "diypoc(time)", String.valueOf(pocHttpRequestResponse.response().bodyToString().length()), String.valueOf(pocHttpRequestResponse.response().statusCode()), String.format("%.3f", (pocHttpRequestResponse.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), pocHttpRequestResponse, requestSm3Hash);
+                            getAttackList.add(logEntry);
+                            diy_flag = true;
                         }
                     }
                 }
@@ -2465,7 +2498,36 @@ public class MyHttpHandler implements HttpHandler {
                         }
                     }
                 }
-
+                //diy
+                if (DetSql.diyChexk.isSelected()&&!diyPayloads.isEmpty()&&(!DetSql.timeTextField.getText().isEmpty()||!diyRegexs.isEmpty())){
+                    for (int i = 0; i < newHttpParameters.size(); i++) {
+                        String paramName = newHttpParameters.get(i).name();
+                        if(!blackParamsSet.isEmpty()&&blackParamsSet.contains(paramName)){
+                            continue;
+                        }
+                        String paramValue = newHttpParameters.get(i).value();
+                        for (String poc : diyPayloads) {
+                            List<HttpParameter> pocHttpParameters = new ArrayList<>(newHttpParameters);
+                            pocHttpParameters.set(i, HttpParameter.bodyParameter(paramName, paramValue + poc));
+                            HttpRequest pocHttpRequest = sourceHttpRequest.withUpdatedParameters(pocHttpParameters);
+                            HttpRequestResponse pocHttpRequestResponse = callMyRequest(pocHttpRequest, 2);
+                            String pocResponseBody = new String(pocHttpRequestResponse.response().body().getBytes(), StandardCharsets.UTF_8);
+                            if(!diyRegexs.isEmpty()){
+                                String resBool = diyRegexCheck(pocResponseBody);
+                                if (resBool != null) {
+                                    PocLogEntry logEntry = new PocLogEntry(paramName, poc, null, "diypoc(" + resBool + ")", String.valueOf(pocHttpRequestResponse.response().bodyToString().length()), String.valueOf(pocHttpRequestResponse.response().statusCode()), String.format("%.3f", (pocHttpRequestResponse.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), pocHttpRequestResponse, requestSm3Hash);
+                                    getAttackList.add(logEntry);
+                                    diy_flag = true;
+                                }
+                            }
+                            if(!DetSql.timeTextField.getText().isEmpty()&&pocHttpRequestResponse.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()>intTime){
+                                PocLogEntry logEntry = new PocLogEntry(paramName, poc, null, "diypoc(time)", String.valueOf(pocHttpRequestResponse.response().bodyToString().length()), String.valueOf(pocHttpRequestResponse.response().statusCode()), String.format("%.3f", (pocHttpRequestResponse.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), pocHttpRequestResponse, requestSm3Hash);
+                                getAttackList.add(logEntry);
+                                diy_flag = true;
+                            }
+                        }
+                    }
+                }
                 if (DetSql.stringChexk.isSelected()) {
                     //string
                     stringloop:
@@ -2786,7 +2848,40 @@ public class MyHttpHandler implements HttpHandler {
                         }
                     }
                 }
-
+                //diy
+                if (DetSql.diyChexk.isSelected()&&!diyPayloads.isEmpty()&&(!DetSql.timeTextField.getText().isEmpty()||!diyRegexs.isEmpty())){
+                    for (ParsedHttpParameter parameter : parameters) {
+                        int valueStart = parameter.valueOffsets().startIndexInclusive();
+                        int valueEnd = parameter.valueOffsets().endIndexExclusive();
+                        if (sourceRequestIndex.charAt(valueStart - 1) == '"' && sourceRequestIndex.charAt(valueEnd) == '"') {
+                            String paramName = parameter.name();
+                            if(!blackParamsSet.isEmpty()&&blackParamsSet.contains(paramName)){
+                                continue;
+                            }
+                            String prefix = sourceRequestIndex.substring(bodyStartIndex, valueEnd);
+                            String suffix = sourceRequestIndex.substring(valueEnd);
+                            for (String errPoc : diyPayloads) {
+                                String pocBody = prefix + errPoc + suffix;
+                                HttpRequest pocHttpRequest = sourceHttpRequest.withBody(pocBody);
+                                HttpRequestResponse pocHttpRequestResponse = callMyRequest(pocHttpRequest, 2);
+                                String pocResponseBody = new String(pocHttpRequestResponse.response().body().getBytes(), StandardCharsets.UTF_8);
+                                if(!diyRegexs.isEmpty()){
+                                    String resBool = diyRegexCheck(pocResponseBody);
+                                    if (resBool != null) {
+                                        PocLogEntry logEntry = new PocLogEntry(paramName, errPoc, null, "diypoc(" + resBool + ")", String.valueOf(pocHttpRequestResponse.response().bodyToString().length()), String.valueOf(pocHttpRequestResponse.response().statusCode()), String.format("%.3f", (pocHttpRequestResponse.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), pocHttpRequestResponse, requestSm3Hash);
+                                        getAttackList.add(logEntry);
+                                        diy_flag = true;
+                                    }
+                                }
+                                if(!DetSql.timeTextField.getText().isEmpty()&&pocHttpRequestResponse.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()>intTime){
+                                    PocLogEntry logEntry = new PocLogEntry(paramName, errPoc, null, "diypoc(time)", String.valueOf(pocHttpRequestResponse.response().bodyToString().length()), String.valueOf(pocHttpRequestResponse.response().statusCode()), String.format("%.3f", (pocHttpRequestResponse.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), pocHttpRequestResponse, requestSm3Hash);
+                                    getAttackList.add(logEntry);
+                                    diy_flag = true;
+                                }
+                            }
+                        }
+                    }
+                }
                 if (DetSql.stringChexk.isSelected()) {
                     stringloop:
                     for (ParsedHttpParameter parameter : parameters) {
@@ -3054,7 +3149,37 @@ public class MyHttpHandler implements HttpHandler {
                         }
                     }
                 }
-
+                //diy
+                if (DetSql.diyChexk.isSelected()&&!diyPayloads.isEmpty()&&(!DetSql.timeTextField.getText().isEmpty()||!diyRegexs.isEmpty())){
+                    for (ParsedHttpParameter parameter : parameters) {
+                        int valueEnd = parameter.valueOffsets().endIndexExclusive();
+                        String paramName = parameter.name();
+                        if(!blackParamsSet.isEmpty()&&blackParamsSet.contains(paramName)){
+                            continue;
+                        }
+                        String prefix = sourceRequestIndex.substring(bodyStartIndex, valueEnd);
+                        String suffix = sourceRequestIndex.substring(valueEnd);
+                        for (String errPoc : diyPayloads) {
+                            String pocBody = prefix + errPoc + suffix;
+                            HttpRequest pocHttpRequest = sourceHttpRequest.withBody(pocBody);
+                            HttpRequestResponse pocHttpRequestResponse = callMyRequest(pocHttpRequest, 2);
+                            String pocResponseBody = new String(pocHttpRequestResponse.response().body().getBytes(), StandardCharsets.UTF_8);
+                            if(!diyRegexs.isEmpty()){
+                                String resBool = diyRegexCheck(pocResponseBody);
+                                if (resBool != null) {
+                                    PocLogEntry logEntry = new PocLogEntry(paramName, errPoc, null, "diypoc(" + resBool + ")", String.valueOf(pocHttpRequestResponse.response().bodyToString().length()), String.valueOf(pocHttpRequestResponse.response().statusCode()), String.format("%.3f", (pocHttpRequestResponse.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), pocHttpRequestResponse, requestSm3Hash);
+                                    getAttackList.add(logEntry);
+                                    diy_flag = true;
+                                }
+                            }
+                            if(!DetSql.timeTextField.getText().isEmpty()&&pocHttpRequestResponse.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()>intTime){
+                                PocLogEntry logEntry = new PocLogEntry(paramName, errPoc, null, "diypoc(time)", String.valueOf(pocHttpRequestResponse.response().bodyToString().length()), String.valueOf(pocHttpRequestResponse.response().statusCode()), String.format("%.3f", (pocHttpRequestResponse.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), pocHttpRequestResponse, requestSm3Hash);
+                                getAttackList.add(logEntry);
+                                diy_flag = true;
+                            }
+                        }
+                    }
+                }
 
                 if (DetSql.numChexk.isSelected()) {
                     //数字
@@ -3387,7 +3512,36 @@ public class MyHttpHandler implements HttpHandler {
                     }
                 }
             }
-
+            //diy
+            if (DetSql.diyChexk.isSelected()&&!diyPayloads.isEmpty()&&(!DetSql.timeTextField.getText().isEmpty()||!diyRegexs.isEmpty())){
+                for (int i = 0; i < newHttpParameters.size(); i++) {
+                    String paramName = newHttpParameters.get(i).name();
+                    if(!blackParamsSet.isEmpty()&&blackParamsSet.contains(paramName)){
+                        continue;
+                    }
+                    String paramValue = newHttpParameters.get(i).value();
+                    for (String poc : diyPayloads) {
+                        List<HttpParameter> pocHttpParameters = new ArrayList<>(newHttpParameters);
+                        pocHttpParameters.set(i, HttpParameter.cookieParameter(paramName, paramValue + poc));
+                        HttpRequest pocHttpRequest = sourceHttpRequest.withUpdatedParameters(pocHttpParameters);
+                        HttpRequestResponse pocHttpRequestResponse = callMyRequest(pocHttpRequest, 2);
+                        String pocResponseBody = new String(pocHttpRequestResponse.response().body().getBytes(), StandardCharsets.UTF_8);
+                        if(!diyRegexs.isEmpty()){
+                            String resBool = diyRegexCheck(pocResponseBody);
+                            if (resBool != null) {
+                                PocLogEntry logEntry = new PocLogEntry(paramName, poc, null, "diypoc(" + resBool + ")", String.valueOf(pocHttpRequestResponse.response().bodyToString().length()), String.valueOf(pocHttpRequestResponse.response().statusCode()), String.format("%.3f", (pocHttpRequestResponse.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), pocHttpRequestResponse, requestSm3Hash);
+                                getAttackList.add(logEntry);
+                                diy_flag = true;
+                            }
+                        }
+                        if(!DetSql.timeTextField.getText().isEmpty()&&pocHttpRequestResponse.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()>intTime){
+                            PocLogEntry logEntry = new PocLogEntry(paramName, poc, null, "diypoc(time)", String.valueOf(pocHttpRequestResponse.response().bodyToString().length()), String.valueOf(pocHttpRequestResponse.response().statusCode()), String.format("%.3f", (pocHttpRequestResponse.timingData().get().timeBetweenRequestSentAndEndOfResponse().toMillis()) / 1000.0), pocHttpRequestResponse, requestSm3Hash);
+                            getAttackList.add(logEntry);
+                            diy_flag = true;
+                        }
+                    }
+                }
+            }
             if (DetSql.stringChexk.isSelected()) {
                 //string
                 stringloop:
@@ -3687,8 +3841,12 @@ public class MyHttpHandler implements HttpHandler {
         if (bool_flag) {
             sb.append("-boolsql");
         }
+        if (diy_flag) {
+            sb.append("-diypoc");
+        }
         return sb.toString();
     }
+
     public static String ErrSqlCheck(String text) {
         String cleanedText = text.replaceAll("\\n|\\r|\\r\\n", "");
         for (String rule : rules) {

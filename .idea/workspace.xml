@@ -4,7 +4,15 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="0837a292-8016-4607-b749-b5b165f58135" name="更改" comment="Update README.md" />
+    <list default="true" id="0837a292-8016-4607-b749-b5b165f58135" name="更改" comment="Update README.md">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/pom.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/DetSql/DetSql.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/DetSql/DetSql.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/DetSql/MyExtensionUnloadingHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/DetSql/MyExtensionUnloadingHandler.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/DetSql/MyFilterRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/DetSql/MyFilterRequest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/DetSql/MyHttpHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/DetSql/MyHttpHandler.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/DetSql/PocTableModel.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/DetSql/PocTableModel.java" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -159,15 +167,10 @@
       <workItem from="1739274697344" duration="8022000" />
       <workItem from="1739364576660" duration="7065000" />
       <workItem from="1739462963609" duration="1218000" />
-      <workItem from="1739538174317" duration="3654000" />
-    </task>
-    <task id="LOCAL-00005" summary="2024.9.3修改">
-      <option name="closed" value="true" />
-      <created>1725416582227</created>
-      <option name="number" value="00005" />
-      <option name="presentableId" value="LOCAL-00005" />
-      <option name="project" value="LOCAL" />
-      <updated>1725416582227</updated>
+      <workItem from="1739538174317" duration="4399000" />
+      <workItem from="1739603585263" duration="4160000" />
+      <workItem from="1740750591196" duration="3341000" />
+      <workItem from="1740803466534" duration="9423000" />
     </task>
     <task id="LOCAL-00006" summary="2024.9.4修改">
       <option name="closed" value="true" />
@@ -553,7 +556,15 @@
       <option name="project" value="LOCAL" />
       <updated>1739543032009</updated>
     </task>
-    <option name="localTasksCounter" value="54" />
+    <task id="LOCAL-00054" summary="Update README.md">
+      <option name="closed" value="true" />
+      <created>1739543064768</created>
+      <option name="number" value="00054" />
+      <option name="presentableId" value="LOCAL-00054" />
+      <option name="project" value="LOCAL" />
+      <updated>1739543064768</updated>
+    </task>
+    <option name="localTasksCounter" value="55" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">

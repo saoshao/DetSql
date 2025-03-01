@@ -78,9 +78,11 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
     public static JTextField errorPocTextField;
     //新加参数黑名单框
     public static JTextField blackParamsField;
+    public static JTextField whiteParamsField;
     JTextField configTextField;
     public static JTextArea diyTextArea;
     public static JTextArea regexTextArea;
+    public static JTextArea blackPathTextArea;
     public static JTextField timeTextField;
 
     @Override
@@ -115,6 +117,12 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
                 } else {
                     MyFilterRequest.blackListSet = new HashSet<>();
                 }
+                blackParamsField.setText(prop.getProperty("paramslist", ""));
+                if (!prop.getProperty("paramslist", "").isBlank()) {
+                    MyHttpHandler.blackParamsSet = new HashSet<>(Arrays.asList(prop.getProperty("paramslist", "").split("\\|")));
+                } else {
+                    MyHttpHandler.blackParamsSet = new HashSet<>();
+                }
                 suffixTextField.setText(prop.getProperty("suffixlist", "wma|csv|mov|doc|3g2|mp4|7z|3gp|xbm|jar|avi|ogv|mpv2|tiff|pnm|jpg|xpm|xul|epub|au|aac|midi|weba|tar|js|rtf|bin|woff|wmv|tif|css|gif|flv|ttf|html|eot|ods|odt|webm|mpg|mjs|bz|ics|ras|aifc|mpa|ppt|mpeg|pptx|oga|ra|aiff|asf|woff2|snd|xwd|csh|webp|xlsx|mpkg|vsd|mid|wav|svg|mp3|bz2|ico|jpe|pbm|gz|pdf|log|jpeg|rmi|txt|arc|rm|ppm|cod|jfif|ram|docx|mpe|odp|otf|pgm|cmx|m3u|mp2|cab|rar|bmp|rgb|png|azw|ogx|aif|zip|ief|htm|xls|mpp|swf|rmvb|abw"));
                 if (!prop.getProperty("suffixlist", "wma|csv|mov|doc|3g2|mp4|7z|3gp|xbm|jar|avi|ogv|mpv2|tiff|pnm|jpg|xpm|xul|epub|au|aac|midi|weba|tar|js|rtf|bin|woff|wmv|tif|css|gif|flv|ttf|html|eot|ods|odt|webm|mpg|mjs|bz|ics|ras|aifc|mpa|ppt|mpeg|pptx|oga|ra|aiff|asf|woff2|snd|xwd|csh|webp|xlsx|mpkg|vsd|mid|wav|svg|mp3|bz2|ico|jpe|pbm|gz|pdf|log|jpeg|rmi|txt|arc|rm|ppm|cod|jfif|ram|docx|mpe|odp|otf|pgm|cmx|m3u|mp2|cab|rar|bmp|rgb|png|azw|ogx|aif|zip|ief|htm|xls|mpp|swf|rmvb|abw").isBlank()) {
                     MyFilterRequest.unLegalExtensionSet = new HashSet<>(Arrays.asList(prop.getProperty("suffixlist", "wma|csv|mov|doc|3g2|mp4|7z|3gp|xbm|jar|avi|ogv|mpv2|tiff|pnm|jpg|xpm|xul|epub|au|aac|midi|weba|tar|js|rtf|bin|woff|wmv|tif|css|gif|flv|ttf|html|eot|ods|odt|webm|mpg|mjs|bz|ics|ras|aifc|mpa|ppt|mpeg|pptx|oga|ra|aiff|asf|woff2|snd|xwd|csh|webp|xlsx|mpkg|vsd|mid|wav|svg|mp3|bz2|ico|jpe|pbm|gz|pdf|log|jpeg|rmi|txt|arc|rm|ppm|cod|jfif|ram|docx|mpe|odp|otf|pgm|cmx|m3u|mp2|cab|rar|bmp|rgb|png|azw|ogx|aif|zip|ief|htm|xls|mpp|swf|rmvb|abw").split("\\|")));
@@ -129,19 +137,13 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
                     MyHttpHandler.errPocs = new String[]{"'", "%27", "%DF'", "%DF%27", "\"", "%22", "%DF\"", "%DF%22", "`"};
                     MyHttpHandler.errPocsj = new String[]{"'", "%27", "%DF'", "%DF%27", "\\\"", "%22", "%DF\\\"", "%DF%22", "\\u0022", "%DF\\u0022", "\\u0027", "%DF\\u0027", "`"};
                 }
-                blackParamsField.setText(prop.getProperty("paramslist", ""));
-                if (!prop.getProperty("paramslist", "").isBlank()) {
-                    MyHttpHandler.blackParamsSet = new HashSet<>(Arrays.asList(prop.getProperty("paramslist", "").split("\\|")));
-                } else {
-                    MyHttpHandler.blackParamsSet = new HashSet<>();
-                }
                 timeTextField.setText(prop.getProperty("delaytime", ""));
+                String timeStr =prop.getProperty("delaytime", "").trim();
                 try{
-                    MyHttpHandler.intTime = Integer.parseInt(prop.getProperty("delaytime", ""));
+                    MyHttpHandler.intTime = Integer.parseInt(timeStr);
                 }catch (NumberFormatException ne){
                     MyHttpHandler.intTime=1000000;
                 }
-
                 diyTextArea.setText(prop.getProperty("diypayloads", ""));
                 if (!prop.getProperty("diypayloads", "").isBlank()) {
                     MyHttpHandler.diyPayloads.clear();
@@ -163,7 +165,6 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
                 } else {
                     MyHttpHandler.diyPayloads.clear();
                 }
-                //api.logging().logToOutput(MyHttpHandler.diyPayloads.toString());
                 regexTextArea.setText(prop.getProperty("diyregex", ""));
                 if (!prop.getProperty("diyregex", "").isBlank()) {
                     MyHttpHandler.diyRegexs.clear();
@@ -186,17 +187,40 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
                 } else {
                     MyHttpHandler.diyRegexs.clear();
                 }
-                //api.logging().logToOutput(MyHttpHandler.diyRegexs.toString());
+                blackPathTextArea.setText(prop.getProperty("blackpath", ""));
+                if (!prop.getProperty("blackpath", "").isBlank()) {
+                    MyFilterRequest.blackPathSet.clear();
+                    Element paragraph = blackPathTextArea.getDocument().getDefaultRootElement();
+                    int contentCount = paragraph.getElementCount();
+                    for (int i = 0; i < contentCount; i++) {
+                        Element ee = paragraph.getElement(i);
+                        int rangeStart = ee.getStartOffset();
+                        int rangeEnd = ee.getEndOffset();
+                        String line = null;
+                        try {
+                            line = blackPathTextArea.getText(rangeStart, rangeEnd - rangeStart).replaceFirst("[\n\r]+$", "");
+                            MyFilterRequest.blackPathSet.add(line);
+
+                        } catch (BadLocationException ex) {
+                            throw new RuntimeException(ex);
+                        }
+
+                    }
+                    api.logging().logToOutput(MyFilterRequest.blackPathSet.toString());
+                } else {
+                    MyFilterRequest.blackPathSet.clear();
+                }
+
                 switchChexk.setSelected(Boolean.parseBoolean(prop.getProperty("switch")));
                 cookieChexk.setSelected(Boolean.parseBoolean(prop.getProperty("cookiecheck")));
                 errorChexk.setSelected(Boolean.parseBoolean(prop.getProperty("errorcheck")));
                 vulnChexk.setSelected(Boolean.parseBoolean(prop.getProperty("repeatercheck")));
-
                 numChexk.setSelected(Boolean.parseBoolean(prop.getProperty("numcheck")));
                 stringChexk.setSelected(Boolean.parseBoolean(prop.getProperty("stringcheck")));
                 orderChexk.setSelected(Boolean.parseBoolean(prop.getProperty("ordercheck")));
                 boolChexk.setSelected(Boolean.parseBoolean(prop.getProperty("boolcheck")));
                 diyChexk.setSelected(Boolean.parseBoolean(prop.getProperty("diycheck")));
+
                 fileReader.close();
             } catch (IOException ex) {
                 throw new RuntimeException(ex);
@@ -206,7 +230,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
 
         api.logging().logToOutput("################################################");
         api.logging().logToOutput("[#]  load successfully");
-        api.logging().logToOutput("[#]  DetSql v2.0");
+        api.logging().logToOutput("[#]  DetSql v2.1");
         api.logging().logToOutput("[#]  Author: saoshao");
         api.logging().logToOutput("[#]  Email: 1224165231@qq.com");
         api.logging().logToOutput("[#]  Github: https://github.com/saoshao/DetSql");
@@ -359,8 +383,8 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
         menuItem2.addActionListener(e -> {
             for (int i = sourceTableModel.log.size() - 1; i >= 0; i--) {
                 if (sourceTableModel.getValueAt(table1.convertRowIndexToModel(i),6).equals("")||sourceTableModel.getValueAt(table1.convertRowIndexToModel(i),6).equals("手动停止")){
-                    api.logging().logToOutput("rows:"+i);
-                    api.logging().logToOutput("ID:"+table1.convertRowIndexToModel(i));
+                    //api.logging().logToOutput("rows:"+i);
+                    //api.logging().logToOutput("ID:"+table1.convertRowIndexToModel(i));
                     sourceTableModel.log.remove(new SourceLogEntry((int)sourceTableModel.getValueAt(table1.convertRowIndexToModel(i),0),null,null,null,0,null,null,null,null));
                     tableModel.fireTableRowsDeleted(i,i);
                 }
@@ -535,6 +559,12 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
         JLabel timeLabel = new JLabel("延迟时间(ms)：");
         timeTextField=new JTextField(6);
 
+        JLabel blackPathLabel = new JLabel("路径黑名单：");
+        blackPathTextArea=new JTextArea(5, 6);
+        JScrollPane blackPathScrollPane = new JScrollPane();
+        blackPathScrollPane.setViewportView(blackPathTextArea);
+        blackPathTextArea.setLineWrap(true);
+
         JButton conBt = new JButton("确认");
         conBt.addActionListener(e -> {
             String whiteList = textField.getText();
@@ -624,6 +654,27 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
                 MyHttpHandler.intTime=1000000;
             }
 
+            String blackPathStr=blackPathTextArea.getText();
+            if (!blackPathStr.isBlank()) {
+                MyFilterRequest.blackPathSet.clear();
+                Element paragraph = blackPathTextArea.getDocument().getDefaultRootElement();
+                int contentCount = paragraph.getElementCount();
+                for (int i = 0; i < contentCount; i++) {
+                    Element ee = paragraph.getElement(i);
+                    int rangeStart = ee.getStartOffset();
+                    int rangeEnd = ee.getEndOffset();
+                    String line = null;
+                    try {
+                        line = blackPathTextArea.getText(rangeStart, rangeEnd - rangeStart).replaceFirst("[\n\r]+$", "");
+                        MyFilterRequest.blackPathSet.add(line);
+                    } catch (BadLocationException ex) {
+                        throw new RuntimeException(ex);
+                    }
+
+                }
+            } else {
+                MyFilterRequest.blackPathSet.clear();
+            }
 
         });
         JButton loadBt = new JButton("载入");
@@ -672,16 +723,89 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
                         MyHttpHandler.errPocs = new String[]{"'", "%27", "%DF'", "%DF%27", "\"", "%22", "%DF\"", "%DF%22", "`"};
                         MyHttpHandler.errPocsj = new String[]{"'", "%27", "%DF'", "%DF%27", "\\\"", "%22", "%DF\\\"", "%DF%22", "\\u0022", "%DF\\u0022", "\\u0027", "%DF\\u0027", "`"};
                     }
+                    timeTextField.setText(prop.getProperty("delaytime", ""));
+                    String timeStr =prop.getProperty("delaytime", "").trim();
+                    try{
+                        MyHttpHandler.intTime = Integer.parseInt(timeStr);
+                    }catch (NumberFormatException ne){
+                        MyHttpHandler.intTime=1000000;
+                    }
+                    diyTextArea.setText(prop.getProperty("diypayloads", ""));
+                    if (!prop.getProperty("diypayloads", "").isBlank()) {
+                        MyHttpHandler.diyPayloads.clear();
+                        Element paragraph = diyTextArea.getDocument().getDefaultRootElement();
+                        int contentCount = paragraph.getElementCount();
+                        for (int i = 0; i < contentCount; i++) {
+                            Element ee = paragraph.getElement(i);
+                            int rangeStart = ee.getStartOffset();
+                            int rangeEnd = ee.getEndOffset();
+                            String line = null;
+                            try {
+                                line = diyTextArea.getText(rangeStart, rangeEnd - rangeStart).replaceFirst("[\n\r]+$", "");
+                                MyHttpHandler.diyPayloads.add(line);
+                            } catch (BadLocationException ex) {
+                                throw new RuntimeException(ex);
+                            }
+
+                        }
+                    } else {
+                        MyHttpHandler.diyPayloads.clear();
+                    }
+                    regexTextArea.setText(prop.getProperty("diyregex", ""));
+                    if (!prop.getProperty("diyregex", "").isBlank()) {
+                        MyHttpHandler.diyRegexs.clear();
+                        Element paragraph = regexTextArea.getDocument().getDefaultRootElement();
+                        int contentCount = paragraph.getElementCount();
+                        for (int i = 0; i < contentCount; i++) {
+                            Element ee = paragraph.getElement(i);
+                            int rangeStart = ee.getStartOffset();
+                            int rangeEnd = ee.getEndOffset();
+                            String line = null;
+                            try {
+                                line = regexTextArea.getText(rangeStart, rangeEnd - rangeStart).replaceFirst("[\n\r]+$", "");
+                                //api.logging().logToOutput(line);
+                                MyHttpHandler.diyRegexs.add(line);
+                            } catch (BadLocationException ex) {
+                                throw new RuntimeException(ex);
+                            }
+
+                        }
+                    } else {
+                        MyHttpHandler.diyRegexs.clear();
+                    }
+                    blackPathTextArea.setText(prop.getProperty("blackpath", ""));
+                    if (!prop.getProperty("blackpath", "").isBlank()) {
+                        MyFilterRequest.blackPathSet.clear();
+                        Element paragraph = blackPathTextArea.getDocument().getDefaultRootElement();
+                        int contentCount = paragraph.getElementCount();
+                        for (int i = 0; i < contentCount; i++) {
+                            Element ee = paragraph.getElement(i);
+                            int rangeStart = ee.getStartOffset();
+                            int rangeEnd = ee.getEndOffset();
+                            String line = null;
+                            try {
+                                line = blackPathTextArea.getText(rangeStart, rangeEnd - rangeStart).replaceFirst("[\n\r]+$", "");
+                                MyFilterRequest.blackPathSet.add(line);
+
+                            } catch (BadLocationException ex) {
+                                throw new RuntimeException(ex);
+                            }
+
+                        }
+                        api.logging().logToOutput(MyFilterRequest.blackPathSet.toString());
+                    } else {
+                        MyFilterRequest.blackPathSet.clear();
+                    }
+
                     switchChexk.setSelected(Boolean.parseBoolean(prop.getProperty("switch")));
                     cookieChexk.setSelected(Boolean.parseBoolean(prop.getProperty("cookiecheck")));
                     errorChexk.setSelected(Boolean.parseBoolean(prop.getProperty("errorcheck")));
                     vulnChexk.setSelected(Boolean.parseBoolean(prop.getProperty("repeatercheck")));
-
                     numChexk.setSelected(Boolean.parseBoolean(prop.getProperty("numcheck")));
                     stringChexk.setSelected(Boolean.parseBoolean(prop.getProperty("stringcheck")));
                     orderChexk.setSelected(Boolean.parseBoolean(prop.getProperty("ordercheck")));
                     boolChexk.setSelected(Boolean.parseBoolean(prop.getProperty("boolcheck")));
-
+                    diyChexk.setSelected(Boolean.parseBoolean(prop.getProperty("diycheck")));
                     fileReader.close();
                 } catch (IOException ex) {
                     throw new RuntimeException(ex);
@@ -700,19 +824,24 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
             if (result == JFileChooser.APPROVE_OPTION) {
                 message = "Save success";
                 Properties prop = new Properties();
-                prop.setProperty("whitelist", textField.getText());
-                prop.setProperty("blacklist", blackTextField.getText());
-                prop.setProperty("suffixlist", suffixTextField.getText());
-                prop.setProperty("errpoclist", errorPocTextField.getText());
-                prop.setProperty("switch", String.valueOf(switchChexk.isSelected()));
-                prop.setProperty("cookiecheck", String.valueOf(cookieChexk.isSelected()));
-                prop.setProperty("errorcheck", String.valueOf(errorChexk.isSelected()));
-                prop.setProperty("repeatercheck", String.valueOf(vulnChexk.isSelected()));
-
+                prop.setProperty("whitelist", DetSql.textField.getText());
+                prop.setProperty("blacklist", DetSql.blackTextField.getText());
+                prop.setProperty("suffixlist", DetSql.suffixTextField.getText());
+                prop.setProperty("errpoclist", DetSql.errorPocTextField.getText());
+                prop.setProperty("paramslist", DetSql.blackParamsField.getText());
+                prop.setProperty("delaytime", DetSql.timeTextField.getText());
+                prop.setProperty("switch", String.valueOf(DetSql.switchChexk.isSelected()));
+                prop.setProperty("cookiecheck", String.valueOf(DetSql.cookieChexk.isSelected()));
+                prop.setProperty("errorcheck", String.valueOf(DetSql.errorChexk.isSelected()));
                 prop.setProperty("numcheck", String.valueOf(DetSql.numChexk.isSelected()));
                 prop.setProperty("stringcheck", String.valueOf(DetSql.stringChexk.isSelected()));
                 prop.setProperty("ordercheck", String.valueOf(DetSql.orderChexk.isSelected()));
+                prop.setProperty("repeatercheck", String.valueOf(DetSql.vulnChexk.isSelected()));
                 prop.setProperty("boolcheck", String.valueOf(DetSql.boolChexk.isSelected()));
+                prop.setProperty("diycheck", String.valueOf(DetSql.diyChexk.isSelected()));
+                prop.setProperty("diypayloads", DetSql.diyTextArea.getText());
+                prop.setProperty("diyregex", DetSql.regexTextArea.getText());
+                prop.setProperty("blackpath", DetSql.blackPathTextArea.getText());
                 try {
                     FileWriter fw = new FileWriter(fileChooser.getSelectedFile());
                     prop.store(fw, null);
@@ -839,13 +968,23 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
         springLayout.putConstraint(SpringLayout.NORTH, saveBt, 0, SpringLayout.NORTH, configLabel);
         springLayout.putConstraint(SpringLayout.EAST, saveBt, Spring.minus(st), SpringLayout.EAST, container);
 
+        container.add(blackPathLabel);
+        springLayout.putConstraint(SpringLayout.WEST, blackPathLabel, 0, SpringLayout.WEST, configLabel);
+        springLayout.putConstraint(SpringLayout.NORTH, blackPathLabel, st, SpringLayout.SOUTH, configLabel);
+
+        container.add(blackPathScrollPane);
+        springLayout.putConstraint(SpringLayout.WEST, blackPathScrollPane, 0, SpringLayout.WEST, textField);
+        springLayout.putConstraint(SpringLayout.NORTH, blackPathScrollPane, 0, SpringLayout.NORTH, blackPathLabel);
+        springLayout.putConstraint(SpringLayout.EAST, blackPathScrollPane, Spring.minus(st), SpringLayout.EAST, container);
+        //springLayout.putConstraint(SpringLayout.EAST, diyScrollPane, -10, SpringLayout.HORIZONTAL_CENTER, container);
+
         container.add(diyLabel);
-        springLayout.putConstraint(SpringLayout.NORTH, diyLabel, st, SpringLayout.SOUTH, configLabel);
+        springLayout.putConstraint(SpringLayout.NORTH, diyLabel, st, SpringLayout.SOUTH, blackPathScrollPane);
         springLayout.putConstraint(SpringLayout.WEST, diyLabel, 0, SpringLayout.WEST, blackParams);
         container.add(resRegexLabel);
         //SpringLayout.Constraints contentLabeln = springLayout.getConstraints(resRegexLabel);
         springLayout.putConstraint(SpringLayout.WEST, resRegexLabel, 10, SpringLayout.HORIZONTAL_CENTER, container);
-        springLayout.putConstraint(SpringLayout.NORTH, resRegexLabel, st, SpringLayout.SOUTH, configLabel);
+        springLayout.putConstraint(SpringLayout.NORTH, resRegexLabel, st, SpringLayout.SOUTH, blackPathScrollPane);
 
         container.add(diyScrollPane);
         springLayout.putConstraint(SpringLayout.WEST, diyScrollPane, 0, SpringLayout.WEST, textField);

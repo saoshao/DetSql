@@ -13,11 +13,13 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 public class MyFilterRequest {
     public static Set<String> whiteListSet = new HashSet<>();
 
     public static Set<String> blackListSet = new HashSet<>();
+    public static Set<String> blackPathSet=new HashSet<>();
 
     public static Set<String> unLegalExtensionSet = new HashSet<>(Arrays.asList("wma", "csv", "mov", "doc", "3g2", "mp4", "7z", "3gp", "xbm", "jar", "avi", "ogv", "mpv2", "tiff", "pnm", "jpg", "xpm", "xul", "epub", "au", "aac", "midi", "weba", "tar", "js", "rtf", "bin", "woff", "wmv", "tif", "css", "gif", "flv", "ttf", "html", "eot", "ods", "odt", "webm", "mpg", "mjs", "bz", "ics", "ras", "aifc", "mpa", "ppt", "mpeg", "pptx", "oga", "ra", "aiff", "asf", "woff2", "snd", "xwd", "csh", "webp", "xlsx", "mpkg", "vsd", "mid", "wav", "svg", "mp3", "bz2", "ico", "jpe", "pbm", "gz", "pdf", "log", "jpeg", "rmi", "txt", "arc", "rm", "ppm", "cod", "jfif", "ram", "docx", "mpe", "odp", "otf", "pgm", "cmx", "m3u", "mp2", "cab", "rar", "bmp", "rgb", "png", "azw", "ogx", "aif", "zip", "ief", "htm", "xls", "mpp", "swf", "rmvb", "abw"));
 
@@ -88,10 +90,26 @@ public class MyFilterRequest {
         }
         return false;
     }
+    //过滤七，路径黑名单
+    public static boolean pathBlackList(HttpResponseReceived httpResponseReceived) {
+        if(blackPathSet.isEmpty()){return true;}
+        String path = httpResponseReceived.initiatingRequest().pathWithoutQuery();
+
+        String cleanedText = path.replaceAll("\\n|\\r|\\r\\n", "");
+
+        for (String rule : blackPathSet) {
+            Pattern pattern = Pattern.compile(rule, Pattern.CASE_INSENSITIVE);
+            if (pattern.matcher(cleanedText).find()) {
+                return false;
+
+            }
+        }
+        return true;
+    }
 
     //包含5个过滤方法的方法
     public static boolean filterOneRequest(HttpResponseReceived httpResponseReceived) {
-        return useWhiteList(httpResponseReceived) && useBlackList(httpResponseReceived) && isGetPost(httpResponseReceived) && useUnLegalExtension(httpResponseReceived) && paramNotEmpty(httpResponseReceived);
+        return useWhiteList(httpResponseReceived) && useBlackList(httpResponseReceived) && isGetPost(httpResponseReceived) && useUnLegalExtension(httpResponseReceived) && paramNotEmpty(httpResponseReceived)&&pathBlackList(httpResponseReceived);
     }
 
 

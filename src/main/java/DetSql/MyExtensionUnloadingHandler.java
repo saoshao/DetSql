@@ -14,12 +14,12 @@ public class MyExtensionUnloadingHandler implements ExtensionUnloadingHandler {
     @Override
     public void extensionUnloaded() {
         Properties prop = new Properties();
-        prop.setProperty("whitelist", DetSql.textField.getText());
-        prop.setProperty("blacklist", DetSql.blackTextField.getText());
-        prop.setProperty("suffixlist", DetSql.suffixTextField.getText());
-        prop.setProperty("errpoclist", DetSql.errorPocTextField.getText());
-        prop.setProperty("paramslist", DetSql.blackParamsField.getText());
-        prop.setProperty("delaytime", DetSql.timeTextField.getText());
+        prop.setProperty("whitelist", DetSql.textField.getText());//
+        prop.setProperty("blacklist", DetSql.blackTextField.getText());//
+        prop.setProperty("suffixlist", DetSql.suffixTextField.getText());//
+        prop.setProperty("errpoclist", DetSql.errorPocTextField.getText());//
+        prop.setProperty("paramslist", DetSql.blackParamsField.getText());//
+        prop.setProperty("delaytime", DetSql.timeTextField.getText());//
         prop.setProperty("switch", String.valueOf(DetSql.switchChexk.isSelected()));
         prop.setProperty("cookiecheck", String.valueOf(DetSql.cookieChexk.isSelected()));
         prop.setProperty("errorcheck", String.valueOf(DetSql.errorChexk.isSelected()));
@@ -31,6 +31,7 @@ public class MyExtensionUnloadingHandler implements ExtensionUnloadingHandler {
         prop.setProperty("diycheck", String.valueOf(DetSql.diyChexk.isSelected()));
         prop.setProperty("diypayloads", DetSql.diyTextArea.getText());
         prop.setProperty("diyregex", DetSql.regexTextArea.getText());
+        prop.setProperty("blackpath", DetSql.blackPathTextArea.getText());
         try {
             FileWriter fw = new FileWriter(System.getProperty("user.home")+ File.separator+"DetSqlConfig.txt");
             prop.store(fw, null);

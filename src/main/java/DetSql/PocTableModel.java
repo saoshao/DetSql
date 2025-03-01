@@ -34,7 +34,7 @@ public class PocTableModel extends AbstractTableModel {
             case 2 -> "BodyLength";
             case 3 -> "StatusCode";
             case 4 -> "Similarity";
-            case 5 -> "Time";
+            case 5 -> "Time(s)";
             case 6 -> "VulnState";
             default -> "";
         };
