@@ -206,7 +206,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
                         }
 
                     }
-                    api.logging().logToOutput(MyFilterRequest.blackPathSet.toString());
+                    //api.logging().logToOutput(MyFilterRequest.blackPathSet.toString());
                 } else {
                     MyFilterRequest.blackPathSet.clear();
                 }

@@ -4,14 +4,8 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="0837a292-8016-4607-b749-b5b165f58135" name="更改" comment="Update README.md">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/pom.xml" afterDir="false" />
+    <list default="true" id="0837a292-8016-4607-b749-b5b165f58135" name="更改" comment="Update 2.1">
       <change beforePath="$PROJECT_DIR$/src/main/java/DetSql/DetSql.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/DetSql/DetSql.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/DetSql/MyExtensionUnloadingHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/DetSql/MyExtensionUnloadingHandler.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/DetSql/MyFilterRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/DetSql/MyFilterRequest.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/DetSql/MyHttpHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/DetSql/MyHttpHandler.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/DetSql/PocTableModel.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/DetSql/PocTableModel.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -170,15 +164,7 @@
       <workItem from="1739538174317" duration="4399000" />
       <workItem from="1739603585263" duration="4160000" />
       <workItem from="1740750591196" duration="3341000" />
-      <workItem from="1740803466534" duration="9423000" />
-    </task>
-    <task id="LOCAL-00006" summary="2024.9.4修改">
-      <option name="closed" value="true" />
-      <created>1725416765725</created>
-      <option name="number" value="00006" />
-      <option name="presentableId" value="LOCAL-00006" />
-      <option name="project" value="LOCAL" />
-      <updated>1725416765725</updated>
+      <workItem from="1740803466534" duration="10086000" />
     </task>
     <task id="LOCAL-00007" summary="2024.9.4修改">
       <option name="closed" value="true" />
@@ -564,7 +550,15 @@
       <option name="project" value="LOCAL" />
       <updated>1739543064768</updated>
     </task>
-    <option name="localTasksCounter" value="55" />
+    <task id="LOCAL-00055" summary="Update 2.1">
+      <option name="closed" value="true" />
+      <created>1740820255834</created>
+      <option name="number" value="00055" />
+      <option name="presentableId" value="LOCAL-00055" />
+      <option name="project" value="LOCAL" />
+      <updated>1740820255834</updated>
+    </task>
+    <option name="localTasksCounter" value="56" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -598,7 +592,8 @@
     <MESSAGE value="Update 1.9" />
     <MESSAGE value="Update 2.0" />
     <MESSAGE value="Update README.md" />
-    <option name="LAST_COMMIT_MESSAGE" value="Update README.md" />
+    <MESSAGE value="Update 2.1" />
+    <option name="LAST_COMMIT_MESSAGE" value="Update 2.1" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />
