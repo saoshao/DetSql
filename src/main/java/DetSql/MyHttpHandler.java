@@ -133,13 +133,16 @@ public class MyHttpHandler implements HttpHandler {
     public int countId;
     public static Set<String> blackParamsSet = new HashSet<>();
     public static Set<String> whiteParamsSet = new HashSet<>();
+    public static int staticTime=100;
+    public static int startTime=0;
+    public static int endTime=0;
     //RequestOptions requestOptions = RequestOptions.requestOptions().withResponseTimeout(timeoutms);
     public MyHttpHandler(MontoyaApi mapi, SourceTableModel sourceTableModel, PocTableModel pocTableModel, ConcurrentHashMap<String, List<PocLogEntry>> attackMap) {
         this.api = mapi;
         this.sourceTableModel = sourceTableModel;
         this.pocTableModel = pocTableModel;
         this.attackMap = attackMap;
-        this.semaphore = new Semaphore(3);
+        this.semaphore = new Semaphore(4);
         this.semaphore2 = new Semaphore(1);
         this.cryptoUtils = api.utilities().cryptoUtils();
         this.lk = new ReentrantLock();
@@ -3879,7 +3882,7 @@ public class MyHttpHandler implements HttpHandler {
         HttpRequestResponse resHttpRequestResponse;
         try {
             resHttpRequestResponse = api.http().sendRequest(pocHttpRequest).copyToTempFile();
-            Thread.sleep(1000);
+            Thread.sleep(Math.max(staticTime, 100));
             if (resHttpRequestResponse.response().body() != null && resHttpRequestResponse.response().body().length() >= 0) {
                 return resHttpRequestResponse;
             }
@@ -3893,7 +3896,7 @@ public class MyHttpHandler implements HttpHandler {
         if (retryCount <= 0) {
             return resHttpRequestResponse;
         }
-        Thread.sleep(ThreadLocalRandom.current().nextInt(1000, 4000 + 1));
+        Thread.sleep(ThreadLocalRandom.current().nextInt(startTime, endTime + 1));
         return callMyRequest(pocHttpRequest, retryCount - 1);
     }
 

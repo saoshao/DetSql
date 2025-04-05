@@ -84,6 +84,9 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
     public static JTextArea regexTextArea;
     public static JTextArea blackPathTextArea;
     public static JTextField timeTextField;
+    public static JTextField staticTimeTextField;
+    public static JTextField startTimeTextField;
+    public static JTextField endTimeTextField;
 
     @Override
     public void initialize(MontoyaApi montoyaApi) {
@@ -143,6 +146,27 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
                     MyHttpHandler.intTime = Integer.parseInt(timeStr);
                 }catch (NumberFormatException ne){
                     MyHttpHandler.intTime=1000000;
+                }
+                staticTimeTextField.setText(prop.getProperty("statictime", "100"));
+                String staticTimeStr =prop.getProperty("statictime", "").trim();
+                try{
+                    MyHttpHandler.staticTime = Integer.parseInt(staticTimeStr);
+                }catch (NumberFormatException ne){
+                    MyHttpHandler.staticTime=100;
+                }
+                startTimeTextField.setText(prop.getProperty("starttime", "0"));
+                String startTimeStr =prop.getProperty("starttime", "").trim();
+                try{
+                    MyHttpHandler.startTime = Integer.parseInt(startTimeStr);
+                }catch (NumberFormatException ne){
+                    MyHttpHandler.startTime=0;
+                }
+                endTimeTextField.setText(prop.getProperty("endtime", "0"));
+                String endTimeStr =prop.getProperty("endtime", "").trim();
+                try{
+                    MyHttpHandler.endTime = Integer.parseInt(endTimeStr);
+                }catch (NumberFormatException ne){
+                    MyHttpHandler.endTime=0;
                 }
                 diyTextArea.setText(prop.getProperty("diypayloads", ""));
                 if (!prop.getProperty("diypayloads", "").isBlank()) {
@@ -230,7 +254,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
 
         api.logging().logToOutput("################################################");
         api.logging().logToOutput("[#]  load successfully");
-        api.logging().logToOutput("[#]  DetSql v2.1");
+        api.logging().logToOutput("[#]  DetSql v2.2");
         api.logging().logToOutput("[#]  Author: saoshao");
         api.logging().logToOutput("[#]  Email: 1224165231@qq.com");
         api.logging().logToOutput("[#]  Github: https://github.com/saoshao/DetSql");
@@ -559,6 +583,18 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
         JLabel timeLabel = new JLabel("延迟时间(ms)：");
         timeTextField=new JTextField(6);
 
+        JLabel staticTimeLabel = new JLabel("请求间固定间隔(ms)：");
+        staticTimeTextField=new JTextField(6);
+        staticTimeTextField.setText("100");
+
+        JLabel startTimeLabel = new JLabel("请求间间隔范围(ms)：");
+        startTimeTextField=new JTextField(6);
+        startTimeTextField.setText("0");
+
+        JLabel endTimeLabel = new JLabel("-");
+        endTimeTextField=new JTextField(6);
+        endTimeTextField.setText("0");
+
         JLabel blackPathLabel = new JLabel("路径黑名单：");
         blackPathTextArea=new JTextArea(5, 6);
         JScrollPane blackPathScrollPane = new JScrollPane();
@@ -654,6 +690,26 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
                 MyHttpHandler.intTime=1000000;
             }
 
+            String staticTimeStr =staticTimeTextField.getText().trim();
+            try{
+                MyHttpHandler.staticTime = Integer.parseInt(staticTimeStr);
+            }catch (NumberFormatException ne){
+                MyHttpHandler.staticTime=100;
+            }
+
+            String startTimeStr =startTimeTextField.getText().trim();
+            try{
+                MyHttpHandler.startTime = Integer.parseInt(startTimeStr);
+            }catch (NumberFormatException ne){
+                MyHttpHandler.startTime=0;
+            }
+
+            String endTimeStr =endTimeTextField.getText().trim();
+            try{
+                MyHttpHandler.endTime = Integer.parseInt(endTimeStr);
+            }catch (NumberFormatException ne){
+                MyHttpHandler.endTime=0;
+            }
             String blackPathStr=blackPathTextArea.getText();
             if (!blackPathStr.isBlank()) {
                 MyFilterRequest.blackPathSet.clear();
@@ -723,12 +779,33 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
                         MyHttpHandler.errPocs = new String[]{"'", "%27", "%DF'", "%DF%27", "\"", "%22", "%DF\"", "%DF%22", "`"};
                         MyHttpHandler.errPocsj = new String[]{"'", "%27", "%DF'", "%DF%27", "\\\"", "%22", "%DF\\\"", "%DF%22", "\\u0022", "%DF\\u0022", "\\u0027", "%DF\\u0027", "`"};
                     }
-                    timeTextField.setText(prop.getProperty("delaytime", ""));
+                    timeTextField.setText(prop.getProperty("delaytime", "5000"));
                     String timeStr =prop.getProperty("delaytime", "").trim();
                     try{
                         MyHttpHandler.intTime = Integer.parseInt(timeStr);
                     }catch (NumberFormatException ne){
                         MyHttpHandler.intTime=1000000;
+                    }
+                    staticTimeTextField.setText(prop.getProperty("statictime", "100"));
+                    String staticTimeStr =prop.getProperty("statictime", "").trim();
+                    try{
+                        MyHttpHandler.staticTime = Integer.parseInt(staticTimeStr);
+                    }catch (NumberFormatException ne){
+                        MyHttpHandler.staticTime=100;
+                    }
+                    startTimeTextField.setText(prop.getProperty("starttime", "0"));
+                    String startTimeStr =prop.getProperty("starttime", "").trim();
+                    try{
+                        MyHttpHandler.startTime = Integer.parseInt(startTimeStr);
+                    }catch (NumberFormatException ne){
+                        MyHttpHandler.startTime=0;
+                    }
+                    endTimeTextField.setText(prop.getProperty("endtime", "0"));
+                    String endTimeStr =prop.getProperty("endtime", "").trim();
+                    try{
+                        MyHttpHandler.endTime = Integer.parseInt(endTimeStr);
+                    }catch (NumberFormatException ne){
+                        MyHttpHandler.endTime=0;
                     }
                     diyTextArea.setText(prop.getProperty("diypayloads", ""));
                     if (!prop.getProperty("diypayloads", "").isBlank()) {
@@ -1004,6 +1081,29 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
         springLayout.putConstraint(SpringLayout.WEST, timeTextField, 0, SpringLayout.WEST, regexScrollPane);
         springLayout.putConstraint(SpringLayout.NORTH, timeTextField, 0, SpringLayout.NORTH, timeLabel);
 
+        container.add(staticTimeLabel);
+        springLayout.putConstraint(SpringLayout.WEST, staticTimeLabel, 0, SpringLayout.WEST, resRegexLabel);
+        springLayout.putConstraint(SpringLayout.NORTH, staticTimeLabel, st, SpringLayout.SOUTH, timeLabel);
+
+        container.add(staticTimeTextField);
+        springLayout.putConstraint(SpringLayout.WEST, staticTimeTextField, 0, SpringLayout.WEST, regexScrollPane);
+        springLayout.putConstraint(SpringLayout.NORTH, staticTimeTextField, 0, SpringLayout.NORTH, staticTimeLabel);
+
+        container.add(startTimeLabel);
+        springLayout.putConstraint(SpringLayout.WEST, startTimeLabel, 0, SpringLayout.WEST, resRegexLabel);
+        springLayout.putConstraint(SpringLayout.NORTH, startTimeLabel, st, SpringLayout.SOUTH, staticTimeLabel);
+
+        container.add(startTimeTextField);
+        springLayout.putConstraint(SpringLayout.WEST, startTimeTextField, 0, SpringLayout.WEST, regexScrollPane);
+        springLayout.putConstraint(SpringLayout.NORTH, startTimeTextField, 0, SpringLayout.NORTH, startTimeLabel);
+
+        container.add(endTimeLabel);
+        springLayout.putConstraint(SpringLayout.WEST, endTimeLabel, st, SpringLayout.EAST, startTimeTextField);
+        springLayout.putConstraint(SpringLayout.NORTH, endTimeLabel, 0, SpringLayout.NORTH, startTimeLabel);
+
+        container.add(endTimeTextField);
+        springLayout.putConstraint(SpringLayout.WEST, endTimeTextField, st, SpringLayout.EAST, endTimeLabel);
+        springLayout.putConstraint(SpringLayout.NORTH, endTimeTextField, 0, SpringLayout.NORTH, startTimeLabel);
         return container;
     }
 

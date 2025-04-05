@@ -20,6 +20,9 @@ public class MyExtensionUnloadingHandler implements ExtensionUnloadingHandler {
         prop.setProperty("errpoclist", DetSql.errorPocTextField.getText());//
         prop.setProperty("paramslist", DetSql.blackParamsField.getText());//
         prop.setProperty("delaytime", DetSql.timeTextField.getText());//
+        prop.setProperty("statictime", DetSql.staticTimeTextField.getText());//
+        prop.setProperty("starttime", DetSql.startTimeTextField.getText());//
+        prop.setProperty("endtime", DetSql.endTimeTextField.getText());//
         prop.setProperty("switch", String.valueOf(DetSql.switchChexk.isSelected()));
         prop.setProperty("cookiecheck", String.valueOf(DetSql.cookieChexk.isSelected()));
         prop.setProperty("errorcheck", String.valueOf(DetSql.errorChexk.isSelected()));
