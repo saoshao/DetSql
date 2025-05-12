@@ -720,8 +720,8 @@ public class MyHttpHandler implements HttpHandler {
             }
 
         }
-        //处理post
-        if (httpResponseReceived.initiatingRequest().method().equals("POST")) {
+        //处理post/PUT
+        if (httpResponseReceived.initiatingRequest().method().equals("POST")||httpResponseReceived.initiatingRequest().method().equals("PUT")) {
             if (!httpResponseReceived.initiatingRequest().parameters(HttpParameterType.BODY).isEmpty()) {
                 //新参数
                 List<ParsedHttpParameter> parameters = httpResponseReceived.initiatingRequest().parameters(HttpParameterType.BODY);
@@ -2470,7 +2470,7 @@ public class MyHttpHandler implements HttpHandler {
 
         }
         //处理post
-        if (httpRequestResponse.request().method().equals("POST")) {
+        if (httpRequestResponse.request().method().equals("POST")||httpRequestResponse.request().method().equals("PUT")) {
             if (!httpRequestResponse.request().parameters(HttpParameterType.BODY).isEmpty()) {
                 //新参数
                 List<ParsedHttpParameter> parameters = httpRequestResponse.request().parameters(HttpParameterType.BODY);

@@ -64,9 +64,9 @@ public class MyFilterRequest {
         return true;
     }
 
-    //过滤四，保留GET,POST请求
+    //过滤四，保留GET,POST请求+PUT请求
     public static boolean isGetPost(HttpResponseReceived httpResponseReceived) {
-        return httpResponseReceived.initiatingRequest().method().equals("GET") || httpResponseReceived.initiatingRequest().method().equals("POST");
+        return httpResponseReceived.initiatingRequest().method().equals("GET") || httpResponseReceived.initiatingRequest().method().equals("POST")||httpResponseReceived.initiatingRequest().method().equals("PUT");
     }
 
 
@@ -79,15 +79,16 @@ public class MyFilterRequest {
         return !unLegalExtensionSet.contains(fileExtension);
     }
 
-    //过滤六，GET或POST参数不能为空
+    //过滤六，GET或POST参数不能为空+PUT
 
     public static boolean paramNotEmpty(HttpResponseReceived httpResponseReceived) {
         if (httpResponseReceived.initiatingRequest().method().equals("GET")) {
             return !httpResponseReceived.initiatingRequest().parameters(HttpParameterType.URL).isEmpty();
         }
-        if (httpResponseReceived.initiatingRequest().method().equals("POST")) {
+        if (httpResponseReceived.initiatingRequest().method().equals("POST")||httpResponseReceived.initiatingRequest().method().equals("PUT")) {
             return (!httpResponseReceived.initiatingRequest().parameters(HttpParameterType.BODY).isEmpty()) || (!httpResponseReceived.initiatingRequest().parameters(HttpParameterType.JSON).isEmpty()) || (!httpResponseReceived.initiatingRequest().parameters(HttpParameterType.XML).isEmpty());
         }
+
         return false;
     }
     //过滤七，路径黑名单
@@ -123,7 +124,7 @@ public class MyFilterRequest {
             for (ParsedHttpParameter urlParameter : urlParameters) {
                 sb.append(urlParameter.name());
             }
-        } else if (method.equals("POST")) {
+        } else if (method.equals("POST")||method.equals("PUT")) {
             List<ParsedHttpParameter> normalParameters = httpResponseReceived.initiatingRequest().parameters(HttpParameterType.BODY);
             List<ParsedHttpParameter> jsonParameters = httpResponseReceived.initiatingRequest().parameters(HttpParameterType.JSON);
             List<ParsedHttpParameter> xmlParameters = httpResponseReceived.initiatingRequest().parameters(HttpParameterType.XML);
@@ -157,7 +158,7 @@ public class MyFilterRequest {
             for (ParsedHttpParameter urlParameter : urlParameters) {
                 sb.append(urlParameter.name());
             }
-        } else if (method.equals("POST")) {
+        } else if (method.equals("POST")||method.equals("PUT")) {
             List<ParsedHttpParameter> normalParameters = selectHttpRequestRespons.request().parameters(HttpParameterType.BODY);
             List<ParsedHttpParameter> jsonParameters = selectHttpRequestRespons.request().parameters(HttpParameterType.JSON);
             List<ParsedHttpParameter> xmlParameters = selectHttpRequestRespons.request().parameters(HttpParameterType.XML);

@@ -4,11 +4,11 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="0837a292-8016-4607-b749-b5b165f58135" name="更改" comment="Update 2.1">
+    <list default="true" id="0837a292-8016-4607-b749-b5b165f58135" name="更改" comment="Update 2.2">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/pom.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/DetSql/DetSql.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/DetSql/DetSql.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/DetSql/MyExtensionUnloadingHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/DetSql/MyExtensionUnloadingHandler.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/DetSql/MyFilterRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/DetSql/MyFilterRequest.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/DetSql/MyHttpHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/DetSql/MyHttpHandler.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -25,6 +25,9 @@
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="GithubDefaultAccount">
+    <option name="defaultAccountId" value="ce4fcda4-b40d-43e7-bc53-0c62cc420cfd" />
   </component>
   <component name="KubernetesApiProvider">{
   &quot;isMigrated&quot;: true
@@ -71,7 +74,7 @@
     &quot;project.structure.proportion&quot;: &quot;0.15&quot;,
     &quot;project.structure.side.proportion&quot;: &quot;0.2&quot;,
     &quot;run.code.analysis.last.selected.profile&quot;: &quot;pProject Default&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;project.propCompiler&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;http.proxy&quot;,
     &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;,
     &quot;应用程序.Demo.executor&quot;: &quot;Run&quot;
   }
@@ -169,15 +172,14 @@
       <workItem from="1739603585263" duration="4160000" />
       <workItem from="1740750591196" duration="3341000" />
       <workItem from="1740803466534" duration="11356000" />
-      <workItem from="1743859124674" duration="9692000" />
-    </task>
-    <task id="LOCAL-00008" summary="update README.md">
-      <option name="closed" value="true" />
-      <created>1725420151607</created>
-      <option name="number" value="00008" />
-      <option name="presentableId" value="LOCAL-00008" />
-      <option name="project" value="LOCAL" />
-      <updated>1725420151607</updated>
+      <workItem from="1743859124674" duration="11132000" />
+      <workItem from="1743871688282" duration="520000" />
+      <workItem from="1743872306441" duration="155000" />
+      <workItem from="1743872675380" duration="719000" />
+      <workItem from="1743910413903" duration="1173000" />
+      <workItem from="1743912032161" duration="6070000" />
+      <workItem from="1745679290081" duration="820000" />
+      <workItem from="1747061353254" duration="1966000" />
     </task>
     <task id="LOCAL-00009" summary="update README.md">
       <option name="closed" value="true" />
@@ -563,7 +565,15 @@
       <option name="project" value="LOCAL" />
       <updated>1740820331198</updated>
     </task>
-    <option name="localTasksCounter" value="57" />
+    <task id="LOCAL-00057" summary="Update 2.2">
+      <option name="closed" value="true" />
+      <created>1743870117776</created>
+      <option name="number" value="00057" />
+      <option name="presentableId" value="LOCAL-00057" />
+      <option name="project" value="LOCAL" />
+      <updated>1743870117776</updated>
+    </task>
+    <option name="localTasksCounter" value="58" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -598,7 +608,8 @@
     <MESSAGE value="Update 2.0" />
     <MESSAGE value="Update README.md" />
     <MESSAGE value="Update 2.1" />
-    <option name="LAST_COMMIT_MESSAGE" value="Update 2.1" />
+    <MESSAGE value="Update 2.2" />
+    <option name="LAST_COMMIT_MESSAGE" value="Update 2.2" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

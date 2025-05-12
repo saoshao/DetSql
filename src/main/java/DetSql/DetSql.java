@@ -254,7 +254,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
 
         api.logging().logToOutput("################################################");
         api.logging().logToOutput("[#]  load successfully");
-        api.logging().logToOutput("[#]  DetSql v2.2");
+        api.logging().logToOutput("[#]  DetSql v2.3");
         api.logging().logToOutput("[#]  Author: saoshao");
         api.logging().logToOutput("[#]  Email: 1224165231@qq.com");
         api.logging().logToOutput("[#]  Github: https://github.com/saoshao/DetSql");
@@ -265,8 +265,8 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
     public List<Component> provideMenuItems(ContextMenuEvent event) {
         List<Component> listMenuItems = new ArrayList<>();
         JMenu jMenu2 = new JMenu("DetSql");
-        JMenuItem menuItem2 = new JMenuItem("end this data");
-        JMenuItem menuItem3 = new JMenuItem("send to DetSql");
+        JMenuItem menuItem2 = new JMenuItem("End this data");
+        JMenuItem menuItem3 = new JMenuItem("Send to DetSql");
 
         listMenuItems.add(jMenu2);
         jMenu2.add(menuItem2);
