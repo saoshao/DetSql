@@ -10,6 +10,7 @@
       <change beforePath="$PROJECT_DIR$/src/main/java/DetSql/DetSql.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/DetSql/DetSql.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/DetSql/MyFilterRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/DetSql/MyFilterRequest.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/DetSql/MyHttpHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/DetSql/MyHttpHandler.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/DetSql/PocTableModel.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/DetSql/PocTableModel.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

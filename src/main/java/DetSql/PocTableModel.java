@@ -59,7 +59,7 @@ public class PocTableModel extends AbstractTableModel {
         log.clear();
         log.addAll(logEntry);
         int index = log.size();
-        fireTableRowsInserted(1, index);
+        fireTableRowsInserted(0, index-1);
     }
 
     public synchronized PocLogEntry get(int rowIndex) {

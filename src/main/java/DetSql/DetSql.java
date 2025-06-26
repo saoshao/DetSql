@@ -64,6 +64,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
     public static JCheckBox errorChexk;//
     public static JCheckBox vulnChexk;
     public static JTable table1;
+    public static JTable table2;
     //补充4个
     public static JCheckBox numChexk;//
     public static JCheckBox stringChexk;//
@@ -254,7 +255,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
 
         api.logging().logToOutput("################################################");
         api.logging().logToOutput("[#]  load successfully");
-        api.logging().logToOutput("[#]  DetSql v2.3");
+        api.logging().logToOutput("[#]  DetSql v2.4");
         api.logging().logToOutput("[#]  Author: saoshao");
         api.logging().logToOutput("[#]  Email: 1224165231@qq.com");
         api.logging().logToOutput("[#]  Github: https://github.com/saoshao/DetSql");
@@ -449,11 +450,11 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
                 }
             }
         });
-        JTable table2 = new JTable(pocTableModel) {
+        table2 = new JTable(pocTableModel) {
             @Override
             public void changeSelection(int rowIndex, int columnIndex, boolean toggle, boolean extend) {
                 // show the log entry for the selected row
-                PocLogEntry logEntry = pocTableModel.get(rowIndex);
+                PocLogEntry logEntry = pocTableModel.get(DetSql.table2.convertRowIndexToModel(rowIndex));
                 if (logEntry.getHttpRequestResponse() != null) {
                     requestViewer.setRequest(logEntry.getHttpRequestResponse().request());
                     responseViewer.setResponse(logEntry.getHttpRequestResponse().response());
@@ -462,6 +463,21 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
 
             }
         };
+        TableRowSorter<PocTableModel> sorter1 = new TableRowSorter<>(pocTableModel);
+//        //获得列的数量
+//        //int columnCount = tableModel.getColumnCount();
+//            //这里可以根据需要修改
+
+        sorter1.setComparator(5, new Comparator<Object>() {
+            @Override
+            public int compare(Object o1, Object o2) {
+                String str1 = o1.toString();
+                String str2 = o2.toString();
+                return (int) (Double.parseDouble(str1)*1000-Double.parseDouble(str2)*1000);
+            }
+        });
+//
+        table2.setRowSorter(sorter1);
 
         //======== root ========
         {
@@ -869,7 +885,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
                             }
 
                         }
-                        api.logging().logToOutput(MyFilterRequest.blackPathSet.toString());
+                        //api.logging().logToOutput(MyFilterRequest.blackPathSet.toString());
                     } else {
                         MyFilterRequest.blackPathSet.clear();
                     }

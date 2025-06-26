@@ -3912,7 +3912,7 @@ public class MyHttpHandler implements HttpHandler {
                         lk.lock();
                         try {
                             oneLogSize = countId;
-                            sourceTableModel.add(new SourceLogEntry(oneLogSize, "send", requestSm3Hash, "run", httpRequestResponse.response().bodyToString().length(), HttpRequestResponse.httpRequestResponse(httpRequestResponse.request(), HttpResponse.httpResponse()), httpRequestResponse.request().httpService().toString(), httpRequestResponse.request().method(), httpRequestResponse.request().pathWithoutQuery()));
+                            sourceTableModel.add(new SourceLogEntry(oneLogSize, "Send", requestSm3Hash, "run", httpRequestResponse.response().bodyToString().length(), HttpRequestResponse.httpRequestResponse(httpRequestResponse.request(), HttpResponse.httpResponse()), httpRequestResponse.request().httpService().toString(), httpRequestResponse.request().method(), httpRequestResponse.request().pathWithoutQuery()));
                         } catch (Exception e) {
                             e.printStackTrace();
                         } finally {
@@ -3934,27 +3934,27 @@ public class MyHttpHandler implements HttpHandler {
                                 semaphore.release();
                                 if (oneVuln.isBlank()) {
                                     //api.logging().logToOutput("oneLogSize:"+oneLogSize+";viewindex:"+DetSql.table1.convertRowIndexToView(oneLogSize)+";modelindex:"+DetSql.table1.convertRowIndexToModel(oneLogSize)+";logindex:"+sourceTableModel.getValueAt(oneLogSize,0));
-                                    sourceTableModel.add2(new SourceLogEntry(oneLogSize, "send", requestSm3Hash, "", httpRequestResponse.response().bodyToString().length(), null, httpRequestResponse.request().httpService().toString(), httpRequestResponse.request().method(), httpRequestResponse.request().pathWithoutQuery()), sourceTableModel.log.indexOf(new SourceLogEntry(oneLogSize, null, null, null, 0, null, null, null, null)), sourceTableModel.log.indexOf(new SourceLogEntry(oneLogSize, null, null, null, 0, null, null, null, null)));
+                                    sourceTableModel.add2(new SourceLogEntry(oneLogSize, "Send", requestSm3Hash, "", httpRequestResponse.response().bodyToString().length(), null, httpRequestResponse.request().httpService().toString(), httpRequestResponse.request().method(), httpRequestResponse.request().pathWithoutQuery()), sourceTableModel.log.indexOf(new SourceLogEntry(oneLogSize, null, null, null, 0, null, null, null, null)), sourceTableModel.log.indexOf(new SourceLogEntry(oneLogSize, null, null, null, 0, null, null, null, null)));
                                 } else {
                                     //api.logging().logToOutput("oneLogSize:"+oneLogSize+";viewindex:"+DetSql.table1.convertRowIndexToView(oneLogSize)+";modelindex:"+DetSql.table1.convertRowIndexToModel(oneLogSize)+";logindex:"+sourceTableModel.getValueAt(oneLogSize,0));
-                                    sourceTableModel.add2(new SourceLogEntry(oneLogSize, "send", requestSm3Hash, oneVuln, httpRequestResponse.response().bodyToString().length(), httpRequestResponse, httpRequestResponse.request().httpService().toString(), httpRequestResponse.request().method(), httpRequestResponse.request().pathWithoutQuery()), sourceTableModel.log.indexOf(new SourceLogEntry(oneLogSize, null, null, null, 0, null, null, null, null)), sourceTableModel.log.indexOf(new SourceLogEntry(oneLogSize, null, null, null, 0, null, null, null, null)));
+                                    sourceTableModel.add2(new SourceLogEntry(oneLogSize, "Send", requestSm3Hash, oneVuln, httpRequestResponse.response().bodyToString().length(), httpRequestResponse, httpRequestResponse.request().httpService().toString(), httpRequestResponse.request().method(), httpRequestResponse.request().pathWithoutQuery()), sourceTableModel.log.indexOf(new SourceLogEntry(oneLogSize, null, null, null, 0, null, null, null, null)), sourceTableModel.log.indexOf(new SourceLogEntry(oneLogSize, null, null, null, 0, null, null, null, null)));
                                 }
 
                             }
                         } catch (InterruptedException e) {
                             //api.logging().logToOutput("oneLogSize:"+oneLogSize+";viewindex:"+DetSql.table1.convertRowIndexToView(oneLogSize)+";modelindex:"+DetSql.table1.convertRowIndexToModel(oneLogSize)+";logindex:"+sourceTableModel.getValueAt(oneLogSize,0));
-                            sourceTableModel.add2(new SourceLogEntry(oneLogSize, "send", requestSm3Hash, "手动停止", httpRequestResponse.response().bodyToString().length(), null, httpRequestResponse.request().httpService().toString(), httpRequestResponse.request().method(), httpRequestResponse.request().pathWithoutQuery()), sourceTableModel.log.indexOf(new SourceLogEntry(oneLogSize, null, null, null, 0, null, null, null, null)), sourceTableModel.log.indexOf(new SourceLogEntry(oneLogSize, null, null, null, 0, null, null, null, null)));
+                            sourceTableModel.add2(new SourceLogEntry(oneLogSize, "Send", requestSm3Hash, "手动停止", httpRequestResponse.response().bodyToString().length(), null, httpRequestResponse.request().httpService().toString(), httpRequestResponse.request().method(), httpRequestResponse.request().pathWithoutQuery()), sourceTableModel.log.indexOf(new SourceLogEntry(oneLogSize, null, null, null, 0, null, null, null, null)), sourceTableModel.log.indexOf(new SourceLogEntry(oneLogSize, null, null, null, 0, null, null, null, null)));
                         } catch (Exception e) {
                             e.printStackTrace();
                         }
-                    } else if (httpRequestResponse.response().bodyToString().length() != 0 && httpRequestResponse.response().bodyToString().length() < 50000) {
+                    } else if (httpRequestResponse.response().bodyToString().length() != 0 && httpRequestResponse.response().bodyToString().length() < 80000) {
                         String requestSm3Hash = String.valueOf(System.currentTimeMillis());
                         Thread.currentThread().setName(requestSm3Hash);
                         int oneLogSize = 0;
                         lk.lock();
                         try {
                             oneLogSize = countId;
-                            sourceTableModel.add(new SourceLogEntry(oneLogSize, "send", requestSm3Hash, "run", httpRequestResponse.response().bodyToString().length(), HttpRequestResponse.httpRequestResponse(httpRequestResponse.request(), HttpResponse.httpResponse()), httpRequestResponse.request().httpService().toString(), httpRequestResponse.request().method(), httpRequestResponse.request().pathWithoutQuery()));
+                            sourceTableModel.add(new SourceLogEntry(oneLogSize, "Send", requestSm3Hash, "run", httpRequestResponse.response().bodyToString().length(), HttpRequestResponse.httpRequestResponse(httpRequestResponse.request(), HttpResponse.httpResponse()), httpRequestResponse.request().httpService().toString(), httpRequestResponse.request().method(), httpRequestResponse.request().pathWithoutQuery()));
                         } catch (Exception e) {
                             e.printStackTrace();
                         } finally {
@@ -3977,16 +3977,16 @@ public class MyHttpHandler implements HttpHandler {
                                 semaphore2.release();
                                 if (oneVuln.isBlank()) {
                                     //api.logging().logToOutput("oneLogSize:"+oneLogSize+";viewindex:"+DetSql.table1.convertRowIndexToView(oneLogSize)+";modelindex:"+DetSql.table1.convertRowIndexToModel(oneLogSize)+";logindex:"+sourceTableModel.getValueAt(oneLogSize,0));
-                                    sourceTableModel.add2(new SourceLogEntry(oneLogSize, "send", requestSm3Hash, "", httpRequestResponse.response().bodyToString().length(), null, httpRequestResponse.request().httpService().toString(), httpRequestResponse.request().method(), httpRequestResponse.request().pathWithoutQuery()), sourceTableModel.log.indexOf(new SourceLogEntry(oneLogSize, null, null, null, 0, null, null, null, null)), sourceTableModel.log.indexOf(new SourceLogEntry(oneLogSize, null, null, null, 0, null, null, null, null)));
+                                    sourceTableModel.add2(new SourceLogEntry(oneLogSize, "Send", requestSm3Hash, "", httpRequestResponse.response().bodyToString().length(), null, httpRequestResponse.request().httpService().toString(), httpRequestResponse.request().method(), httpRequestResponse.request().pathWithoutQuery()), sourceTableModel.log.indexOf(new SourceLogEntry(oneLogSize, null, null, null, 0, null, null, null, null)), sourceTableModel.log.indexOf(new SourceLogEntry(oneLogSize, null, null, null, 0, null, null, null, null)));
                                 } else {
                                     //api.logging().logToOutput("oneLogSize:"+oneLogSize+";viewindex:"+DetSql.table1.convertRowIndexToView(oneLogSize)+";modelindex:"+DetSql.table1.convertRowIndexToModel(oneLogSize)+";logindex:"+sourceTableModel.getValueAt(oneLogSize,0));
-                                    sourceTableModel.add2(new SourceLogEntry(oneLogSize, "send", requestSm3Hash, oneVuln, httpRequestResponse.response().bodyToString().length(), httpRequestResponse, httpRequestResponse.request().httpService().toString(), httpRequestResponse.request().method(), httpRequestResponse.request().pathWithoutQuery()), sourceTableModel.log.indexOf(new SourceLogEntry(oneLogSize, null, null, null, 0, null, null, null, null)), sourceTableModel.log.indexOf(new SourceLogEntry(oneLogSize, null, null, null, 0, null, null, null, null)));
+                                    sourceTableModel.add2(new SourceLogEntry(oneLogSize, "Send", requestSm3Hash, oneVuln, httpRequestResponse.response().bodyToString().length(), httpRequestResponse, httpRequestResponse.request().httpService().toString(), httpRequestResponse.request().method(), httpRequestResponse.request().pathWithoutQuery()), sourceTableModel.log.indexOf(new SourceLogEntry(oneLogSize, null, null, null, 0, null, null, null, null)), sourceTableModel.log.indexOf(new SourceLogEntry(oneLogSize, null, null, null, 0, null, null, null, null)));
                                 }
 
                             }
                         } catch (InterruptedException e) {
                             //api.logging().logToOutput("oneLogSize:"+oneLogSize+";viewindex:"+DetSql.table1.convertRowIndexToView(oneLogSize)+";modelindex:"+DetSql.table1.convertRowIndexToModel(oneLogSize)+";logindex:"+sourceTableModel.getValueAt(oneLogSize,0));
-                            sourceTableModel.add2(new SourceLogEntry(oneLogSize, "send", requestSm3Hash, "手动停止", httpRequestResponse.response().bodyToString().length(), null, httpRequestResponse.request().httpService().toString(), httpRequestResponse.request().method(), httpRequestResponse.request().pathWithoutQuery()), sourceTableModel.log.indexOf(new SourceLogEntry(oneLogSize, null, null, null, 0, null, null, null, null)), sourceTableModel.log.indexOf(new SourceLogEntry(oneLogSize, null, null, null, 0, null, null, null, null)));
+                            sourceTableModel.add2(new SourceLogEntry(oneLogSize, "Send", requestSm3Hash, "手动停止", httpRequestResponse.response().bodyToString().length(), null, httpRequestResponse.request().httpService().toString(), httpRequestResponse.request().method(), httpRequestResponse.request().pathWithoutQuery()), sourceTableModel.log.indexOf(new SourceLogEntry(oneLogSize, null, null, null, 0, null, null, null, null)), sourceTableModel.log.indexOf(new SourceLogEntry(oneLogSize, null, null, null, 0, null, null, null, null)));
                         } catch (Exception e) {
                             e.printStackTrace();
                         }

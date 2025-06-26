@@ -110,6 +110,7 @@ public class MyFilterRequest {
 
     //包含5个过滤方法的方法
     public static boolean filterOneRequest(HttpResponseReceived httpResponseReceived) {
+        //DetSql.api.logging().logToOutput(""+useWhiteList(httpResponseReceived) + useBlackList(httpResponseReceived) + isGetPost(httpResponseReceived) + useUnLegalExtension(httpResponseReceived) + paramNotEmpty(httpResponseReceived)+pathBlackList(httpResponseReceived));
         return useWhiteList(httpResponseReceived) && useBlackList(httpResponseReceived) && isGetPost(httpResponseReceived) && useUnLegalExtension(httpResponseReceived) && paramNotEmpty(httpResponseReceived)&&pathBlackList(httpResponseReceived);
     }
 
