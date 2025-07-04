@@ -35,6 +35,8 @@ public class MyExtensionUnloadingHandler implements ExtensionUnloadingHandler {
         prop.setProperty("diypayloads", DetSql.diyTextArea.getText());
         prop.setProperty("diyregex", DetSql.regexTextArea.getText());
         prop.setProperty("blackpath", DetSql.blackPathTextArea.getText());
+        prop.setProperty("languageindex", String.valueOf(DetSql.index));
+
         try {
             FileWriter fw = new FileWriter(System.getProperty("user.home")+ File.separator+"DetSqlConfig.txt");
             prop.store(fw, null);

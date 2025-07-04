@@ -80,7 +80,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
     //新加参数黑名单框
     public static JTextField blackParamsField;
     public static JTextField whiteParamsField;
-    JTextField configTextField;
+    public static JTextField configTextField;
     public static JTextArea diyTextArea;
     public static JTextArea regexTextArea;
     public static JTextArea blackPathTextArea;
@@ -88,11 +88,33 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
     public static JTextField staticTimeTextField;
     public static JTextField startTimeTextField;
     public static JTextField endTimeTextField;
+    public ResourceBundle messages;
+    public JComboBox<String> languageComboBox;
+    private static final String[] LANGUAGES = {"简体中文","English" };
+    private static final Locale[] LOCALES = {new Locale("zh", "CN"),new Locale("en", "US") };
+    public static int index;
 
     @Override
     public void initialize(MontoyaApi montoyaApi) {
         this.api = montoyaApi;
         api.extension().setName("DetSql");
+        File configFile = new File(System.getProperty("user.home")+ File.separator+"DetSqlConfig.txt");
+        if (configFile.exists()) {
+            Properties prop = new Properties();
+            try {
+                FileReader fileReader = new FileReader(System.getProperty("user.home")+ File.separator+"DetSqlConfig.txt");
+                prop.load(fileReader);
+                String indexStr=prop.getProperty("languageindex").trim();
+                try{
+                    index=Integer.parseInt(indexStr);
+                }catch (NumberFormatException ne){
+                    index=0;
+                }
+                fileReader.close();
+            } catch (IOException ex) {
+                throw new RuntimeException(ex);
+            }
+        }
         sourceTableModel = new SourceTableModel();
         PocTableModel pocTableModel = new PocTableModel();
         Component component = getComponent(sourceTableModel, pocTableModel);
@@ -102,7 +124,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
         api.http().registerHttpHandler(myHttpHandler);
         api.extension().registerUnloadingHandler(new MyExtensionUnloadingHandler());
         api.userInterface().registerContextMenuItemsProvider(this);
-        File configFile = new File(System.getProperty("user.home")+ File.separator+"DetSqlConfig.txt");
+
         if (configFile.exists()) {
             Properties prop = new Properties();
             try {
@@ -255,7 +277,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
 
         api.logging().logToOutput("################################################");
         api.logging().logToOutput("[#]  load successfully");
-        api.logging().logToOutput("[#]  DetSql v2.4");
+        api.logging().logToOutput("[#]  DetSql v2.5");
         api.logging().logToOutput("[#]  Author: saoshao");
         api.logging().logToOutput("[#]  Email: 1224165231@qq.com");
         api.logging().logToOutput("[#]  Github: https://github.com/saoshao/DetSql");
@@ -270,9 +292,8 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
         JMenuItem menuItem3 = new JMenuItem("Send to DetSql");
 
         listMenuItems.add(jMenu2);
-        jMenu2.add(menuItem2);
         jMenu2.add(menuItem3);
-
+        jMenu2.add(menuItem2);
         menuItem2.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent actionEvent) {
@@ -558,52 +579,52 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
         Container container = new JPanel();
         SpringLayout springLayout = new SpringLayout();
         container.setLayout(springLayout);
-        JLabel topicLabel = new JLabel("域名白名单:");
+        JLabel topicLabel = new JLabel();//语言转换："域名白名单:"
         textField = new JTextField(30);
-        JLabel blackLabel = new JLabel("域名黑名单:");
+        JLabel blackLabel = new JLabel();//语言转换："域名黑名单:"
         blackTextField = new JTextField(30);
-        JLabel suffixLabel = new JLabel("禁止后缀:");
+        JLabel suffixLabel = new JLabel();//语言转换："禁止后缀:"
         suffixTextField = new JTextField(30);
         suffixTextField.setText("xul|mpa|mp3|bz2|m3u|pdf|pbm|docx|rm|jpe|jar|flv|svg|bz|tar|mp4|cod|log|xwd|mpp|css|jpeg|weba|odt|wma|azw|woff|mpe|ttf|mpkg|ogx|cmx|jpg|rar|png|bin|ppt|ico|webm|xpm|mov|doc|csh|au|rmvb|aif|vsd|ram|cab|ief|odp|js|mp2|xls|aac|woff2|tif|eot|mpv2|gz|ras|abw|xbm|html|asf|7z|oga|tiff|epub|ppm|gif|pptx|bmp|aiff|pnm|pgm|zip|3g2|wmv|ods|webp|swf|rtf|avi|ra|xlsx|csv|rgb|otf|mpg|ics|htm|mid|arc|snd|3gp|txt|jfif|midi|mpeg|rmi|aifc|ogv|wav|mjs");
-        JLabel errorPocLabel = new JLabel("报错poc:");
+        JLabel errorPocLabel = new JLabel();//语言转换："报错poc:"
         errorPocTextField = new JTextField(30);
         //新加参数黑名单
-        JLabel blackParams = new JLabel("参数黑名单:");
+        JLabel blackParams = new JLabel();//语言转换："参数黑名单:"
         blackParamsField= new JTextField(30);
 
-        JLabel configLabel = new JLabel("配置目录:");
+        JLabel configLabel = new JLabel();//语言转换："配置目录:"
         configTextField = new JTextField(30);
         configTextField.setEditable(false);
-        switchChexk = new JCheckBox("开关", false);
-        cookieChexk = new JCheckBox("测试cookie", false);
-        errorChexk = new JCheckBox("测试报错类型", false);
-        vulnChexk = new JCheckBox("接受repeater", false);
+        switchChexk = new JCheckBox();//语言转换："开关"
+        cookieChexk = new JCheckBox();//语言转换："测试cookie"
+        errorChexk = new JCheckBox();//语言转换："测试报错类型"
+        vulnChexk = new JCheckBox();//语言转换："接受repeater"
 
-        numChexk= new JCheckBox("测试数字类型", false);
-        stringChexk= new JCheckBox("测试字符类型", false);
-        orderChexk= new JCheckBox("测试order类型", false);
-        boolChexk= new JCheckBox("测试bool类型", false);
-        diyChexk=new JCheckBox("测试diypayloads",false);
-        JLabel diyLabel = new JLabel("自定义payloads：");
+        numChexk= new JCheckBox();//语言转换："测试数字类型"
+        stringChexk= new JCheckBox();//语言转换："测试字符类型"
+        orderChexk= new JCheckBox();//语言转换："测试order类型"
+        boolChexk= new JCheckBox();//语言转换："测试bool类型"
+        diyChexk=new JCheckBox();//语言转换："测试diypayloads"
+        JLabel diyLabel = new JLabel();//语言转换："自定义payloads："
         diyTextArea=new JTextArea(20, 6);
         JScrollPane diyScrollPane = new JScrollPane();
         diyScrollPane.setViewportView(diyTextArea);
         diyTextArea.setLineWrap(true);
 
-        JLabel resRegexLabel = new JLabel("响应正则匹配规则：");
+        JLabel resRegexLabel = new JLabel();//语言转换："响应正则匹配规则："
         regexTextArea=new JTextArea(10, 6);
         JScrollPane regexScrollPane = new JScrollPane();
         regexScrollPane.setViewportView(regexTextArea);
         regexTextArea.setLineWrap(true);
 
-        JLabel timeLabel = new JLabel("延迟时间(ms)：");
+        JLabel timeLabel = new JLabel();//语言转换："延迟时间(ms)："
         timeTextField=new JTextField(6);
 
-        JLabel staticTimeLabel = new JLabel("请求间固定间隔(ms)：");
+        JLabel staticTimeLabel = new JLabel();//语言转换："请求间固定间隔(ms)："
         staticTimeTextField=new JTextField(6);
         staticTimeTextField.setText("100");
 
-        JLabel startTimeLabel = new JLabel("请求间间隔范围(ms)：");
+        JLabel startTimeLabel = new JLabel();//语言转换："请求间间隔范围(ms)："
         startTimeTextField=new JTextField(6);
         startTimeTextField.setText("0");
 
@@ -611,13 +632,13 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
         endTimeTextField=new JTextField(6);
         endTimeTextField.setText("0");
 
-        JLabel blackPathLabel = new JLabel("路径黑名单：");
+        JLabel blackPathLabel = new JLabel();//语言转换："路径黑名单："
         blackPathTextArea=new JTextArea(5, 6);
         JScrollPane blackPathScrollPane = new JScrollPane();
         blackPathScrollPane.setViewportView(blackPathTextArea);
         blackPathTextArea.setLineWrap(true);
 
-        JButton conBt = new JButton("确认");
+        JButton conBt = new JButton();//语言转换："确认"
         conBt.addActionListener(e -> {
             String whiteList = textField.getText();
             if (!whiteList.isBlank()) {
@@ -749,7 +770,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
             }
 
         });
-        JButton loadBt = new JButton("载入");
+        JButton loadBt = new JButton();//语言转换："载入"
         loadBt.addActionListener(e -> {
             JFileChooser fileChooser = new JFileChooser();
             fileChooser.setCurrentDirectory(new File("."));
@@ -899,6 +920,13 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
                     orderChexk.setSelected(Boolean.parseBoolean(prop.getProperty("ordercheck")));
                     boolChexk.setSelected(Boolean.parseBoolean(prop.getProperty("boolcheck")));
                     diyChexk.setSelected(Boolean.parseBoolean(prop.getProperty("diycheck")));
+                    String indexStr=prop.getProperty("languageindex").trim();
+
+                    try{
+                        index=Integer.parseInt(indexStr);
+                    }catch (NumberFormatException ne){
+                        index=0;
+                    }
                     fileReader.close();
                 } catch (IOException ex) {
                     throw new RuntimeException(ex);
@@ -908,7 +936,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
             }
             JOptionPane.showMessageDialog(null, message, "Load", JOptionPane.INFORMATION_MESSAGE);
         });
-        JButton saveBt = new JButton("保存");
+        JButton saveBt = new JButton();//语言转换："保存"
         saveBt.addActionListener(e -> {
             JFileChooser fileChooser = new JFileChooser();
             fileChooser.setPreferredSize(new Dimension(800, 600));
@@ -923,6 +951,9 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
                 prop.setProperty("errpoclist", DetSql.errorPocTextField.getText());
                 prop.setProperty("paramslist", DetSql.blackParamsField.getText());
                 prop.setProperty("delaytime", DetSql.timeTextField.getText());
+                prop.setProperty("statictime", DetSql.staticTimeTextField.getText());//
+                prop.setProperty("starttime", DetSql.startTimeTextField.getText());//
+                prop.setProperty("endtime", DetSql.endTimeTextField.getText());//
                 prop.setProperty("switch", String.valueOf(DetSql.switchChexk.isSelected()));
                 prop.setProperty("cookiecheck", String.valueOf(DetSql.cookieChexk.isSelected()));
                 prop.setProperty("errorcheck", String.valueOf(DetSql.errorChexk.isSelected()));
@@ -935,6 +966,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
                 prop.setProperty("diypayloads", DetSql.diyTextArea.getText());
                 prop.setProperty("diyregex", DetSql.regexTextArea.getText());
                 prop.setProperty("blackpath", DetSql.blackPathTextArea.getText());
+                prop.setProperty("languageindex", String.valueOf(DetSql.index));
                 try {
                     FileWriter fw = new FileWriter(fileChooser.getSelectedFile());
                     prop.store(fw, null);
@@ -947,7 +979,45 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
             }
             JOptionPane.showMessageDialog(null, message, "Save", JOptionPane.INFORMATION_MESSAGE);
         });
+        JLabel languageLabel = new JLabel();//语言转换："语言："
+        languageComboBox = new JComboBox<>(LANGUAGES);
+        languageComboBox.setSelectedIndex(index);
+        languageComboBox.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                index = languageComboBox.getSelectedIndex();
+                Locale locale = LOCALES[index];
+                messages = ResourceBundle.getBundle("Messages", locale); // Load appropriate messages bundle
+                // Update UI with new language settings,直接更新语言
 
+                topicLabel.setText(messages.getString("Domainwhitelisting"));
+                blackLabel.setText(messages.getString("Domainblacklisting"));
+                suffixLabel.setText(messages.getString("Prohibitsuffixing"));
+                errorPocLabel.setText(messages.getString("ErrorTypePOCing"));
+                blackParams.setText(messages.getString("Parameterblacklisting"));
+                switchChexk.setText(messages.getString("checkbox.switch"));
+                cookieChexk.setText(messages.getString("checkbox.Testcookies"));
+                vulnChexk.setText(messages.getString("checkbox.Acceptrepeater"));
+                errorChexk.setText(messages.getString("checkbox.Testerrortype"));
+                numChexk.setText(messages.getString("checkbox.Testnumericaltypes"));
+                stringChexk.setText(messages.getString("checkbox.Teststringtype"));
+                orderChexk.setText(messages.getString("checkbox.Testordertype"));
+                boolChexk.setText(messages.getString("checkbox.Testbooleantype"));
+                diyChexk.setText(messages.getString("checkbox.Testdiypayloads"));
+                diyLabel.setText(messages.getString("CustomizePayloadsing"));
+                resRegexLabel.setText(messages.getString("ResponsetoRegularmatchingrulesing"));
+                timeLabel.setText(messages.getString("ResponsetoDelaytimeing"));
+                staticTimeLabel.setText(messages.getString("Fixedintervalbetweenrequestsing"));
+                startTimeLabel.setText(messages.getString("Requestsintervalrangeing"));
+                blackPathLabel.setText(messages.getString("Pathblacklisting"));
+                conBt.setText(messages.getString("button.confirm"));
+                loadBt.setText(messages.getString("button.load"));
+                saveBt.setText(messages.getString("button.save"));
+                languageLabel.setText(messages.getString("languageing"));
+                configLabel.setText(messages.getString("configuredirectorying"));
+
+            }
+        });
 
         Spring st = Spring.constant(10);
         Spring st2 = Spring.constant(35);
@@ -1085,7 +1155,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
         springLayout.putConstraint(SpringLayout.EAST, diyScrollPane, -10, SpringLayout.HORIZONTAL_CENTER, container);
 
         container.add(regexScrollPane);
-        springLayout.putConstraint(SpringLayout.WEST, regexScrollPane, 10, SpringLayout.EAST, resRegexLabel);
+        springLayout.putConstraint(SpringLayout.WEST, regexScrollPane, 25, SpringLayout.EAST, resRegexLabel);
         springLayout.putConstraint(SpringLayout.NORTH, regexScrollPane, 0, SpringLayout.NORTH, diyLabel);
         springLayout.putConstraint(SpringLayout.EAST, regexScrollPane, Spring.minus(st), SpringLayout.EAST, container);
 
@@ -1120,6 +1190,41 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
         container.add(endTimeTextField);
         springLayout.putConstraint(SpringLayout.WEST, endTimeTextField, st, SpringLayout.EAST, endTimeLabel);
         springLayout.putConstraint(SpringLayout.NORTH, endTimeTextField, 0, SpringLayout.NORTH, startTimeLabel);
+
+        container.add(languageLabel);
+        springLayout.putConstraint(SpringLayout.NORTH, languageLabel, st, SpringLayout.SOUTH, diyScrollPane);
+        springLayout.putConstraint(SpringLayout.WEST, languageLabel, 0, SpringLayout.WEST, blackParams);
+
+        container.add(languageComboBox);
+        springLayout.putConstraint(SpringLayout.WEST, languageComboBox, 0, SpringLayout.WEST, textField);
+        springLayout.putConstraint(SpringLayout.NORTH, languageComboBox, 0, SpringLayout.NORTH, languageLabel);
+        //springLayout.putConstraint(SpringLayout.EAST, languageComboBox, Spring.minus(st), SpringLayout.EAST, container);
+        messages = ResourceBundle.getBundle("Messages", LOCALES[index]);
+        topicLabel.setText(messages.getString("Domainwhitelisting"));
+        blackLabel.setText(messages.getString("Domainblacklisting"));
+        suffixLabel.setText(messages.getString("Prohibitsuffixing"));
+        errorPocLabel.setText(messages.getString("ErrorTypePOCing"));
+        blackParams.setText(messages.getString("Parameterblacklisting"));
+        switchChexk.setText(messages.getString("checkbox.switch"));
+        cookieChexk.setText(messages.getString("checkbox.Testcookies"));
+        vulnChexk.setText(messages.getString("checkbox.Acceptrepeater"));
+        errorChexk.setText(messages.getString("checkbox.Testerrortype"));
+        numChexk.setText(messages.getString("checkbox.Testnumericaltypes"));
+        stringChexk.setText(messages.getString("checkbox.Teststringtype"));
+        orderChexk.setText(messages.getString("checkbox.Testordertype"));
+        boolChexk.setText(messages.getString("checkbox.Testbooleantype"));
+        diyChexk.setText(messages.getString("checkbox.Testdiypayloads"));
+        diyLabel.setText(messages.getString("CustomizePayloadsing"));
+        resRegexLabel.setText(messages.getString("ResponsetoRegularmatchingrulesing"));
+        timeLabel.setText(messages.getString("ResponsetoDelaytimeing"));
+        staticTimeLabel.setText(messages.getString("Fixedintervalbetweenrequestsing"));
+        startTimeLabel.setText(messages.getString("Requestsintervalrangeing"));
+        blackPathLabel.setText(messages.getString("Pathblacklisting"));
+        conBt.setText(messages.getString("button.confirm"));
+        loadBt.setText(messages.getString("button.load"));
+        saveBt.setText(messages.getString("button.save"));
+        languageLabel.setText(messages.getString("languageing"));
+        configLabel.setText(messages.getString("configuredirectorying"));
         return container;
     }
 
@@ -1348,5 +1453,6 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
 
         return container;
     }
+
 
 }
