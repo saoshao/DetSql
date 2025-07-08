@@ -104,12 +104,16 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
             try {
                 FileReader fileReader = new FileReader(System.getProperty("user.home")+ File.separator+"DetSqlConfig.txt");
                 prop.load(fileReader);
-                String indexStr=prop.getProperty("languageindex").trim();
+
+                String indexStr=prop.getProperty("languageindex","0").trim();
                 try{
                     index=Integer.parseInt(indexStr);
                 }catch (NumberFormatException ne){
                     index=0;
                 }
+
+
+
                 fileReader.close();
             } catch (IOException ex) {
                 throw new RuntimeException(ex);
@@ -277,7 +281,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
 
         api.logging().logToOutput("################################################");
         api.logging().logToOutput("[#]  load successfully");
-        api.logging().logToOutput("[#]  DetSql v2.5");
+        api.logging().logToOutput("[#]  DetSql v2.6");
         api.logging().logToOutput("[#]  Author: saoshao");
         api.logging().logToOutput("[#]  Email: 1224165231@qq.com");
         api.logging().logToOutput("[#]  Github: https://github.com/saoshao/DetSql");

@@ -4,13 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="0837a292-8016-4607-b749-b5b165f58135" name="更改" comment="Update 2.4">
-      <change afterPath="$PROJECT_DIR$/src/main/resources/Messages_en_US.properties" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/resources/Messages_zh_CN.properties" afterDir="false" />
+    <list default="true" id="0837a292-8016-4607-b749-b5b165f58135" name="更改" comment="Update 2.5">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/pom.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/DetSql/DetSql.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/DetSql/DetSql.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/DetSql/MyExtensionUnloadingHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/DetSql/MyExtensionUnloadingHandler.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -186,15 +183,8 @@
       <workItem from="1747061353254" duration="1966000" />
       <workItem from="1751383431446" duration="125000" />
       <workItem from="1751546823004" duration="9338000" />
-      <workItem from="1751631737162" duration="8164000" />
-    </task>
-    <task id="LOCAL-00010" summary="update README.md">
-      <option name="closed" value="true" />
-      <created>1725726602435</created>
-      <option name="number" value="00010" />
-      <option name="presentableId" value="LOCAL-00010" />
-      <option name="project" value="LOCAL" />
-      <updated>1725726602435</updated>
+      <workItem from="1751631737162" duration="8868000" />
+      <workItem from="1751977600631" duration="1603000" />
     </task>
     <task id="LOCAL-00011" summary="update README.md">
       <option name="closed" value="true" />
@@ -580,7 +570,15 @@
       <option name="project" value="LOCAL" />
       <updated>1750945755026</updated>
     </task>
-    <option name="localTasksCounter" value="59" />
+    <task id="LOCAL-00059" summary="Update 2.5">
+      <option name="closed" value="true" />
+      <created>1751640027656</created>
+      <option name="number" value="00059" />
+      <option name="presentableId" value="LOCAL-00059" />
+      <option name="project" value="LOCAL" />
+      <updated>1751640027656</updated>
+    </task>
+    <option name="localTasksCounter" value="60" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -617,7 +615,8 @@
     <MESSAGE value="Update 2.1" />
     <MESSAGE value="Update 2.2" />
     <MESSAGE value="Update 2.4" />
-    <option name="LAST_COMMIT_MESSAGE" value="Update 2.4" />
+    <MESSAGE value="Update 2.5" />
+    <option name="LAST_COMMIT_MESSAGE" value="Update 2.5" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />
