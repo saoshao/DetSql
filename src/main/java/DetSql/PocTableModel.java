@@ -56,10 +56,35 @@ public class PocTableModel extends AbstractTableModel {
     }
 
     public synchronized void add(List<PocLogEntry> logEntry) {
+        // 空数据处理
+        if (logEntry == null || logEntry.isEmpty()) {
+            if (!log.isEmpty()) {
+                int oldSize = log.size();
+                log.clear();
+                fireTableRowsDeleted(0, oldSize - 1);
+            }
+            return;
+        }
+
+        // 数据相同检查(通过hash比较,避免深度遍历)
+        if (log.size() == logEntry.size()) {
+            boolean same = true;
+            for (int i = 0; i < log.size(); i++) {
+                if (log.get(i).getMyHash() == null ||
+                    !log.get(i).getMyHash().equals(logEntry.get(i).getMyHash())) {
+                    same = false;
+                    break;
+                }
+            }
+            if (same) {
+                return;  // 数据相同,无需更新
+            }
+        }
+
+        // 数据变化,更新
         log.clear();
         log.addAll(logEntry);
-        int index = log.size();
-        fireTableRowsInserted(0, index-1);
+        fireTableDataChanged();  // 使用更轻量的刷新方式
     }
 
     public synchronized PocLogEntry get(int rowIndex) {

@@ -74,7 +74,7 @@ public class SourceTableModel extends AbstractTableModel {
     public synchronized void addx(SourceLogEntry logEntry, int index) {
         log.set(index, logEntry);
 
-        fireTableRowsInserted(index, index);
+        fireTableRowsUpdated(index, index);
     }
     public synchronized void add2(SourceLogEntry sourceLogEntry, int index,int viewindex) {
         log.set(index,sourceLogEntry);
