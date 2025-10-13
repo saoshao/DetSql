@@ -107,4 +107,9 @@ public class SourceLogEntry {
         SourceLogEntry comSource = (SourceLogEntry) o;
         return id == comSource.id;
     }
+
+    @Override
+    public int hashCode() {
+        return Integer.hashCode(id);
+    }
 }

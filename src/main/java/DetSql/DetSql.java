@@ -568,7 +568,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
             public int compare(Object o1, Object o2) {
                 String str1 = o1.toString();
                 String str2 = o2.toString();
-                return Integer.parseInt(str1) - Integer.parseInt(str2);
+                return Integer.compare(parseIntWithDefault(str1, 0), parseIntWithDefault(str2, 0));
             }
         });
         sorter.setComparator(5, new Comparator<Object>() {
@@ -576,7 +576,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
             public int compare(Object o1, Object o2) {
                 String str1 = o1.toString();
                 String str2 = o2.toString();
-                return Integer.parseInt(str1) - Integer.parseInt(str2);
+                return Integer.compare(parseIntWithDefault(str1, 0), parseIntWithDefault(str2, 0));
             }
         });
 //
@@ -612,7 +612,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
             for (int i = sourceTableModel.log.size() - 1; i >= 0; i--) {
                 int modelIndex = table1.convertRowIndexToModel(i);
                 Object state = sourceTableModel.getValueAt(modelIndex,6);
-                if ("".equals(state) || "手动停止".equals(state)){
+                if (state != null && (state.toString().isEmpty() || "手动停止".equals(state))){
                     try {
                         SourceLogEntry entry = sourceTableModel.log.get(modelIndex);
                         if (entry != null && entry.getMyHash() != null && myHttpHandler != null && myHttpHandler.attackMap != null) {
@@ -680,7 +680,11 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
             public int compare(Object o1, Object o2) {
                 String str1 = o1.toString();
                 String str2 = o2.toString();
-                return (int) (Double.parseDouble(str1)*1000-Double.parseDouble(str2)*1000);
+                try {
+                    return (int) (Double.parseDouble(str1)*1000-Double.parseDouble(str2)*1000);
+                } catch (NumberFormatException e) {
+                    return 0;
+                }
             }
         });
 //
@@ -1215,6 +1219,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
      */
     private File showFileChooser(String dialogTitle, boolean isOpen) {
         JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle(dialogTitle);
         fileChooser.setCurrentDirectory(new File("."));
         fileChooser.setPreferredSize(new Dimension(FILE_CHOOSER_WIDTH, FILE_CHOOSER_HEIGHT));
 
@@ -1286,8 +1291,13 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
         StringBuilder sb = new StringBuilder();
         Matcher matcher = Pattern.compile("\\\\u([0-9a-fA-F]{4})").matcher(unicodeStr);
         while (matcher.find()) {
-            String ch = String.valueOf((char) Integer.parseInt(matcher.group(1), 16));
-            sb.append(ch);
+            try {
+                String ch = String.valueOf((char) Integer.parseInt(matcher.group(1), 16));
+                sb.append(ch);
+            } catch (NumberFormatException e) {
+                // If parsing fails, skip this unicode sequence
+                sb.append(matcher.group(0));
+            }
         }
         return sb.toString();
     }

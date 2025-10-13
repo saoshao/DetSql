@@ -1419,7 +1419,6 @@ public class MyHttpHandler implements HttpHandler {
 
             ParsedHttpParameter param = params.get(i);
             String paramName = param.name();
-            String paramValue = param.value();
 
             // 跳过黑名单参数
             if (shouldSkipParameter(paramName)) {
@@ -1570,7 +1569,6 @@ public class MyHttpHandler implements HttpHandler {
 
             ParsedHttpParameter param = params.get(i);
             String paramName = param.name();
-            String paramValue = param.value();
 
             // 跳过黑名单参数
             if (shouldSkipParameter(paramName)) {
