@@ -111,6 +111,54 @@
 
 <br/>
 
+## 编译配置
+
+### 日志级别控制
+
+DetSql 默认**不输出日志**，需要时可通过编译参数启用日志：
+
+```bash
+# 默认编译 - 不输出日志
+mvn clean package
+
+# 开发调试 - 显示所有日志（包括每个请求的详细信息）
+mvn clean package "-Ddetsql.log.level=DEBUG"
+
+# 日常使用 - 显示重要信息（推荐）
+mvn clean package "-Ddetsql.log.level=INFO"
+
+# 生产环境 - 只显示警告和错误
+mvn clean package "-Ddetsql.log.level=WARN"
+
+# 最小输出 - 只显示错误
+mvn clean package "-Ddetsql.log.level=ERROR"
+```
+
+**注意**：在 Windows 命令行中，参数需要用引号包裹。
+
+**日志级别说明：**
+- `OFF`：不输出日志（默认），但仍会显示启动信息（版本、作者等）
+- `DEBUG`：显示所有日志，包括未发现漏洞的请求，适合开发调试
+- `INFO`：显示重要信息（启动、发现漏洞、统计），适合日常使用
+- `WARN`：只显示警告和错误，适合生产环境
+- `ERROR`：只显示错误信息，适合性能测试
+
+**注意**：无论设置什么日志级别，插件启动时的版本信息、作者信息等都会输出到 Output 面板。
+
+**日志输出位置：**
+- 常规日志（INFO/WARN/DEBUG）：Burp Suite 的 **Output** 面板
+- 错误日志（ERROR）：Burp Suite 的 **Errors** 面板
+
+也可以在 `pom.xml` 中修改默认日志级别：
+```xml
+<properties>
+    <!-- OFF: 不输出日志（默认） -->
+    <detsql.log.level>OFF</detsql.log.level>
+</properties>
+```
+
+<br/>
+
 ## 主面板（dashboard）
 
 <br/>

@@ -5,6 +5,7 @@
 package DetSql;
 
 import burp.api.montoya.http.message.HttpRequestResponse;
+import DetSql.ResponseExtractor;
 
 public class PocLogEntry {
     private String name;
@@ -98,5 +99,30 @@ public class PocLogEntry {
     }
     public void setMyHash(String myHash) {
         this.myHash = myHash;
+    }
+
+    /**
+     * Factory method to create PocLogEntry from response
+     * Eliminates repetitive ResponseExtractor calls at creation sites
+     */
+    public static PocLogEntry fromResponse(
+        String paramName,
+        String payload,
+        String similarity,
+        String injectionType,
+        HttpRequestResponse response,
+        String requestHash) {
+
+        return new PocLogEntry(
+            paramName,
+            payload,
+            similarity,
+            injectionType,
+            ResponseExtractor.getBodyLengthString(response),
+            ResponseExtractor.getStatusCodeString(response),
+            ResponseExtractor.getResponseTimeSeconds(response),
+            response,
+            requestHash
+        );
     }
 }

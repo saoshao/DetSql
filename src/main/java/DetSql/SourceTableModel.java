@@ -37,11 +37,11 @@ public class SourceTableModel extends AbstractTableModel {
     @Override
     public String getColumnName(int column) {
         return switch (column) {
-            case 0 -> "Id";
+            case 0 -> "#";
             case 1 -> "Tool";
-            case 2 -> "HttpService";
-            case 3 -> "Method";
-            case 4 -> "Path";
+            case 2 -> "Method";
+            case 3 -> "Host";
+            case 4 -> "URL";
             case 5 -> "BodyLength";
             case 6 -> "VulnState";
             default -> "";
@@ -54,8 +54,8 @@ public class SourceTableModel extends AbstractTableModel {
         return switch (columnIndex) {
             case 0 -> logEntry.getId();
             case 1 -> logEntry.getTool();
-            case 2 -> logEntry.getHttpService();
-            case 3 -> logEntry.getMethod();
+            case 2 -> logEntry.getMethod();
+            case 3 -> logEntry.getHttpService();
             case 4 -> logEntry.getPath();
             case 5 -> logEntry.getBodyLength();
             case 6 -> logEntry.getVulnState();
@@ -76,9 +76,17 @@ public class SourceTableModel extends AbstractTableModel {
 
         fireTableRowsUpdated(index, index);
     }
-    public synchronized void add2(SourceLogEntry sourceLogEntry, int index,int viewindex) {
-        log.set(index,sourceLogEntry);
-        fireTableCellUpdated(viewindex,6);
+    /**
+     * 更新指定行的漏洞状态（VulnState列）
+     * 用于在测试完成后更新表格中的漏洞检测结果
+     *
+     * @param entry      包含更新数据的日志条目
+     * @param modelIndex 模型中的行索引
+     * @param viewIndex  视图中的行索引（用于UI更新）
+     */
+    public synchronized void updateVulnState(SourceLogEntry entry, int modelIndex, int viewIndex) {
+        log.set(modelIndex, entry);
+        fireTableCellUpdated(viewIndex, 6); // 只更新VulnState列（第6列）
     }
     public synchronized SourceLogEntry get(int rowIndex) {
         return log.get(rowIndex);
