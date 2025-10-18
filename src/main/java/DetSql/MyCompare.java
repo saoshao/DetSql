@@ -3,51 +3,14 @@
  */
 package DetSql;
 
-import burp.api.montoya.MontoyaApi;
 import org.apache.commons.text.similarity.JaccardSimilarity;
 import org.apache.commons.text.similarity.LevenshteinDistance;
 
 import java.text.NumberFormat;
 import java.util.*;
+import java.util.function.BiFunction;
 
 public class MyCompare {
-    public static double calculateCosineSimilarity(String s1, String s2) {
-        Map<Character, Integer> v1 = generateVector(s1);
-        Map<Character, Integer> v2 = generateVector(s2);
-
-        double dotProduct = 0.0;
-        double norm1 = 0.0;
-        double norm2 = 0.0;
-
-        for (Character key : v1.keySet()) {
-            if (v2.containsKey(key)) {
-                dotProduct += v1.get(key) * v2.get(key);
-            }
-            norm1 += Math.pow(v1.get(key), 2);
-        }
-
-        for (Character key : v2.keySet()) {
-            norm2 += Math.pow(v2.get(key), 2);
-        }
-
-        return dotProduct / (Math.sqrt(norm1) * Math.sqrt(norm2));
-    }
-
-    public static Map<Character, Integer> generateVector(String s) {
-        Map<Character, Integer> vector = new HashMap<>();
-
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            if (vector.containsKey(c)) {
-                vector.put(c, vector.get(c) + 1);
-            } else {
-                vector.put(c, 1);
-            }
-        }
-
-        return vector;
-    }
-
     public static String formatNumber(double number) {
         return String.format("%.3f", number);
     }
@@ -62,213 +25,135 @@ public class MyCompare {
         int distance = LevenshteinDistance.getDefaultInstance().apply(str1, str2);
         return 1 - (double) distance / Math.max(str1.length(), str2.length());
     }
-
-
-    public static double levenshteinx(String a, String b) {
-        if (a == null && b == null) {
-            return 1f;
-        }
-        if (a == null || b == null) {
-            return 0F;
-        }
-        int editDistance = editDis(a, b);
-        return 1 - ((double) editDistance / Math.max(a.length(), b.length()));
-    }
-
-    private static int editDis(String a, String b) {
-
-        int aLen = a.length();
-        int bLen = b.length();
-
-        if (aLen == 0) return aLen;
-        if (bLen == 0) return bLen;
-
-        int[][] v = new int[aLen + 1][bLen + 1];
-        for (int i = 0; i <= aLen; ++i) {
-            for (int j = 0; j <= bLen; ++j) {
-                if (i == 0) {
-                    v[i][j] = j;
-                } else if (j == 0) {
-                    v[i][j] = i;
-                } else if (a.charAt(i - 1) == b.charAt(j - 1)) {
-                    v[i][j] = v[i - 1][j - 1];
-                } else {
-                    v[i][j] = 1 + Math.min(v[i - 1][j - 1], Math.min(v[i][j - 1], v[i - 1][j]));
-                }
-            }
-        }
-        return v[aLen][bLen];
-    }
-
-    public static double jaccardx(String str1, String str2) {
-        Set<Character> s1 = new HashSet<>();//set元素不可重复
-        Set<Character> s2 = new HashSet<>();
-
-        for (int i = 0; i < str1.length(); i++) {
-            s1.add(str1.charAt(i));//将string里面的元素一个一个按索引放进set集合
-        }
-        for (int j = 0; j < str2.length(); j++) {
-            s2.add(str2.charAt(j));
-        }
-
-        float mergeNum = 0;//并集元素个数
-        float commonNum = 0;//相同元素个数（交集）
-
-        for (Character ch1 : s1) {
-            for (Character ch2 : s2) {
-                if (ch1.equals(ch2)) {
-                    commonNum++;
-                }
-            }
-        }
-
-        mergeNum = s1.size() + s2.size() - commonNum;
-
-        return commonNum / mergeNum;
-    }
-
     public static double jaccard(String str1, String str2) {
 
         return new JaccardSimilarity().apply(str1, str2);
     }
 
+    // 提取相似度计算公共逻辑
+    private static List<Double> calculateSimilarity(
+            String s1, String s2,
+            String poc1, String poc2,
+            boolean html_flag,
+            BiFunction<String, String, Double> similarityFunc) {
+
+        int lengthDiff = Math.abs(s1.length() - s2.length());
+
+        if (lengthDiff <= 1) {
+            return List.of(1.0);
+        }
+
+        if (s1.isEmpty() || s2.isEmpty()) {
+            return List.of(0.0);
+        }
+
+        if (lengthDiff >= 100) {
+            return List.of(0.0);
+        }
+
+        if (s1.length() < s2.length() && (s2.startsWith(s1) || s2.endsWith(s1))) {
+            return List.of(0.0);
+        }
+
+        if (s2.length() < s1.length() && (s1.startsWith(s2) || s1.endsWith(s2))) {
+            return List.of(0.0);
+        }
+
+        List<Double> list = new ArrayList<>();
+
+        if (html_flag) {
+            String[] newStrList;
+            if (s1.length() < s2.length()) {
+                newStrList = upgradeStr(s1, s2);
+                if ((newStrList[0].replaceAll(poc1, "").isEmpty() && !newStrList[1].replaceAll(poc2, "").isEmpty()) ||
+                    (!newStrList[0].replaceAll(poc1, "").isEmpty() && newStrList[1].replaceAll(poc2, "").isEmpty())) {
+                    list.add(0.0);
+                } else if (newStrList[0].replaceAll(poc1, "").isEmpty() && newStrList[1].replaceAll(poc2, "").isEmpty()) {
+                    list.add(1.0);
+                } else {
+                    double similarity = similarityFunc.apply(newStrList[0], newStrList[1]);
+                    list.add(similarity);
+                }
+            } else {
+                newStrList = upgradeStr(s2, s1);
+                if ((newStrList[0].replaceAll(poc2, "").isEmpty() && !newStrList[1].replaceAll(poc1, "").isEmpty()) ||
+                    (!newStrList[0].replaceAll(poc2, "").isEmpty() && newStrList[1].replaceAll(poc1, "").isEmpty())) {
+                    list.add(0.0);
+                } else if (newStrList[0].replaceAll(poc2, "").isEmpty() && newStrList[1].replaceAll(poc1, "").isEmpty()) {
+                    list.add(1.0);
+                } else {
+                    double similarity = similarityFunc.apply(newStrList[0], newStrList[1]);
+                    list.add(similarity);
+                }
+            }
+        } else {
+            double similarity = similarityFunc.apply(s1, s2);
+            list.add(similarity);
+        }
+
+        return list;
+    }
+
     //SqlNum,SqlString使用
     public static List<Double> averageLevenshtein(String s1, String s2,String poc1,String poc2,boolean html_flag) {
-        List<Double> list = new ArrayList<>();
-        if (Math.abs(s1.length() - s2.length())<=1) {
-            list.add(1.0);
-        } else if (s1.isEmpty() || s2.isEmpty()) {
-            list.add(0.0);
-        } else if (Math.abs(s1.length() - s2.length()) >= 100) {
-            list.add(0.9);
-//            double levenshtein = levenshtein(s1, s2);
-//            list.add(levenshtein);
-        } else if (s1.length()<s2.length()&&(s2.startsWith(s1)||s2.endsWith(s1))) {
-            list.add(0.0);
-        } else if (s2.length()<s1.length()&&(s1.startsWith(s2)||s1.endsWith(s2))) {
-            list.add(0.0);
-        } else {
-            if(html_flag){
-                String[] newStrList;
-                if(s1.length()<s2.length()){
-                    newStrList=upgradeStr(s1,s2);
-                    if ((newStrList[0].replaceAll(poc1,"").isEmpty()&&!newStrList[1].replaceAll(poc2,"").isEmpty())||(!newStrList[0].replaceAll(poc1,"").isEmpty()&&newStrList[1].replaceAll(poc2,"").isEmpty())){
-                        list.add(0.0);
-                    } else if (newStrList[0].replaceAll(poc1,"").isEmpty()&&newStrList[1].replaceAll(poc2,"").isEmpty()) {
-                        list.add(1.0);
-                    } else{
-                        double levenshtein = levenshtein(newStrList[0], newStrList[1]);
-                        list.add(levenshtein);
-                    }
-                }else{
-                    newStrList=upgradeStr(s2,s1);
-                    if ((newStrList[0].replaceAll(poc2,"").isEmpty()&&!newStrList[1].replaceAll(poc1,"").isEmpty())||(!newStrList[0].replaceAll(poc2,"").isEmpty()&&newStrList[1].replaceAll(poc1,"").isEmpty())){
-                        list.add(0.0);
-                    } else if (newStrList[0].replaceAll(poc2,"").isEmpty()&&newStrList[1].replaceAll(poc1,"").isEmpty()) {
-                        list.add(1.0);
-                    } else{
-                        double levenshtein = levenshtein(newStrList[0], newStrList[1]);
-                        list.add(levenshtein);
-                    }
-                }
-            }else{
-                double levenshtein = levenshtein(s1, s2);
-                list.add(levenshtein);
-            }
-
-
-
-        }
-        return list;
+        return calculateSimilarity(s1, s2, poc1, poc2, html_flag, MyCompare::levenshtein);
     }
 
     //SqlOrder使用
     public static List<Double> averageJaccard(String s1, String s2,String poc1,String poc2,boolean html_flag) {
-        List<Double> list = new ArrayList<>();
-        if (Math.abs(s1.length() - s2.length())<=1) {
-            list.add(1.0);
-        } else if (s1.isEmpty() || s2.isEmpty()) {
-            list.add(0.0);
-        } else if (Math.abs(s1.length() - s2.length()) >= 100) {
-            list.add(0.9);
-        } else if (s1.length()<s2.length()&&(s2.startsWith(s1)||s2.endsWith(s1))) {
-            list.add(0.0);
-        } else if (s2.length()<s1.length()&&(s1.startsWith(s2)||s1.endsWith(s2))) {
-            list.add(0.0);
-        } else {
-            if(html_flag){
-                String[] newStrList;
-                if(s1.length()<s2.length()){
-                    newStrList=upgradeStr(s1,s2);
-
-                    if ((newStrList[0].replaceAll(poc1,"").isEmpty()&&!newStrList[1].replaceAll(poc2,"").isEmpty())||(!newStrList[0].replaceAll(poc1,"").isEmpty()&&newStrList[1].replaceAll(poc2,"").isEmpty())){
-                        list.add(0.0);
-                    } else if (newStrList[0].replaceAll(poc1,"").isEmpty()&&newStrList[1].replaceAll(poc2,"").isEmpty()) {
-                        list.add(1.0);
-                    } else{
-                        double jaccard = jaccard(newStrList[0], newStrList[1]);
-                        list.add(jaccard);
-                    }
-                }else{
-                    newStrList=upgradeStr(s2,s1);
-                    if ((newStrList[0].replaceAll(poc2,"").isEmpty()&&!newStrList[1].replaceAll(poc1,"").isEmpty())||(!newStrList[0].replaceAll(poc2,"").isEmpty()&&newStrList[1].replaceAll(poc1,"").isEmpty())){
-                        list.add(0.0);
-                    } else if (newStrList[0].replaceAll(poc2,"").isEmpty()&&newStrList[1].replaceAll(poc1,"").isEmpty()) {
-                        list.add(1.0);
-                    } else{
-                        double jaccard = jaccard(newStrList[0], newStrList[1]);
-                        list.add(jaccard);
-                    }
-                }
-            }else{
-                double jaccard = jaccard(s1, s2);
-                list.add(jaccard);
-            }
-
-
-
-        }
-        return list;
+        return calculateSimilarity(s1, s2, poc1, poc2, html_flag, MyCompare::jaccard);
     }
 
-    public static List<Double> averageCosine(String s1, String s2) {
-        List<Double> list = new ArrayList<>();
-        double cosine = calculateCosineSimilarity(s1, s2);
-        if (s1.length() == s2.length()) {
-            list.add(1.0);
-        } else if (s1.length() == 0 || s2.length() == 0) {
-            list.add(0.0);
-        } else {
-            list.add(cosine);
-        }
-        list.add(1.0);
-        return list;
-    }
-    public static String[] upgradeStr(String s1, String s2) {//s1比s2短
-//        if(s2.length()<=3000){
-//            return new String[]{s1,s2};
-//        }
-        int len1 = s1.length();
-        int len2 = s2.length();
-        int startIndex=0;
-        int endIndex1=len1;
-        int endIndex2=len2;
-        for(int i=1;i<=len1;i++){
-            if(s1.charAt(i-1)!=s2.charAt(i-1)){
-                startIndex=i-1;
+    /**
+     * 移除两个字符串的公共前缀和后缀，只保留不同的部分。
+     * 此方法用于在相似度计算前进行字符串预处理，减少无关部分的干扰。
+     *
+     * @param shorter 较短的字符串（前提条件: shorter.length() <= longer.length()）
+     * @param longer 较长的字符串
+     * @return 包含两个字符串差异部分的数组 [shorter的差异部分, longer的差异部分]
+     *
+     * <p>示例：
+     * <pre>
+     * upgradeStr("abcXdef", "abcYdef") -> ["X", "Y"]
+     * upgradeStr("hello", "hello world") -> ["", " world"]
+     * upgradeStr("test", "test") -> ["", ""]
+     * </pre>
+     */
+    public static String[] upgradeStr(String shorter, String longer) {
+        int shorterLength = shorter.length();
+        int longerLength = longer.length();
+
+        // 初始化：假设整个字符串都是差异部分
+        int commonPrefixLength = 0;
+        int shorterEndIndex = shorterLength;
+        int longerEndIndex = longerLength;
+
+        // 第一步：从头开始查找公共前缀
+        for (int i = 1; i <= shorterLength; i++) {
+            if (shorter.charAt(i - 1) != longer.charAt(i - 1)) {
+                commonPrefixLength = i - 1;
                 break;
             }
-            startIndex=len1;
+            // 如果循环结束都没有 break，说明 shorter 是 longer 的完整前缀
+            commonPrefixLength = shorterLength;
         }
-        for (int j = 1; j <=len1-startIndex ; j++) {
-            if(s1.charAt(len1-j)!=s2.charAt(len2-j)){
-                endIndex1=len1-j+1;
-                endIndex2=len2-j+1;
+
+        // 第二步：从尾部开始查找公共后缀（仅在去除公共前缀后的部分中查找）
+        for (int j = 1; j <= shorterLength - commonPrefixLength; j++) {
+            if (shorter.charAt(shorterLength - j) != longer.charAt(longerLength - j)) {
+                shorterEndIndex = shorterLength - j + 1;
+                longerEndIndex = longerLength - j + 1;
                 break;
             }
-            endIndex1=startIndex;
-            endIndex2=len2-len1+startIndex;
+            // 如果循环结束都没有 break，说明去除前缀后的 shorter 部分完全匹配 longer 的相应后缀
+            shorterEndIndex = commonPrefixLength;
+            longerEndIndex = longerLength - shorterLength + commonPrefixLength;
         }
-        return new String[]{s1.substring(startIndex,endIndex1),s2.substring(startIndex,endIndex2)};
+
+        // 返回两个字符串去除公共前后缀后的差异部分
+        return new String[]{
+            shorter.substring(commonPrefixLength, shorterEndIndex),
+            longer.substring(commonPrefixLength, longerEndIndex)
+        };
     }
 }

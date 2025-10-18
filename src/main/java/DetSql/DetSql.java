@@ -59,19 +59,26 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
     public MyHttpHandler myHttpHandler;
     public SourceTableModel sourceTableModel;
     public ConcurrentHashMap<String, List<PocLogEntry>> attackMap;
-    public static JCheckBox switchChexk;
-    public static JCheckBox cookieChexk;
-    public static JCheckBox errorChexk;//
-    public static JCheckBox vulnChexk;
+    private DetSqlConfig config; // 统一配置管理对象
+    private DetSqlLogger logger; // 日志系统
+    private Statistics statistics; // 统计系统
+    public static JCheckBox switchCheck;
+    public static JCheckBox cookieCheck;
+    public static JCheckBox errorCheck;//
+    public static JCheckBox vulnCheck;
     public static JTable table1;
     public static JTable table2;
+    // Stats labels
+    private JLabel statsTestedLabel;
+    private JLabel statsVulnLabel;
+    private javax.swing.Timer statsTimer;
     //补充4个
-    public static JCheckBox numChexk;//
-    public static JCheckBox stringChexk;//
-    public static JCheckBox orderChexk;//
-    public static JCheckBox boolChexk;//
+    public static JCheckBox numCheck;//
+    public static JCheckBox stringCheck;//
+    public static JCheckBox orderCheck;//
+    public static JCheckBox boolCheck;//
 
-    public static JCheckBox diyChexk;//
+    public static JCheckBox diyCheck;//
 
     public static JTextField textField;
     public static JTextField blackTextField;
@@ -94,198 +101,366 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
     private static final Locale[] LOCALES = {new Locale("zh", "CN"),new Locale("en", "US") };
     public static int index;
 
+    // UI Layout Constants
+    private static final int FILE_CHOOSER_WIDTH = 800;
+    private static final int FILE_CHOOSER_HEIGHT = 600;
+
+    // Top Bar and Tab Layout Constants
+    private static final int TOP_BAR_MAX_HEIGHT = 40;     // Maximum height of the top bar containing tabs and stats
+    private static final int TAB_STRIP_HEIGHT = 36;        // Height of the tab strip to ensure single-row layout
+
+    // SpringLayout Padding Constants
+    private static final int PADDING_SMALL = 10;           // Standard small padding
+    private static final int PADDING_MEDIUM = 15;          // Medium padding (tool component)
+    private static final int PADDING_COMPONENT = 35;       // Spacing between components
+    private static final int PADDING_SPECIAL = 25;         // Special case horizontal spacing
+    private static final int PADDING_CENTER_OFFSET = 90;   // Horizontal center offset
+    private static final int PADDING_BUTTON = 100;         // Button spacing
+    private static final int PADDING_LARGE = 200;          // Large spacing (config buttons)
+
+    // Component Size Constants
+    private static final int TEXTFIELD_COLUMNS = 30;       // Standard TextField column count
+    private static final int TEXTAREA_ROWS_SMALL = 5;      // Small TextArea row count
+    private static final int TEXTAREA_ROWS_MEDIUM = 6;     // Medium TextArea row count
+    private static final int TEXTAREA_ROWS_REGULAR = 10;   // Regular TextArea row count
+    private static final int TEXTAREA_ROWS_LARGE = 14;     // Large TextArea row count
+    private static final int TEXTAREA_ROWS_XLARGE = 20;    // Extra large TextArea row count
+    private static final int TEXTAREA_ROWS_XXLARGE = 30;   // Extra extra large TextArea row count
+
+    // JSplitPane Constants
+    private static final double SPLITPANE_RESIZE_WEIGHT = 0.5;
+
+    private Set<String> readLinesFromTextArea(JTextArea textArea) {
+        Set<String> result = new HashSet<>();
+        Element paragraph = textArea.getDocument().getDefaultRootElement();
+        int contentCount = paragraph.getElementCount();
+        for (int i = 0; i < contentCount; i++) {
+            Element ee = paragraph.getElement(i);
+            int rangeStart = ee.getStartOffset();
+            int rangeEnd = ee.getEndOffset();
+            try {
+                String line = textArea.getText(rangeStart, rangeEnd - rangeStart)
+                    .replaceFirst("[\n\r]+$", "");
+                if (!line.isBlank()) {
+                    result.add(line);
+                }
+            } catch (BadLocationException ex) {
+                throw new RuntimeException(ex);
+            }
+        }
+        return result;
+    }
+
+    private int parseIntWithDefault(String value, int defaultValue) {
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
+    }
+
+    // Derive JSON-safe error payloads from user-provided list
+    private static String[] deriveJsonErrPocs(String[] base) {
+        java.util.LinkedHashSet<String> out = new java.util.LinkedHashSet<>();
+        for (String s : base) {
+            if (s == null) continue;
+
+            // 1. 原始payload
+            out.add(s);
+
+            // 2. 转义双引号（JSON字符串内安全）
+            if (s.contains("\"")) {
+                out.add(s.replace("\"", "\\\""));
+            }
+
+            // 3. Unicode编码（绕过某些WAF）
+            if (s.contains("\"")) {
+                out.add(s.replace("\"", "\\u0022"));
+            }
+            if (s.contains("'")) {
+                out.add(s.replace("'", "\\u0027"));
+            }
+        }
+        return out.toArray(new String[0]);
+    }
+
+    /**
+     * Parse Set property from Properties
+     * @param prop Properties object
+     * @param key Property key
+     * @param defaultValue Default value if property is blank
+     * @return Parsed Set
+     */
+    private Set<String> parseSetProperty(Properties prop, String key, Set<String> defaultValue) {
+        String value = prop.getProperty(key, "");
+        return value.isBlank()
+            ? defaultValue
+            : new HashSet<>(Arrays.asList(value.split("\\|")));
+    }
+
+    /**
+     * Update all UI component labels with current language bundle
+     * @param topicLabel Domain whitelist label
+     * @param blackLabel Domain blacklist label
+     * @param suffixLabel Suffix label
+     * @param errorPocLabel Error POC label
+     * @param blackParams Parameter blacklist label
+     * @param diyLabel DIY payloads label
+     * @param resRegexLabel Response regex label
+     * @param timeLabel Delay time label
+     * @param staticTimeLabel Static time label
+     * @param startTimeLabel Start time label
+     * @param blackPathLabel Black path label
+     * @param conBt Confirm button
+     * @param loadBt Load button
+     * @param saveBt Save button
+     * @param languageLabel Language label
+     * @param configLabel Config directory label
+     */
+    private void updateLanguageLabels(
+        JLabel topicLabel, JLabel blackLabel, JLabel suffixLabel, JLabel errorPocLabel,
+        JLabel blackParams, JLabel diyLabel, JLabel resRegexLabel, JLabel timeLabel,
+        JLabel staticTimeLabel, JLabel startTimeLabel, JLabel blackPathLabel,
+        JButton conBt, JButton loadBt, JButton saveBt,
+        JLabel languageLabel, JLabel configLabel) {
+
+        topicLabel.setText(messages.getString("Domainwhitelisting"));
+        blackLabel.setText(messages.getString("Domainblacklisting"));
+        suffixLabel.setText(messages.getString("Prohibitsuffixing"));
+        errorPocLabel.setText(messages.getString("ErrorTypePOCing"));
+        blackParams.setText(messages.getString("Parameterblacklisting"));
+        switchCheck.setText(messages.getString("checkbox.switch"));
+        cookieCheck.setText(messages.getString("checkbox.Testcookies"));
+        vulnCheck.setText(messages.getString("checkbox.Acceptrepeater"));
+        errorCheck.setText(messages.getString("checkbox.Testerrortype"));
+        numCheck.setText(messages.getString("checkbox.Testnumericaltypes"));
+        stringCheck.setText(messages.getString("checkbox.Teststringtype"));
+        orderCheck.setText(messages.getString("checkbox.Testordertype"));
+        boolCheck.setText(messages.getString("checkbox.Testbooleantype"));
+        diyCheck.setText(messages.getString("checkbox.Testdiypayloads"));
+        diyLabel.setText(messages.getString("CustomizePayloadsing"));
+        resRegexLabel.setText(messages.getString("ResponsetoRegularmatchingrulesing"));
+        timeLabel.setText(messages.getString("ResponsetoDelaytimeing"));
+        staticTimeLabel.setText(messages.getString("Fixedintervalbetweenrequestsing"));
+        startTimeLabel.setText(messages.getString("Requestsintervalrangeing"));
+        blackPathLabel.setText(messages.getString("Pathblacklisting"));
+        conBt.setText(messages.getString("button.confirm"));
+        loadBt.setText(messages.getString("button.load"));
+        saveBt.setText(messages.getString("button.save"));
+        languageLabel.setText(messages.getString("languageing"));
+        configLabel.setText(messages.getString("configuredirectorying"));
+    }
+
+    /**
+     * Build Properties object from current UI configuration
+     * @return Properties object containing all configuration values
+     */
+    static Properties buildConfigProperties() {
+        Properties prop = new Properties();
+        prop.setProperty("whitelist", DetSql.textField.getText());
+        prop.setProperty("blacklist", DetSql.blackTextField.getText());
+        prop.setProperty("suffixlist", DetSql.suffixTextField.getText());
+        prop.setProperty("errpoclist", DetSql.errorPocTextField.getText());
+        prop.setProperty("paramslist", DetSql.blackParamsField.getText());
+        prop.setProperty("delaytime", DetSql.timeTextField.getText());
+        prop.setProperty("statictime", DetSql.staticTimeTextField.getText());
+        prop.setProperty("starttime", DetSql.startTimeTextField.getText());
+        prop.setProperty("endtime", DetSql.endTimeTextField.getText());
+        prop.setProperty("switch", String.valueOf(DetSql.switchCheck.isSelected()));
+        prop.setProperty("cookiecheck", String.valueOf(DetSql.cookieCheck.isSelected()));
+        prop.setProperty("errorcheck", String.valueOf(DetSql.errorCheck.isSelected()));
+        prop.setProperty("numcheck", String.valueOf(DetSql.numCheck.isSelected()));
+        prop.setProperty("stringcheck", String.valueOf(DetSql.stringCheck.isSelected()));
+        prop.setProperty("ordercheck", String.valueOf(DetSql.orderCheck.isSelected()));
+        prop.setProperty("repeatercheck", String.valueOf(DetSql.vulnCheck.isSelected()));
+        prop.setProperty("boolcheck", String.valueOf(DetSql.boolCheck.isSelected()));
+        prop.setProperty("diycheck", String.valueOf(DetSql.diyCheck.isSelected()));
+        prop.setProperty("diypayloads", DetSql.diyTextArea.getText());
+        prop.setProperty("diyregex", DetSql.regexTextArea.getText());
+        prop.setProperty("blackpath", DetSql.blackPathTextArea.getText());
+        prop.setProperty("languageindex", String.valueOf(DetSql.index));
+        return prop;
+    }
+
+    /**
+     * Load configuration from file
+     * @param configFile Configuration file
+     */
+    private void loadConfiguration(File configFile) {
+        if (!configFile.exists()) {
+            return;
+        }
+
+        try (java.io.InputStreamReader fileReader = new java.io.InputStreamReader(new java.io.FileInputStream(configFile), java.nio.charset.StandardCharsets.UTF_8)) {
+            Properties prop = new Properties();
+            prop.load(fileReader);
+            applyConfiguration(prop);
+        } catch (IOException ex) {
+            api.logging().logToError("Configuration loading failed: " + ex.getMessage());
+        }
+    }
+
+    /**
+     * Apply Properties configuration to UI and static variables
+     * @param prop Properties object
+     */
+    private void applyConfiguration(Properties prop) {
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // 1. List-type configuration (separated by "|")
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        MyFilterRequest.whiteListSet = parseSetProperty(prop, "whitelist", new HashSet<>());
+        MyFilterRequest.blackListSet = parseSetProperty(prop, "blacklist", new HashSet<>());
+        MyHttpHandler.blackParamsSet = parseSetProperty(prop, "paramslist", new HashSet<>());
+
+        String suffixProp = prop.getProperty("suffixlist", "").trim();
+        if (suffixProp.isBlank()) {
+            MyFilterRequest.unLegalExtensionSet = new HashSet<>(DefaultConfig.DEFAULT_SUFFIX_SET);
+        } else {
+            MyFilterRequest.unLegalExtensionSet = new HashSet<>(Arrays.asList(suffixProp.split("\\|")));
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // 2. UI text field configuration
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        javax.swing.SwingUtilities.invokeLater(() -> {
+            textField.setText(prop.getProperty("whitelist", ""));
+            blackTextField.setText(prop.getProperty("blacklist", ""));
+            suffixTextField.setText(prop.getProperty("suffixlist", DefaultConfig.DEFAULT_SUFFIX_LIST));
+            errorPocTextField.setText(prop.getProperty("errpoclist", ""));
+            blackParamsField.setText(prop.getProperty("paramslist", ""));
+            timeTextField.setText(prop.getProperty("delaytime", ""));
+            staticTimeTextField.setText(prop.getProperty("statictime", "100"));
+            startTimeTextField.setText(prop.getProperty("starttime", "0"));
+            endTimeTextField.setText(prop.getProperty("endtime", "0"));
+            diyTextArea.setText(prop.getProperty("diypayloads", ""));
+            regexTextArea.setText(prop.getProperty("diyregex", ""));
+            blackPathTextArea.setText(prop.getProperty("blackpath", ""));
+        });
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // 3. Integer configuration
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        MyHttpHandler.intTime = parseIntWithDefault(prop.getProperty("delaytime", ""), DefaultConfig.DEFAULT_DELAY_TIME_MS);
+        MyHttpHandler.staticTime = parseIntWithDefault(prop.getProperty("statictime", ""), DefaultConfig.DEFAULT_STATIC_TIME_MS);
+        MyHttpHandler.startTime = parseIntWithDefault(prop.getProperty("starttime", ""), DefaultConfig.DEFAULT_START_TIME_MS);
+        MyHttpHandler.endTime = parseIntWithDefault(prop.getProperty("endtime", ""), DefaultConfig.DEFAULT_END_TIME_MS);
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // 4. Checkbox configuration
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        javax.swing.SwingUtilities.invokeLater(() -> {
+            switchCheck.setSelected(Boolean.parseBoolean(prop.getProperty("switch")));
+            cookieCheck.setSelected(Boolean.parseBoolean(prop.getProperty("cookiecheck")));
+            errorCheck.setSelected(Boolean.parseBoolean(prop.getProperty("errorcheck")));
+            vulnCheck.setSelected(Boolean.parseBoolean(prop.getProperty("repeatercheck")));
+            numCheck.setSelected(Boolean.parseBoolean(prop.getProperty("numcheck")));
+            stringCheck.setSelected(Boolean.parseBoolean(prop.getProperty("stringcheck")));
+            orderCheck.setSelected(Boolean.parseBoolean(prop.getProperty("ordercheck")));
+            boolCheck.setSelected(Boolean.parseBoolean(prop.getProperty("boolcheck")));
+            diyCheck.setSelected(Boolean.parseBoolean(prop.getProperty("diycheck")));
+        });
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // 5. Error Payload configuration
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        String errPocList = prop.getProperty("errpoclist", "");
+        if (errPocList.isBlank()) {
+            MyHttpHandler.errPocs = DefaultConfig.DEFAULT_ERR_POCS.clone();
+            MyHttpHandler.errPocsj = DefaultConfig.DEFAULT_ERR_POCS_JSON.clone();
+        } else {
+            MyHttpHandler.errPocs = errPocList.split("\\|");
+            // 对 JSON/XML 使用安全变体
+            MyHttpHandler.errPocsj = deriveJsonErrPocs(MyHttpHandler.errPocs);
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // 6. TextArea configuration (requires special handling)
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        if (!prop.getProperty("diypayloads", "").isBlank()) {
+            MyHttpHandler.diyPayloads = readLinesFromTextArea(diyTextArea);
+        } else {
+            MyHttpHandler.diyPayloads.clear();
+        }
+
+        if (!prop.getProperty("diyregex", "").isBlank()) {
+            MyHttpHandler.diyRegexs = readLinesFromTextArea(regexTextArea);
+        } else {
+            MyHttpHandler.diyRegexs.clear();
+        }
+
+        if (!prop.getProperty("blackpath", "").isBlank()) {
+            MyFilterRequest.blackPathSet = readLinesFromTextArea(blackPathTextArea);
+        } else {
+            MyFilterRequest.blackPathSet.clear();
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // 7. Language index (optional, only load if present)
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        String languageIndexStr = prop.getProperty("languageindex", null);
+        if (languageIndexStr != null) {
+            index = parseIntWithDefault(languageIndexStr, 0);
+        }
+    }
+
     @Override
     public void initialize(MontoyaApi montoyaApi) {
         this.api = montoyaApi;
         api.extension().setName("DetSql");
-        File configFile = new File(System.getProperty("user.home")+ File.separator+"DetSqlConfig.txt");
+
+        // 创建配置对象并加载配置文件
+        String configPath = System.getProperty("user.home") + File.separator + "DetSqlConfig.txt";
+        File configFile = new File(configPath);
+        this.config = new DetSqlConfig();
+
+        try {
+            config.load(configPath);
+        } catch (IOException ex) {
+            api.logging().logToError("Configuration loading failed: " + ex.getMessage());
+        }
+
+        // 加载语言索引 (用于UI显示)
         if (configFile.exists()) {
             Properties prop = new Properties();
-            try {
-                FileReader fileReader = new FileReader(System.getProperty("user.home")+ File.separator+"DetSqlConfig.txt");
+            try (java.io.InputStreamReader fileReader = new java.io.InputStreamReader(
+                    new java.io.FileInputStream(configPath), java.nio.charset.StandardCharsets.UTF_8)) {
                 prop.load(fileReader);
-
-                String indexStr=prop.getProperty("languageindex","0").trim();
-                try{
-                    index=Integer.parseInt(indexStr);
-                }catch (NumberFormatException ne){
-                    index=0;
-                }
-
-
-
-                fileReader.close();
+                index = parseIntWithDefault(prop.getProperty("languageindex", "0"), 0);
             } catch (IOException ex) {
                 throw new RuntimeException(ex);
             }
         }
+
+        // 创建日志和统计系统
+        this.logger = new DetSqlLogger(api);
+        // 日志级别由系统属性 detsql.log.level 控制，默认为 OFF
+        // 可通过 -Ddetsql.log.level=INFO 在运行时启用
+        this.statistics = new Statistics();
+
         sourceTableModel = new SourceTableModel();
         PocTableModel pocTableModel = new PocTableModel();
         Component component = getComponent(sourceTableModel, pocTableModel);
         api.userInterface().registerSuiteTab("DetSql", component);
         attackMap = new ConcurrentHashMap<>();
-        myHttpHandler = new MyHttpHandler(api, sourceTableModel, pocTableModel, attackMap);
+        myHttpHandler = new MyHttpHandler(api, sourceTableModel, pocTableModel, attackMap, config, logger, statistics);
         api.http().registerHttpHandler(myHttpHandler);
         api.extension().registerUnloadingHandler(new MyExtensionUnloadingHandler());
         api.userInterface().registerContextMenuItemsProvider(this);
 
         if (configFile.exists()) {
-            Properties prop = new Properties();
-            try {
-                FileReader fileReader = new FileReader(System.getProperty("user.home")+ File.separator+"DetSqlConfig.txt");
-                configTextField.setText(System.getProperty("user.home")+ File.separator+"DetSqlConfig.txt");
-                prop.load(fileReader);
-                textField.setText(prop.getProperty("whitelist", ""));
-                if (!prop.getProperty("whitelist", "").isBlank()) {
-                    MyFilterRequest.whiteListSet = new HashSet<>(Arrays.asList(prop.getProperty("whitelist", "").split("\\|")));
-                } else {
-                    MyFilterRequest.whiteListSet = new HashSet<>();
-                }
-                blackTextField.setText(prop.getProperty("blacklist", ""));
-                if (!prop.getProperty("blacklist", "").isBlank()) {
-                    MyFilterRequest.blackListSet = new HashSet<>(Arrays.asList(prop.getProperty("blacklist", "").split("\\|")));
-                } else {
-                    MyFilterRequest.blackListSet = new HashSet<>();
-                }
-                blackParamsField.setText(prop.getProperty("paramslist", ""));
-                if (!prop.getProperty("paramslist", "").isBlank()) {
-                    MyHttpHandler.blackParamsSet = new HashSet<>(Arrays.asList(prop.getProperty("paramslist", "").split("\\|")));
-                } else {
-                    MyHttpHandler.blackParamsSet = new HashSet<>();
-                }
-                suffixTextField.setText(prop.getProperty("suffixlist", "wma|csv|mov|doc|3g2|mp4|7z|3gp|xbm|jar|avi|ogv|mpv2|tiff|pnm|jpg|xpm|xul|epub|au|aac|midi|weba|tar|js|rtf|bin|woff|wmv|tif|css|gif|flv|ttf|html|eot|ods|odt|webm|mpg|mjs|bz|ics|ras|aifc|mpa|ppt|mpeg|pptx|oga|ra|aiff|asf|woff2|snd|xwd|csh|webp|xlsx|mpkg|vsd|mid|wav|svg|mp3|bz2|ico|jpe|pbm|gz|pdf|log|jpeg|rmi|txt|arc|rm|ppm|cod|jfif|ram|docx|mpe|odp|otf|pgm|cmx|m3u|mp2|cab|rar|bmp|rgb|png|azw|ogx|aif|zip|ief|htm|xls|mpp|swf|rmvb|abw"));
-                if (!prop.getProperty("suffixlist", "wma|csv|mov|doc|3g2|mp4|7z|3gp|xbm|jar|avi|ogv|mpv2|tiff|pnm|jpg|xpm|xul|epub|au|aac|midi|weba|tar|js|rtf|bin|woff|wmv|tif|css|gif|flv|ttf|html|eot|ods|odt|webm|mpg|mjs|bz|ics|ras|aifc|mpa|ppt|mpeg|pptx|oga|ra|aiff|asf|woff2|snd|xwd|csh|webp|xlsx|mpkg|vsd|mid|wav|svg|mp3|bz2|ico|jpe|pbm|gz|pdf|log|jpeg|rmi|txt|arc|rm|ppm|cod|jfif|ram|docx|mpe|odp|otf|pgm|cmx|m3u|mp2|cab|rar|bmp|rgb|png|azw|ogx|aif|zip|ief|htm|xls|mpp|swf|rmvb|abw").isBlank()) {
-                    MyFilterRequest.unLegalExtensionSet = new HashSet<>(Arrays.asList(prop.getProperty("suffixlist", "wma|csv|mov|doc|3g2|mp4|7z|3gp|xbm|jar|avi|ogv|mpv2|tiff|pnm|jpg|xpm|xul|epub|au|aac|midi|weba|tar|js|rtf|bin|woff|wmv|tif|css|gif|flv|ttf|html|eot|ods|odt|webm|mpg|mjs|bz|ics|ras|aifc|mpa|ppt|mpeg|pptx|oga|ra|aiff|asf|woff2|snd|xwd|csh|webp|xlsx|mpkg|vsd|mid|wav|svg|mp3|bz2|ico|jpe|pbm|gz|pdf|log|jpeg|rmi|txt|arc|rm|ppm|cod|jfif|ram|docx|mpe|odp|otf|pgm|cmx|m3u|mp2|cab|rar|bmp|rgb|png|azw|ogx|aif|zip|ief|htm|xls|mpp|swf|rmvb|abw").split("\\|")));
-                } else {
-                    MyFilterRequest.unLegalExtensionSet = new HashSet<>(Arrays.asList("wma", "csv", "mov", "doc", "3g2", "mp4", "7z", "3gp", "xbm", "jar", "avi", "ogv", "mpv2", "tiff", "pnm", "jpg", "xpm", "xul", "epub", "au", "aac", "midi", "weba", "tar", "js", "rtf", "bin", "woff", "wmv", "tif", "css", "gif", "flv", "ttf", "html", "eot", "ods", "odt", "webm", "mpg", "mjs", "bz", "ics", "ras", "aifc", "mpa", "ppt", "mpeg", "pptx", "oga", "ra", "aiff", "asf", "woff2", "snd", "xwd", "csh", "webp", "xlsx", "mpkg", "vsd", "mid", "wav", "svg", "mp3", "bz2", "ico", "jpe", "pbm", "gz", "pdf", "log", "jpeg", "rmi", "txt", "arc", "rm", "ppm", "cod", "jfif", "ram", "docx", "mpe", "odp", "otf", "pgm", "cmx", "m3u", "mp2", "cab", "rar", "bmp", "rgb", "png", "azw", "ogx", "aif", "zip", "ief", "htm", "xls", "mpp", "swf", "rmvb", "abw"));
-                }
-                errorPocTextField.setText(prop.getProperty("errpoclist", ""));
-                if (!prop.getProperty("errpoclist", "").isBlank()) {
-                    MyHttpHandler.errPocs = prop.getProperty("errpoclist", "").split("\\|");
-                    MyHttpHandler.errPocsj = prop.getProperty("errpoclist", "").split("\\|");
-                } else {
-                    MyHttpHandler.errPocs = new String[]{"'", "%27", "%DF'", "%DF%27", "\"", "%22", "%DF\"", "%DF%22", "`"};
-                    MyHttpHandler.errPocsj = new String[]{"'", "%27", "%DF'", "%DF%27", "\\\"", "%22", "%DF\\\"", "%DF%22", "\\u0022", "%DF\\u0022", "\\u0027", "%DF\\u0027", "`"};
-                }
-                timeTextField.setText(prop.getProperty("delaytime", ""));
-                String timeStr =prop.getProperty("delaytime", "").trim();
-                try{
-                    MyHttpHandler.intTime = Integer.parseInt(timeStr);
-                }catch (NumberFormatException ne){
-                    MyHttpHandler.intTime=1000000;
-                }
-                staticTimeTextField.setText(prop.getProperty("statictime", "100"));
-                String staticTimeStr =prop.getProperty("statictime", "").trim();
-                try{
-                    MyHttpHandler.staticTime = Integer.parseInt(staticTimeStr);
-                }catch (NumberFormatException ne){
-                    MyHttpHandler.staticTime=100;
-                }
-                startTimeTextField.setText(prop.getProperty("starttime", "0"));
-                String startTimeStr =prop.getProperty("starttime", "").trim();
-                try{
-                    MyHttpHandler.startTime = Integer.parseInt(startTimeStr);
-                }catch (NumberFormatException ne){
-                    MyHttpHandler.startTime=0;
-                }
-                endTimeTextField.setText(prop.getProperty("endtime", "0"));
-                String endTimeStr =prop.getProperty("endtime", "").trim();
-                try{
-                    MyHttpHandler.endTime = Integer.parseInt(endTimeStr);
-                }catch (NumberFormatException ne){
-                    MyHttpHandler.endTime=0;
-                }
-                diyTextArea.setText(prop.getProperty("diypayloads", ""));
-                if (!prop.getProperty("diypayloads", "").isBlank()) {
-                    MyHttpHandler.diyPayloads.clear();
-                    Element paragraph = diyTextArea.getDocument().getDefaultRootElement();
-                    int contentCount = paragraph.getElementCount();
-                    for (int i = 0; i < contentCount; i++) {
-                        Element ee = paragraph.getElement(i);
-                        int rangeStart = ee.getStartOffset();
-                        int rangeEnd = ee.getEndOffset();
-                        String line = null;
-                        try {
-                            line = diyTextArea.getText(rangeStart, rangeEnd - rangeStart).replaceFirst("[\n\r]+$", "");
-                            MyHttpHandler.diyPayloads.add(line);
-                        } catch (BadLocationException ex) {
-                            throw new RuntimeException(ex);
-                        }
-
-                    }
-                } else {
-                    MyHttpHandler.diyPayloads.clear();
-                }
-                regexTextArea.setText(prop.getProperty("diyregex", ""));
-                if (!prop.getProperty("diyregex", "").isBlank()) {
-                    MyHttpHandler.diyRegexs.clear();
-                    Element paragraph = regexTextArea.getDocument().getDefaultRootElement();
-                    int contentCount = paragraph.getElementCount();
-                    for (int i = 0; i < contentCount; i++) {
-                        Element ee = paragraph.getElement(i);
-                        int rangeStart = ee.getStartOffset();
-                        int rangeEnd = ee.getEndOffset();
-                        String line = null;
-                        try {
-                            line = regexTextArea.getText(rangeStart, rangeEnd - rangeStart).replaceFirst("[\n\r]+$", "");
-                            //api.logging().logToOutput(line);
-                            MyHttpHandler.diyRegexs.add(line);
-                        } catch (BadLocationException ex) {
-                            throw new RuntimeException(ex);
-                        }
-
-                    }
-                } else {
-                    MyHttpHandler.diyRegexs.clear();
-                }
-                blackPathTextArea.setText(prop.getProperty("blackpath", ""));
-                if (!prop.getProperty("blackpath", "").isBlank()) {
-                    MyFilterRequest.blackPathSet.clear();
-                    Element paragraph = blackPathTextArea.getDocument().getDefaultRootElement();
-                    int contentCount = paragraph.getElementCount();
-                    for (int i = 0; i < contentCount; i++) {
-                        Element ee = paragraph.getElement(i);
-                        int rangeStart = ee.getStartOffset();
-                        int rangeEnd = ee.getEndOffset();
-                        String line = null;
-                        try {
-                            line = blackPathTextArea.getText(rangeStart, rangeEnd - rangeStart).replaceFirst("[\n\r]+$", "");
-                            MyFilterRequest.blackPathSet.add(line);
-
-                        } catch (BadLocationException ex) {
-                            throw new RuntimeException(ex);
-                        }
-
-                    }
-                    //api.logging().logToOutput(MyFilterRequest.blackPathSet.toString());
-                } else {
-                    MyFilterRequest.blackPathSet.clear();
-                }
-
-                switchChexk.setSelected(Boolean.parseBoolean(prop.getProperty("switch")));
-                cookieChexk.setSelected(Boolean.parseBoolean(prop.getProperty("cookiecheck")));
-                errorChexk.setSelected(Boolean.parseBoolean(prop.getProperty("errorcheck")));
-                vulnChexk.setSelected(Boolean.parseBoolean(prop.getProperty("repeatercheck")));
-                numChexk.setSelected(Boolean.parseBoolean(prop.getProperty("numcheck")));
-                stringChexk.setSelected(Boolean.parseBoolean(prop.getProperty("stringcheck")));
-                orderChexk.setSelected(Boolean.parseBoolean(prop.getProperty("ordercheck")));
-                boolChexk.setSelected(Boolean.parseBoolean(prop.getProperty("boolcheck")));
-                diyChexk.setSelected(Boolean.parseBoolean(prop.getProperty("diycheck")));
-
-                fileReader.close();
-            } catch (IOException ex) {
-                throw new RuntimeException(ex);
-            }
+            configTextField.setText(configFile.getAbsolutePath());
         }
+        loadConfiguration(configFile);
 
-
-        api.logging().logToOutput("################################################");
-        api.logging().logToOutput("[#]  load successfully");
-        api.logging().logToOutput("[#]  DetSql v2.7");
-        api.logging().logToOutput("[#]  Author: saoshao");
-        api.logging().logToOutput("[#]  Email: 1224165231@qq.com");
-        api.logging().logToOutput("[#]  Github: https://github.com/saoshao/DetSql");
-        api.logging().logToOutput("################################################");
+        // 使用新的日志系统 - 启动信息始终输出
+        logger.always("################################################");
+        logger.always("[#]  DetSql v2.9.0 loaded successfully");
+        logger.always("[#]  Author: saoshao");
+        logger.always("[#]  Email: 1224165231@qq.com");
+        logger.always("[#]  Github: https://github.com/saoshao/DetSql");
+        logger.always("[#]  Logging system: " + (logger.getLogLevel() == LogLevel.OFF ? "DISABLED" : "ENABLED (Level: " + logger.getLogLevel() + ")"));
+        logger.always("[#]  Statistics tracking: ENABLED");
+        logger.always("################################################");
     }
 
     @Override
@@ -327,6 +502,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
     private Component getComponent(SourceTableModel tableModel, PocTableModel pocTableModel) {
         JPanel root = new JPanel();
         JTabbedPane tabbedPane1 = new JTabbedPane();
+        tabbedPane1.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
         JSplitPane splitPane1 = new JSplitPane();
         JSplitPane splitPane2 = new JSplitPane();
         JScrollPane scrollPane1 = new JScrollPane();
@@ -392,7 +568,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
             public int compare(Object o1, Object o2) {
                 String str1 = o1.toString();
                 String str2 = o2.toString();
-                return Integer.parseInt(str1) - Integer.parseInt(str2);
+                return Integer.compare(parseIntWithDefault(str1, 0), parseIntWithDefault(str2, 0));
             }
         });
         sorter.setComparator(5, new Comparator<Object>() {
@@ -400,7 +576,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
             public int compare(Object o1, Object o2) {
                 String str1 = o1.toString();
                 String str2 = o2.toString();
-                return Integer.parseInt(str1) - Integer.parseInt(str2);
+                return Integer.compare(parseIntWithDefault(str1, 0), parseIntWithDefault(str2, 0));
             }
         });
 //
@@ -413,33 +589,39 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
         popupMenu.add(menuItem1);
         popupMenu.add(menuItem2);
         menuItem1.addActionListener(e -> {
-            //api.logging().logToOutput("delete selected rows");
             int[] selectedRows = table1.getSelectedRows();
             for (int i = selectedRows.length - 1; i >= 0; i--) {
-                if (!sourceTableModel.getValueAt(table1.convertRowIndexToModel(selectedRows[i]),6).equals("run")){
-                    //api.logging().logToOutput("rows:"+selectedRows[i]);
-                    //api.logging().logToOutput("ID:"+table1.convertRowIndexToModel(selectedRows[i]));
-                    sourceTableModel.log.remove(new SourceLogEntry((int)sourceTableModel.getValueAt(table1.convertRowIndexToModel(selectedRows[i]),0),null,null,null,0,null,null,null,null));
-                    tableModel.fireTableRowsDeleted(selectedRows[i],selectedRows[i]);
+                int viewIndex = selectedRows[i];
+                int modelIndex = table1.convertRowIndexToModel(viewIndex);
+                Object state = sourceTableModel.getValueAt(modelIndex, 6);
+                if (!"run".equals(state)){
+                    // remove attackMap entry for this row if present
+                    try {
+                        SourceLogEntry entry = sourceTableModel.log.get(modelIndex);
+                        if (entry != null && entry.getMyHash() != null && myHttpHandler != null && myHttpHandler.attackMap != null) {
+                            myHttpHandler.attackMap.remove(entry.getMyHash());
+                        }
+                    } catch (Exception ignore) {}
+                    // remove row from model
+                    sourceTableModel.log.remove(new SourceLogEntry((int)sourceTableModel.getValueAt(modelIndex,0),null,null,null,0,null,null,null,null));
+                    tableModel.fireTableRowsDeleted(viewIndex, viewIndex);
                 }
-
-
             }
-            //api.logging().logToOutput("left id：");
-//            for (SourceLogEntry sourceLogEntry : sourceTableModel.log) {
-//                api.logging().logToOutput(sourceLogEntry.getId()+"");
-//            }
         });
         menuItem2.addActionListener(e -> {
             for (int i = sourceTableModel.log.size() - 1; i >= 0; i--) {
-                if (sourceTableModel.getValueAt(table1.convertRowIndexToModel(i),6).equals("")||sourceTableModel.getValueAt(table1.convertRowIndexToModel(i),6).equals("手动停止")){
-                    //api.logging().logToOutput("rows:"+i);
-                    //api.logging().logToOutput("ID:"+table1.convertRowIndexToModel(i));
-                    sourceTableModel.log.remove(new SourceLogEntry((int)sourceTableModel.getValueAt(table1.convertRowIndexToModel(i),0),null,null,null,0,null,null,null,null));
+                int modelIndex = table1.convertRowIndexToModel(i);
+                Object state = sourceTableModel.getValueAt(modelIndex,6);
+                if (state != null && (state.toString().isEmpty() || "手动停止".equals(state))){
+                    try {
+                        SourceLogEntry entry = sourceTableModel.log.get(modelIndex);
+                        if (entry != null && entry.getMyHash() != null && myHttpHandler != null && myHttpHandler.attackMap != null) {
+                            myHttpHandler.attackMap.remove(entry.getMyHash());
+                        }
+                    } catch (Exception ignore) {}
+                    sourceTableModel.log.remove(new SourceLogEntry((int)sourceTableModel.getValueAt(modelIndex,0),null,null,null,0,null,null,null,null));
                     tableModel.fireTableRowsDeleted(i,i);
                 }
-
-
             }
         });
 // 为弹出菜单添加事件监听器
@@ -498,7 +680,11 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
             public int compare(Object o1, Object o2) {
                 String str1 = o1.toString();
                 String str2 = o2.toString();
-                return (int) (Double.parseDouble(str1)*1000-Double.parseDouble(str2)*1000);
+                try {
+                    return (int) (Double.parseDouble(str1)*1000-Double.parseDouble(str2)*1000);
+                } catch (NumberFormatException e) {
+                    return 0;
+                }
             }
         });
 //
@@ -507,6 +693,27 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
         //======== root ========
         {
             root.setLayout(new BorderLayout());
+
+            // top bar: tabs on the left, stats on the right (same row)
+            JPanel topBar = new JPanel(new BorderLayout()) {
+                @Override
+                public Dimension getPreferredSize() {
+                    Dimension d = super.getPreferredSize();
+                    // cap the height to avoid large whitespace under the tab row
+                    return new Dimension(d.width, Math.min(d.height, TOP_BAR_MAX_HEIGHT));
+                }
+            };
+            JPanel statsRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 0));
+            statsTestedLabel = new JLabel("Tested: 0");
+            statsVulnLabel = new JLabel("Vulns: 0");
+            statsRow.add(statsTestedLabel);
+            statsRow.add(statsVulnLabel);
+            topBar.add(tabbedPane1, BorderLayout.CENTER);
+            topBar.add(statsRow, BorderLayout.EAST);
+            root.add(topBar, BorderLayout.NORTH);
+
+            // content area uses CardLayout, switched by tab selection
+            JPanel contentCards = new JPanel(new CardLayout());
 
             //======== tabbedPane1 ========
             {
@@ -530,7 +737,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
                         }
                         splitPane2.setRightComponent(scrollPane2);
                     }
-                    splitPane2.setResizeWeight(0.5);
+                    splitPane2.setResizeWeight(SPLITPANE_RESIZE_WEIGHT);
                     splitPane1.setTopComponent(splitPane2);
 
                     //======== splitPane3 ========
@@ -538,18 +745,37 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
                         splitPane3.setLeftComponent(tabbedPane2);
                         splitPane3.setRightComponent(tabbedPane3);
                     }
-                    splitPane3.setResizeWeight(0.5);
+                    splitPane3.setResizeWeight(SPLITPANE_RESIZE_WEIGHT);
                     splitPane1.setBottomComponent(splitPane3);
                 }
 
-                tabbedPane1.addTab("DashBoard", splitPane1);
+                // Register contents to card layout
+                contentCards.add("DashBoard", splitPane1);
+                contentCards.add("Config", getConfigComponent());
+                contentCards.add("CodeTool", getToolComponent());
 
-                //======== panel1 ========
-                tabbedPane1.addTab("Config", getConfigComponent());
-                tabbedPane1.addTab("CodeTool", getToolComponent());
+                // Add tabs with light placeholders so only a single row is used
+                tabbedPane1.addTab("DashBoard", new JPanel());
+                tabbedPane1.addTab("Config", new JPanel());
+                tabbedPane1.addTab("CodeTool", new JPanel());
+
+                // Sync selected tab to content card
+                tabbedPane1.addChangeListener(e -> {
+                    int idx = tabbedPane1.getSelectedIndex();
+                    if (idx >= 0) {
+                        String title = tabbedPane1.getTitleAt(idx);
+                        CardLayout cl = (CardLayout) contentCards.getLayout();
+                        cl.show(contentCards, title);
+                    }
+                });
+
+                // show initial card
+                ((CardLayout) contentCards.getLayout()).show(contentCards, "DashBoard");
             }
-            root.add(tabbedPane1);
-            tabbedPane1.setSize(Toolkit.getDefaultToolkit().getScreenSize());
+            // place content below the top bar: use contentCards instead of tab contents
+            root.add(contentCards, BorderLayout.CENTER);
+            // constrain tab strip height to a single line (approx.)
+            tabbedPane1.setPreferredSize(new Dimension(Integer.MAX_VALUE, TAB_STRIP_HEIGHT));
 
             {
                 Dimension preferredSize = new Dimension();
@@ -574,7 +800,32 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
 //        springLayout.putConstraint(SpringLayout.EAST, root, 0, SpringLayout.EAST, finRoot);
 //        springLayout.putConstraint(SpringLayout.SOUTH, root, 40, SpringLayout.SOUTH, finRoot);
 
+        // start stats timer after UI built
+        startStatsTimer();
         return root;
+    }
+
+    private void startStatsTimer() {
+        if (statsTimer != null) {
+            statsTimer.stop();
+        }
+        statsTimer = new javax.swing.Timer(1000, e -> updateStats());
+        statsTimer.setRepeats(true);
+        statsTimer.start();
+    }
+
+    private void updateStats() {
+        try {
+            int tested = (statistics != null) ? statistics.getRequestsProcessed() : 0;
+            int vulns = (statistics != null) ? statistics.getVulnerabilitiesFound() : 0;
+            final int fTested = tested;
+            final int fVulns = vulns;
+            SwingUtilities.invokeLater(() -> {
+                statsTestedLabel.setText("Tested: " + fTested);
+                statsVulnLabel.setText("Vulns: " + fVulns);
+            });
+        } catch (Exception ignore) {
+        }
     }
 
 
@@ -583,653 +834,447 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
         Container container = new JPanel();
         SpringLayout springLayout = new SpringLayout();
         container.setLayout(springLayout);
-        JLabel topicLabel = new JLabel();//语言转换："域名白名单:"
-        textField = new JTextField(30);
-        JLabel blackLabel = new JLabel();//语言转换："域名黑名单:"
-        blackTextField = new JTextField(30);
-        JLabel suffixLabel = new JLabel();//语言转换："禁止后缀:"
-        suffixTextField = new JTextField(30);
-        suffixTextField.setText("xul|mpa|mp3|bz2|m3u|pdf|pbm|docx|rm|jpe|jar|flv|svg|bz|tar|mp4|cod|log|xwd|mpp|css|jpeg|weba|odt|wma|azw|woff|mpe|ttf|mpkg|ogx|cmx|jpg|rar|png|bin|ppt|ico|webm|xpm|mov|doc|csh|au|rmvb|aif|vsd|ram|cab|ief|odp|js|mp2|xls|aac|woff2|tif|eot|mpv2|gz|ras|abw|xbm|html|asf|7z|oga|tiff|epub|ppm|gif|pptx|bmp|aiff|pnm|pgm|zip|3g2|wmv|ods|webp|swf|rtf|avi|ra|xlsx|csv|rgb|otf|mpg|ics|htm|mid|arc|snd|3gp|txt|jfif|midi|mpeg|rmi|aifc|ogv|wav|mjs");
-        JLabel errorPocLabel = new JLabel();//语言转换："报错poc:"
-        errorPocTextField = new JTextField(30);
-        //新加参数黑名单
-        JLabel blackParams = new JLabel();//语言转换："参数黑名单:"
-        blackParamsField= new JTextField(30);
 
-        JLabel configLabel = new JLabel();//语言转换："配置目录:"
-        configTextField = new JTextField(30);
+        // Create all labels and buttons
+        JLabel topicLabel = new JLabel();
+        JLabel blackLabel = new JLabel();
+        JLabel suffixLabel = new JLabel();
+        JLabel errorPocLabel = new JLabel();
+        JLabel blackParamsLabel = new JLabel();
+        JLabel configLabel = new JLabel();
+        JLabel blackPathLabel = new JLabel();
+        JLabel diyLabel = new JLabel();
+        JLabel resRegexLabel = new JLabel();
+        JLabel timeLabel = new JLabel();
+        JLabel staticTimeLabel = new JLabel();
+        JLabel startTimeLabel = new JLabel();
+        JLabel languageLabel = new JLabel();
+        JButton conBt = new JButton();
+        JButton loadBt = new JButton();
+        JButton saveBt = new JButton();
+
+        // Create Spring constants
+        Spring st = Spring.constant(PADDING_SMALL);
+        Spring st2 = Spring.constant(PADDING_COMPONENT);
+        Spring st3 = Spring.constant(PADDING_BUTTON);
+        Spring st4 = Spring.constant(PADDING_LARGE);
+
+        // Setup UI sections
+        setupDomainFilters(container, springLayout, topicLabel, blackLabel, suffixLabel, errorPocLabel, blackParamsLabel, st, st2);
+        setupCheckboxes(container, springLayout, conBt, st, st2);
+        setupConfigPath(container, springLayout, configLabel, loadBt, saveBt, blackLabel, st, st2, st3, st4);
+        JScrollPane blackPathScrollPane = setupBlackPath(container, springLayout, blackPathLabel, configLabel, st, st2);
+        JScrollPane diyScrollPane = setupPayloadsAndSettings(container, springLayout, diyLabel, resRegexLabel, timeLabel, staticTimeLabel, startTimeLabel, blackParamsLabel, blackPathScrollPane, st, st2);
+        setupLanguage(container, springLayout, languageLabel, blackParamsLabel, diyScrollPane, st, st2);
+
+        // Setup button event handlers
+        conBt.addActionListener(e -> handleConfirmButton());
+        loadBt.addActionListener(e -> handleLoadButton());
+        saveBt.addActionListener(e -> handleSaveButton());
+        languageComboBox.addActionListener(e -> handleLanguageChange(topicLabel, blackLabel, suffixLabel, errorPocLabel,
+            blackParamsLabel, diyLabel, resRegexLabel, timeLabel, staticTimeLabel, startTimeLabel, blackPathLabel,
+            conBt, loadBt, saveBt, languageLabel, configLabel));
+
+        // Initialize language bundle and update all labels
+        messages = ResourceBundle.getBundle("Messages", LOCALES[index]);
+        updateLanguageLabels(topicLabel, blackLabel, suffixLabel, errorPocLabel,
+            blackParamsLabel, diyLabel, resRegexLabel, timeLabel,
+            staticTimeLabel, startTimeLabel, blackPathLabel,
+            conBt, loadBt, saveBt, languageLabel, configLabel);
+
+        return container;
+    }
+
+    private void setupDomainFilters(Container container, SpringLayout layout,
+                                     JLabel topicLabel, JLabel blackLabel, JLabel suffixLabel,
+                                     JLabel errorPocLabel, JLabel blackParamsLabel,
+                                     Spring st, Spring st2) {
+        // Create text fields
+        textField = new JTextField(TEXTFIELD_COLUMNS);
+        blackTextField = new JTextField(TEXTFIELD_COLUMNS);
+        suffixTextField = new JTextField(TEXTFIELD_COLUMNS);
+        suffixTextField.setText(DefaultConfig.DEFAULT_SUFFIX_LIST);
+        errorPocTextField = new JTextField(TEXTFIELD_COLUMNS);
+        blackParamsField = new JTextField(TEXTFIELD_COLUMNS);
+
+        // Domain whitelist
+        container.add(topicLabel);
+        layout.putConstraint(SpringLayout.NORTH, topicLabel, st, SpringLayout.NORTH, container);
+        layout.putConstraint(SpringLayout.WEST, topicLabel, st, SpringLayout.WEST, container);
+
+        container.add(textField);
+        layout.putConstraint(SpringLayout.WEST, textField, st2, SpringLayout.EAST, topicLabel);
+        layout.putConstraint(SpringLayout.NORTH, textField, 0, SpringLayout.NORTH, topicLabel);
+        layout.putConstraint(SpringLayout.EAST, textField, Spring.minus(st), SpringLayout.EAST, container);
+
+        // Domain blacklist
+        container.add(blackLabel);
+        layout.putConstraint(SpringLayout.WEST, blackLabel, 0, SpringLayout.WEST, topicLabel);
+        layout.putConstraint(SpringLayout.NORTH, blackLabel, st, SpringLayout.SOUTH, topicLabel);
+
+        container.add(blackTextField);
+        layout.putConstraint(SpringLayout.WEST, blackTextField, 0, SpringLayout.WEST, textField);
+        layout.putConstraint(SpringLayout.NORTH, blackTextField, 0, SpringLayout.NORTH, blackLabel);
+        layout.putConstraint(SpringLayout.EAST, blackTextField, Spring.minus(st), SpringLayout.EAST, container);
+
+        // Suffix filter
+        container.add(suffixLabel);
+        layout.putConstraint(SpringLayout.WEST, suffixLabel, 0, SpringLayout.WEST, blackLabel);
+        layout.putConstraint(SpringLayout.NORTH, suffixLabel, st, SpringLayout.SOUTH, blackLabel);
+
+        container.add(suffixTextField);
+        layout.putConstraint(SpringLayout.WEST, suffixTextField, 0, SpringLayout.WEST, textField);
+        layout.putConstraint(SpringLayout.NORTH, suffixTextField, 0, SpringLayout.NORTH, suffixLabel);
+        layout.putConstraint(SpringLayout.EAST, suffixTextField, Spring.minus(st), SpringLayout.EAST, container);
+
+        // Error POC
+        container.add(errorPocLabel);
+        layout.putConstraint(SpringLayout.WEST, errorPocLabel, 0, SpringLayout.WEST, suffixLabel);
+        layout.putConstraint(SpringLayout.NORTH, errorPocLabel, st, SpringLayout.SOUTH, suffixLabel);
+
+        container.add(errorPocTextField);
+        layout.putConstraint(SpringLayout.WEST, errorPocTextField, 0, SpringLayout.WEST, textField);
+        layout.putConstraint(SpringLayout.NORTH, errorPocTextField, 0, SpringLayout.NORTH, errorPocLabel);
+        layout.putConstraint(SpringLayout.EAST, errorPocTextField, Spring.minus(st), SpringLayout.EAST, container);
+
+        // Parameter blacklist
+        container.add(blackParamsLabel);
+        layout.putConstraint(SpringLayout.WEST, blackParamsLabel, 0, SpringLayout.WEST, errorPocLabel);
+        layout.putConstraint(SpringLayout.NORTH, blackParamsLabel, st, SpringLayout.SOUTH, errorPocLabel);
+
+        container.add(blackParamsField);
+        layout.putConstraint(SpringLayout.WEST, blackParamsField, 0, SpringLayout.WEST, textField);
+        layout.putConstraint(SpringLayout.NORTH, blackParamsField, 0, SpringLayout.NORTH, blackParamsLabel);
+        layout.putConstraint(SpringLayout.EAST, blackParamsField, Spring.minus(st), SpringLayout.EAST, container);
+    }
+
+    private void setupCheckboxes(Container container, SpringLayout layout, JButton conBt, Spring st, Spring st2) {
+        // Create checkboxes
+        switchCheck = new JCheckBox();
+        cookieCheck = new JCheckBox();
+        errorCheck = new JCheckBox();
+        vulnCheck = new JCheckBox();
+        numCheck = new JCheckBox();
+        stringCheck = new JCheckBox();
+        orderCheck = new JCheckBox();
+        boolCheck = new JCheckBox();
+        diyCheck = new JCheckBox();
+
+        // Layout checkboxes in horizontal row
+        container.add(switchCheck);
+        layout.putConstraint(SpringLayout.WEST, switchCheck, 0, SpringLayout.WEST, blackParamsField);
+        layout.putConstraint(SpringLayout.NORTH, switchCheck, st, SpringLayout.SOUTH, blackParamsField);
+
+        container.add(cookieCheck);
+        layout.putConstraint(SpringLayout.WEST, cookieCheck, st2, SpringLayout.EAST, switchCheck);
+        layout.putConstraint(SpringLayout.NORTH, cookieCheck, 0, SpringLayout.NORTH, switchCheck);
+
+        container.add(vulnCheck);
+        layout.putConstraint(SpringLayout.WEST, vulnCheck, st2, SpringLayout.EAST, cookieCheck);
+        layout.putConstraint(SpringLayout.NORTH, vulnCheck, 0, SpringLayout.NORTH, switchCheck);
+
+        container.add(errorCheck);
+        layout.putConstraint(SpringLayout.WEST, errorCheck, st2, SpringLayout.EAST, vulnCheck);
+        layout.putConstraint(SpringLayout.NORTH, errorCheck, 0, SpringLayout.NORTH, switchCheck);
+
+        container.add(numCheck);
+        layout.putConstraint(SpringLayout.WEST, numCheck, st2, SpringLayout.EAST, errorCheck);
+        layout.putConstraint(SpringLayout.NORTH, numCheck, 0, SpringLayout.NORTH, switchCheck);
+
+        container.add(stringCheck);
+        layout.putConstraint(SpringLayout.WEST, stringCheck, st2, SpringLayout.EAST, numCheck);
+        layout.putConstraint(SpringLayout.NORTH, stringCheck, 0, SpringLayout.NORTH, switchCheck);
+
+        container.add(orderCheck);
+        layout.putConstraint(SpringLayout.WEST, orderCheck, st2, SpringLayout.EAST, stringCheck);
+        layout.putConstraint(SpringLayout.NORTH, orderCheck, 0, SpringLayout.NORTH, switchCheck);
+
+        container.add(boolCheck);
+        layout.putConstraint(SpringLayout.WEST, boolCheck, st2, SpringLayout.EAST, orderCheck);
+        layout.putConstraint(SpringLayout.NORTH, boolCheck, 0, SpringLayout.NORTH, switchCheck);
+
+        container.add(diyCheck);
+        layout.putConstraint(SpringLayout.WEST, diyCheck, st2, SpringLayout.EAST, boolCheck);
+        layout.putConstraint(SpringLayout.NORTH, diyCheck, 0, SpringLayout.NORTH, switchCheck);
+
+        // Confirm button
+        container.add(conBt);
+        layout.putConstraint(SpringLayout.WEST, conBt, st2, SpringLayout.EAST, diyCheck);
+        layout.putConstraint(SpringLayout.NORTH, conBt, 0, SpringLayout.NORTH, switchCheck);
+    }
+
+    private void setupConfigPath(Container container, SpringLayout layout, JLabel configLabel,
+                                  JButton loadBt, JButton saveBt, JLabel blackLabel,
+                                  Spring st, Spring st2, Spring st3, Spring st4) {
+        // Create config path text field
+        configTextField = new JTextField(TEXTFIELD_COLUMNS);
         configTextField.setEditable(false);
-        switchChexk = new JCheckBox();//语言转换："开关"
-        cookieChexk = new JCheckBox();//语言转换："测试cookie"
-        errorChexk = new JCheckBox();//语言转换："测试报错类型"
-        vulnChexk = new JCheckBox();//语言转换："接受repeater"
 
-        numChexk= new JCheckBox();//语言转换："测试数字类型"
-        stringChexk= new JCheckBox();//语言转换："测试字符类型"
-        orderChexk= new JCheckBox();//语言转换："测试order类型"
-        boolChexk= new JCheckBox();//语言转换："测试bool类型"
-        diyChexk=new JCheckBox();//语言转换："测试diypayloads"
-        JLabel diyLabel = new JLabel();//语言转换："自定义payloads："
-        diyTextArea=new JTextArea(20, 6);
-        JScrollPane diyScrollPane = new JScrollPane();
-        diyScrollPane.setViewportView(diyTextArea);
-        diyTextArea.setLineWrap(true);
+        container.add(configLabel);
+        layout.putConstraint(SpringLayout.WEST, configLabel, 0, SpringLayout.WEST, blackLabel);
+        layout.putConstraint(SpringLayout.NORTH, configLabel, st, SpringLayout.SOUTH, switchCheck);
 
-        JLabel resRegexLabel = new JLabel();//语言转换："响应正则匹配规则："
-        regexTextArea=new JTextArea(10, 6);
-        JScrollPane regexScrollPane = new JScrollPane();
-        regexScrollPane.setViewportView(regexTextArea);
-        regexTextArea.setLineWrap(true);
+        container.add(configTextField);
+        layout.putConstraint(SpringLayout.WEST, configTextField, 0, SpringLayout.WEST, blackTextField);
+        layout.putConstraint(SpringLayout.NORTH, configTextField, 0, SpringLayout.NORTH, configLabel);
+        layout.putConstraint(SpringLayout.EAST, configTextField, Spring.minus(st4), SpringLayout.EAST, container);
 
-        JLabel timeLabel = new JLabel();//语言转换："延迟时间(ms)："
-        timeTextField=new JTextField(6);
+        container.add(loadBt);
+        layout.putConstraint(SpringLayout.NORTH, loadBt, 0, SpringLayout.NORTH, configLabel);
+        layout.putConstraint(SpringLayout.EAST, loadBt, Spring.minus(st3), SpringLayout.EAST, container);
 
-        JLabel staticTimeLabel = new JLabel();//语言转换："请求间固定间隔(ms)："
-        staticTimeTextField=new JTextField(6);
-        staticTimeTextField.setText("100");
+        container.add(saveBt);
+        layout.putConstraint(SpringLayout.NORTH, saveBt, 0, SpringLayout.NORTH, configLabel);
+        layout.putConstraint(SpringLayout.EAST, saveBt, Spring.minus(st), SpringLayout.EAST, container);
+    }
 
-        JLabel startTimeLabel = new JLabel();//语言转换："请求间间隔范围(ms)："
-        startTimeTextField=new JTextField(6);
-        startTimeTextField.setText("0");
-
-        JLabel endTimeLabel = new JLabel("-");
-        endTimeTextField=new JTextField(6);
-        endTimeTextField.setText("0");
-
-        JLabel blackPathLabel = new JLabel();//语言转换："路径黑名单："
-        blackPathTextArea=new JTextArea(5, 6);
+    private JScrollPane setupBlackPath(Container container, SpringLayout layout, JLabel blackPathLabel,
+                                        JLabel configLabel, Spring st, Spring st2) {
+        // Create black path text area
+        blackPathTextArea = new JTextArea(TEXTAREA_ROWS_SMALL, TEXTAREA_ROWS_MEDIUM);
         JScrollPane blackPathScrollPane = new JScrollPane();
         blackPathScrollPane.setViewportView(blackPathTextArea);
         blackPathTextArea.setLineWrap(true);
 
-        JButton conBt = new JButton();//语言转换："确认"
-        conBt.addActionListener(e -> {
-            String whiteList = textField.getText();
-            if (!whiteList.isBlank()) {
-                MyFilterRequest.whiteListSet = new HashSet<>(Arrays.asList(whiteList.trim().split("\\|")));
-            } else {
-                MyFilterRequest.whiteListSet.clear();
-            }
-            String blackList = blackTextField.getText();
-            if (!blackList.isBlank()) {
-                MyFilterRequest.blackListSet = new HashSet<>(Arrays.asList(blackList.trim().split("\\|")));
-            } else {
-                MyFilterRequest.blackListSet.clear();
-            }
-            String blackParamsList = blackParamsField.getText();
-//            api.logging().logToOutput(blackParamsList);
-//            api.logging().logToOutput(!blackParamsList.isBlank()+"");
-            if (!blackParamsList.isBlank()) {
-                MyHttpHandler.blackParamsSet = new HashSet<>(Arrays.asList(blackParamsList.trim().split("\\|")));
-//                for (String s : MyHttpHandler.blackParamsSet) {
-//                    api.logging().logToOutput(s);
-//                }
-
-            } else {
-                MyHttpHandler.blackParamsSet.clear();
-            }
-            String unLegalExtension = suffixTextField.getText();
-            if (!unLegalExtension.isBlank()) {
-                MyFilterRequest.unLegalExtensionSet = new HashSet<>(Arrays.asList(unLegalExtension.trim().split("\\|")));
-            } else {
-                MyFilterRequest.unLegalExtensionSet = new HashSet<>(Arrays.asList("wma", "csv", "mov", "doc", "3g2", "mp4", "7z", "3gp", "xbm", "jar", "avi", "ogv", "mpv2", "tiff", "pnm", "jpg", "xpm", "xul", "epub", "au", "aac", "midi", "weba", "tar", "js", "rtf", "bin", "woff", "wmv", "tif", "css", "gif", "flv", "ttf", "html", "eot", "ods", "odt", "webm", "mpg", "mjs", "bz", "ics", "ras", "aifc", "mpa", "ppt", "mpeg", "pptx", "oga", "ra", "aiff", "asf", "woff2", "snd", "xwd", "csh", "webp", "xlsx", "mpkg", "vsd", "mid", "wav", "svg", "mp3", "bz2", "ico", "jpe", "pbm", "gz", "pdf", "log", "jpeg", "rmi", "txt", "arc", "rm", "ppm", "cod", "jfif", "ram", "docx", "mpe", "odp", "otf", "pgm", "cmx", "m3u", "mp2", "cab", "rar", "bmp", "rgb", "png", "azw", "ogx", "aif", "zip", "ief", "htm", "xls", "mpp", "swf", "rmvb", "abw"));
-            }
-            String errorPocList = errorPocTextField.getText();
-            if (!errorPocList.isBlank()) {
-                MyHttpHandler.errPocs = errorPocList.trim().split("\\|");
-                MyHttpHandler.errPocsj = errorPocList.trim().split("\\|");
-            } else {
-                MyHttpHandler.errPocs = new String[]{"'", "%27", "%DF'", "%DF%27", "\"", "%22", "%DF\"", "%DF%22", "`"};
-                MyHttpHandler.errPocsj = new String[]{"'", "%27", "%DF'", "%DF%27", "\\\"", "%22", "%DF\\\"", "%DF%22", "\\u0022", "%DF\\u0022", "\\u0027", "%DF\\u0027", "`"};
-            }
-            String diyPayloadsStr=diyTextArea.getText();
-            if (!diyPayloadsStr.isBlank()) {
-                MyHttpHandler.diyPayloads.clear();
-                Element paragraph = diyTextArea.getDocument().getDefaultRootElement();
-                int contentCount = paragraph.getElementCount();
-                for (int i = 0; i < contentCount; i++) {
-                    Element ee = paragraph.getElement(i);
-                    int rangeStart = ee.getStartOffset();
-                    int rangeEnd = ee.getEndOffset();
-                    String line = null;
-                    try {
-                        line = diyTextArea.getText(rangeStart, rangeEnd - rangeStart).replaceFirst("[\n\r]+$", "");
-                        MyHttpHandler.diyPayloads.add(line);
-                    } catch (BadLocationException ex) {
-                        throw new RuntimeException(ex);
-                    }
-
-                }
-            } else {
-                MyHttpHandler.diyPayloads.clear();
-            }
-            String diyRegexsStr=regexTextArea.getText();
-            if (!diyRegexsStr.isBlank()) {
-                MyHttpHandler.diyRegexs.clear();
-                Element paragraph = regexTextArea.getDocument().getDefaultRootElement();
-                int contentCount = paragraph.getElementCount();
-                for (int i = 0; i < contentCount; i++) {
-                    Element ee = paragraph.getElement(i);
-                    int rangeStart = ee.getStartOffset();
-                    int rangeEnd = ee.getEndOffset();
-                    String line = null;
-                    try {
-                        line = regexTextArea.getText(rangeStart, rangeEnd - rangeStart).replaceFirst("[\n\r]+$", "");
-                        MyHttpHandler.diyRegexs.add(line);
-                    } catch (BadLocationException ex) {
-                        throw new RuntimeException(ex);
-                    }
-
-                }
-            } else {
-                MyHttpHandler.diyRegexs.clear();
-            }
-            String timeStr =timeTextField.getText().trim();
-            try{
-                MyHttpHandler.intTime = Integer.parseInt(timeStr);
-            }catch (NumberFormatException ne){
-                MyHttpHandler.intTime=1000000;
-            }
-
-            String staticTimeStr =staticTimeTextField.getText().trim();
-            try{
-                MyHttpHandler.staticTime = Integer.parseInt(staticTimeStr);
-            }catch (NumberFormatException ne){
-                MyHttpHandler.staticTime=100;
-            }
-
-            String startTimeStr =startTimeTextField.getText().trim();
-            try{
-                MyHttpHandler.startTime = Integer.parseInt(startTimeStr);
-            }catch (NumberFormatException ne){
-                MyHttpHandler.startTime=0;
-            }
-
-            String endTimeStr =endTimeTextField.getText().trim();
-            try{
-                MyHttpHandler.endTime = Integer.parseInt(endTimeStr);
-            }catch (NumberFormatException ne){
-                MyHttpHandler.endTime=0;
-            }
-            String blackPathStr=blackPathTextArea.getText();
-            if (!blackPathStr.isBlank()) {
-                MyFilterRequest.blackPathSet.clear();
-                Element paragraph = blackPathTextArea.getDocument().getDefaultRootElement();
-                int contentCount = paragraph.getElementCount();
-                for (int i = 0; i < contentCount; i++) {
-                    Element ee = paragraph.getElement(i);
-                    int rangeStart = ee.getStartOffset();
-                    int rangeEnd = ee.getEndOffset();
-                    String line = null;
-                    try {
-                        line = blackPathTextArea.getText(rangeStart, rangeEnd - rangeStart).replaceFirst("[\n\r]+$", "");
-                        MyFilterRequest.blackPathSet.add(line);
-                    } catch (BadLocationException ex) {
-                        throw new RuntimeException(ex);
-                    }
-
-                }
-            } else {
-                MyFilterRequest.blackPathSet.clear();
-            }
-
-        });
-        JButton loadBt = new JButton();//语言转换："载入"
-        loadBt.addActionListener(e -> {
-            JFileChooser fileChooser = new JFileChooser();
-            fileChooser.setCurrentDirectory(new File("."));
-            fileChooser.setPreferredSize(new Dimension(800, 600));
-            int result = fileChooser.showSaveDialog(null);
-            String message = "";
-            if (result == JFileChooser.APPROVE_OPTION) {
-                message = "Load success";
-                configTextField.setText(fileChooser.getSelectedFile().getAbsolutePath());
-                Properties prop = new Properties();
-                try {
-                    FileReader fileReader = new FileReader(fileChooser.getSelectedFile());
-                    prop.load(fileReader);
-                    textField.setText(prop.getProperty("whitelist", ""));
-                    if (!prop.getProperty("whitelist", "").isBlank()) {
-                        MyFilterRequest.whiteListSet = new HashSet<>(Arrays.asList(prop.getProperty("whitelist", "").split("\\|")));
-                    } else {
-                        MyFilterRequest.whiteListSet = new HashSet<>();
-                    }
-                    blackTextField.setText(prop.getProperty("blacklist", ""));
-                    if (!prop.getProperty("blacklist", "").isBlank()) {
-                        MyFilterRequest.blackListSet = new HashSet<>(Arrays.asList(prop.getProperty("blacklist", "").split("\\|")));
-                    } else {
-                        MyFilterRequest.blackListSet = new HashSet<>();
-                    }
-                    blackParamsField.setText(prop.getProperty("paramslist", ""));
-                    if (!prop.getProperty("paramslist", "").isBlank()) {
-                        MyHttpHandler.blackParamsSet = new HashSet<>(Arrays.asList(prop.getProperty("paramslist", "").split("\\|")));
-                    } else {
-                        MyHttpHandler.blackParamsSet = new HashSet<>();
-                    }
-                    suffixTextField.setText(prop.getProperty("suffixlist", "wma|csv|mov|doc|3g2|mp4|7z|3gp|xbm|jar|avi|ogv|mpv2|tiff|pnm|jpg|xpm|xul|epub|au|aac|midi|weba|tar|js|rtf|bin|woff|wmv|tif|css|gif|flv|ttf|html|eot|ods|odt|webm|mpg|mjs|bz|ics|ras|aifc|mpa|ppt|mpeg|pptx|oga|ra|aiff|asf|woff2|snd|xwd|csh|webp|xlsx|mpkg|vsd|mid|wav|svg|mp3|bz2|ico|jpe|pbm|gz|pdf|log|jpeg|rmi|txt|arc|rm|ppm|cod|jfif|ram|docx|mpe|odp|otf|pgm|cmx|m3u|mp2|cab|rar|bmp|rgb|png|azw|ogx|aif|zip|ief|htm|xls|mpp|swf|rmvb|abw"));
-                    if (!prop.getProperty("suffixlist", "wma|csv|mov|doc|3g2|mp4|7z|3gp|xbm|jar|avi|ogv|mpv2|tiff|pnm|jpg|xpm|xul|epub|au|aac|midi|weba|tar|js|rtf|bin|woff|wmv|tif|css|gif|flv|ttf|html|eot|ods|odt|webm|mpg|mjs|bz|ics|ras|aifc|mpa|ppt|mpeg|pptx|oga|ra|aiff|asf|woff2|snd|xwd|csh|webp|xlsx|mpkg|vsd|mid|wav|svg|mp3|bz2|ico|jpe|pbm|gz|pdf|log|jpeg|rmi|txt|arc|rm|ppm|cod|jfif|ram|docx|mpe|odp|otf|pgm|cmx|m3u|mp2|cab|rar|bmp|rgb|png|azw|ogx|aif|zip|ief|htm|xls|mpp|swf|rmvb|abw").isBlank()) {
-                        MyFilterRequest.unLegalExtensionSet = new HashSet<>(Arrays.asList(prop.getProperty("suffixlist", "wma|csv|mov|doc|3g2|mp4|7z|3gp|xbm|jar|avi|ogv|mpv2|tiff|pnm|jpg|xpm|xul|epub|au|aac|midi|weba|tar|js|rtf|bin|woff|wmv|tif|css|gif|flv|ttf|html|eot|ods|odt|webm|mpg|mjs|bz|ics|ras|aifc|mpa|ppt|mpeg|pptx|oga|ra|aiff|asf|woff2|snd|xwd|csh|webp|xlsx|mpkg|vsd|mid|wav|svg|mp3|bz2|ico|jpe|pbm|gz|pdf|log|jpeg|rmi|txt|arc|rm|ppm|cod|jfif|ram|docx|mpe|odp|otf|pgm|cmx|m3u|mp2|cab|rar|bmp|rgb|png|azw|ogx|aif|zip|ief|htm|xls|mpp|swf|rmvb|abw").split("\\|")));
-                    } else {
-                        MyFilterRequest.unLegalExtensionSet = new HashSet<>(Arrays.asList("wma", "csv", "mov", "doc", "3g2", "mp4", "7z", "3gp", "xbm", "jar", "avi", "ogv", "mpv2", "tiff", "pnm", "jpg", "xpm", "xul", "epub", "au", "aac", "midi", "weba", "tar", "js", "rtf", "bin", "woff", "wmv", "tif", "css", "gif", "flv", "ttf", "html", "eot", "ods", "odt", "webm", "mpg", "mjs", "bz", "ics", "ras", "aifc", "mpa", "ppt", "mpeg", "pptx", "oga", "ra", "aiff", "asf", "woff2", "snd", "xwd", "csh", "webp", "xlsx", "mpkg", "vsd", "mid", "wav", "svg", "mp3", "bz2", "ico", "jpe", "pbm", "gz", "pdf", "log", "jpeg", "rmi", "txt", "arc", "rm", "ppm", "cod", "jfif", "ram", "docx", "mpe", "odp", "otf", "pgm", "cmx", "m3u", "mp2", "cab", "rar", "bmp", "rgb", "png", "azw", "ogx", "aif", "zip", "ief", "htm", "xls", "mpp", "swf", "rmvb", "abw"));
-                    }
-                    errorPocTextField.setText(prop.getProperty("errpoclist", ""));
-                    if (!prop.getProperty("errpoclist", "").isBlank()) {
-                        MyHttpHandler.errPocs = prop.getProperty("errpoclist", "").split("\\|");
-                        MyHttpHandler.errPocsj = prop.getProperty("errpoclist", "").split("\\|");
-                    } else {
-                        MyHttpHandler.errPocs = new String[]{"'", "%27", "%DF'", "%DF%27", "\"", "%22", "%DF\"", "%DF%22", "`"};
-                        MyHttpHandler.errPocsj = new String[]{"'", "%27", "%DF'", "%DF%27", "\\\"", "%22", "%DF\\\"", "%DF%22", "\\u0022", "%DF\\u0022", "\\u0027", "%DF\\u0027", "`"};
-                    }
-                    timeTextField.setText(prop.getProperty("delaytime", "5000"));
-                    String timeStr =prop.getProperty("delaytime", "").trim();
-                    try{
-                        MyHttpHandler.intTime = Integer.parseInt(timeStr);
-                    }catch (NumberFormatException ne){
-                        MyHttpHandler.intTime=1000000;
-                    }
-                    staticTimeTextField.setText(prop.getProperty("statictime", "100"));
-                    String staticTimeStr =prop.getProperty("statictime", "").trim();
-                    try{
-                        MyHttpHandler.staticTime = Integer.parseInt(staticTimeStr);
-                    }catch (NumberFormatException ne){
-                        MyHttpHandler.staticTime=100;
-                    }
-                    startTimeTextField.setText(prop.getProperty("starttime", "0"));
-                    String startTimeStr =prop.getProperty("starttime", "").trim();
-                    try{
-                        MyHttpHandler.startTime = Integer.parseInt(startTimeStr);
-                    }catch (NumberFormatException ne){
-                        MyHttpHandler.startTime=0;
-                    }
-                    endTimeTextField.setText(prop.getProperty("endtime", "0"));
-                    String endTimeStr =prop.getProperty("endtime", "").trim();
-                    try{
-                        MyHttpHandler.endTime = Integer.parseInt(endTimeStr);
-                    }catch (NumberFormatException ne){
-                        MyHttpHandler.endTime=0;
-                    }
-                    diyTextArea.setText(prop.getProperty("diypayloads", ""));
-                    if (!prop.getProperty("diypayloads", "").isBlank()) {
-                        MyHttpHandler.diyPayloads.clear();
-                        Element paragraph = diyTextArea.getDocument().getDefaultRootElement();
-                        int contentCount = paragraph.getElementCount();
-                        for (int i = 0; i < contentCount; i++) {
-                            Element ee = paragraph.getElement(i);
-                            int rangeStart = ee.getStartOffset();
-                            int rangeEnd = ee.getEndOffset();
-                            String line = null;
-                            try {
-                                line = diyTextArea.getText(rangeStart, rangeEnd - rangeStart).replaceFirst("[\n\r]+$", "");
-                                MyHttpHandler.diyPayloads.add(line);
-                            } catch (BadLocationException ex) {
-                                throw new RuntimeException(ex);
-                            }
-
-                        }
-                    } else {
-                        MyHttpHandler.diyPayloads.clear();
-                    }
-                    regexTextArea.setText(prop.getProperty("diyregex", ""));
-                    if (!prop.getProperty("diyregex", "").isBlank()) {
-                        MyHttpHandler.diyRegexs.clear();
-                        Element paragraph = regexTextArea.getDocument().getDefaultRootElement();
-                        int contentCount = paragraph.getElementCount();
-                        for (int i = 0; i < contentCount; i++) {
-                            Element ee = paragraph.getElement(i);
-                            int rangeStart = ee.getStartOffset();
-                            int rangeEnd = ee.getEndOffset();
-                            String line = null;
-                            try {
-                                line = regexTextArea.getText(rangeStart, rangeEnd - rangeStart).replaceFirst("[\n\r]+$", "");
-                                //api.logging().logToOutput(line);
-                                MyHttpHandler.diyRegexs.add(line);
-                            } catch (BadLocationException ex) {
-                                throw new RuntimeException(ex);
-                            }
-
-                        }
-                    } else {
-                        MyHttpHandler.diyRegexs.clear();
-                    }
-                    blackPathTextArea.setText(prop.getProperty("blackpath", ""));
-                    if (!prop.getProperty("blackpath", "").isBlank()) {
-                        MyFilterRequest.blackPathSet.clear();
-                        Element paragraph = blackPathTextArea.getDocument().getDefaultRootElement();
-                        int contentCount = paragraph.getElementCount();
-                        for (int i = 0; i < contentCount; i++) {
-                            Element ee = paragraph.getElement(i);
-                            int rangeStart = ee.getStartOffset();
-                            int rangeEnd = ee.getEndOffset();
-                            String line = null;
-                            try {
-                                line = blackPathTextArea.getText(rangeStart, rangeEnd - rangeStart).replaceFirst("[\n\r]+$", "");
-                                MyFilterRequest.blackPathSet.add(line);
-
-                            } catch (BadLocationException ex) {
-                                throw new RuntimeException(ex);
-                            }
-
-                        }
-                        //api.logging().logToOutput(MyFilterRequest.blackPathSet.toString());
-                    } else {
-                        MyFilterRequest.blackPathSet.clear();
-                    }
-
-                    switchChexk.setSelected(Boolean.parseBoolean(prop.getProperty("switch")));
-                    cookieChexk.setSelected(Boolean.parseBoolean(prop.getProperty("cookiecheck")));
-                    errorChexk.setSelected(Boolean.parseBoolean(prop.getProperty("errorcheck")));
-                    vulnChexk.setSelected(Boolean.parseBoolean(prop.getProperty("repeatercheck")));
-                    numChexk.setSelected(Boolean.parseBoolean(prop.getProperty("numcheck")));
-                    stringChexk.setSelected(Boolean.parseBoolean(prop.getProperty("stringcheck")));
-                    orderChexk.setSelected(Boolean.parseBoolean(prop.getProperty("ordercheck")));
-                    boolChexk.setSelected(Boolean.parseBoolean(prop.getProperty("boolcheck")));
-                    diyChexk.setSelected(Boolean.parseBoolean(prop.getProperty("diycheck")));
-                    String indexStr=prop.getProperty("languageindex").trim();
-
-                    try{
-                        index=Integer.parseInt(indexStr);
-                    }catch (NumberFormatException ne){
-                        index=0;
-                    }
-                    fileReader.close();
-                } catch (IOException ex) {
-                    throw new RuntimeException(ex);
-                }
-            } else if (result == JFileChooser.CANCEL_OPTION) {
-                message = "Load cancel";
-            }
-            JOptionPane.showMessageDialog(null, message, "Load", JOptionPane.INFORMATION_MESSAGE);
-        });
-        JButton saveBt = new JButton();//语言转换："保存"
-        saveBt.addActionListener(e -> {
-            JFileChooser fileChooser = new JFileChooser();
-            fileChooser.setPreferredSize(new Dimension(800, 600));
-            int result = fileChooser.showSaveDialog(null);
-            String message = "";
-            if (result == JFileChooser.APPROVE_OPTION) {
-                message = "Save success";
-                Properties prop = new Properties();
-                prop.setProperty("whitelist", DetSql.textField.getText());
-                prop.setProperty("blacklist", DetSql.blackTextField.getText());
-                prop.setProperty("suffixlist", DetSql.suffixTextField.getText());
-                prop.setProperty("errpoclist", DetSql.errorPocTextField.getText());
-                prop.setProperty("paramslist", DetSql.blackParamsField.getText());
-                prop.setProperty("delaytime", DetSql.timeTextField.getText());
-                prop.setProperty("statictime", DetSql.staticTimeTextField.getText());//
-                prop.setProperty("starttime", DetSql.startTimeTextField.getText());//
-                prop.setProperty("endtime", DetSql.endTimeTextField.getText());//
-                prop.setProperty("switch", String.valueOf(DetSql.switchChexk.isSelected()));
-                prop.setProperty("cookiecheck", String.valueOf(DetSql.cookieChexk.isSelected()));
-                prop.setProperty("errorcheck", String.valueOf(DetSql.errorChexk.isSelected()));
-                prop.setProperty("numcheck", String.valueOf(DetSql.numChexk.isSelected()));
-                prop.setProperty("stringcheck", String.valueOf(DetSql.stringChexk.isSelected()));
-                prop.setProperty("ordercheck", String.valueOf(DetSql.orderChexk.isSelected()));
-                prop.setProperty("repeatercheck", String.valueOf(DetSql.vulnChexk.isSelected()));
-                prop.setProperty("boolcheck", String.valueOf(DetSql.boolChexk.isSelected()));
-                prop.setProperty("diycheck", String.valueOf(DetSql.diyChexk.isSelected()));
-                prop.setProperty("diypayloads", DetSql.diyTextArea.getText());
-                prop.setProperty("diyregex", DetSql.regexTextArea.getText());
-                prop.setProperty("blackpath", DetSql.blackPathTextArea.getText());
-                prop.setProperty("languageindex", String.valueOf(DetSql.index));
-                try {
-                    FileWriter fw = new FileWriter(fileChooser.getSelectedFile());
-                    prop.store(fw, null);
-                    fw.close();
-                } catch (IOException ex) {
-                    throw new RuntimeException(ex);
-                }
-            } else if (result == JFileChooser.CANCEL_OPTION) {
-                message = "Save cancel";
-            }
-            JOptionPane.showMessageDialog(null, message, "Save", JOptionPane.INFORMATION_MESSAGE);
-        });
-        JLabel languageLabel = new JLabel();//语言转换："语言："
-        languageComboBox = new JComboBox<>(LANGUAGES);
-        languageComboBox.setSelectedIndex(index);
-        languageComboBox.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                index = languageComboBox.getSelectedIndex();
-                Locale locale = LOCALES[index];
-                messages = ResourceBundle.getBundle("Messages", locale); // Load appropriate messages bundle
-                // Update UI with new language settings,直接更新语言
-
-                topicLabel.setText(messages.getString("Domainwhitelisting"));
-                blackLabel.setText(messages.getString("Domainblacklisting"));
-                suffixLabel.setText(messages.getString("Prohibitsuffixing"));
-                errorPocLabel.setText(messages.getString("ErrorTypePOCing"));
-                blackParams.setText(messages.getString("Parameterblacklisting"));
-                switchChexk.setText(messages.getString("checkbox.switch"));
-                cookieChexk.setText(messages.getString("checkbox.Testcookies"));
-                vulnChexk.setText(messages.getString("checkbox.Acceptrepeater"));
-                errorChexk.setText(messages.getString("checkbox.Testerrortype"));
-                numChexk.setText(messages.getString("checkbox.Testnumericaltypes"));
-                stringChexk.setText(messages.getString("checkbox.Teststringtype"));
-                orderChexk.setText(messages.getString("checkbox.Testordertype"));
-                boolChexk.setText(messages.getString("checkbox.Testbooleantype"));
-                diyChexk.setText(messages.getString("checkbox.Testdiypayloads"));
-                diyLabel.setText(messages.getString("CustomizePayloadsing"));
-                resRegexLabel.setText(messages.getString("ResponsetoRegularmatchingrulesing"));
-                timeLabel.setText(messages.getString("ResponsetoDelaytimeing"));
-                staticTimeLabel.setText(messages.getString("Fixedintervalbetweenrequestsing"));
-                startTimeLabel.setText(messages.getString("Requestsintervalrangeing"));
-                blackPathLabel.setText(messages.getString("Pathblacklisting"));
-                conBt.setText(messages.getString("button.confirm"));
-                loadBt.setText(messages.getString("button.load"));
-                saveBt.setText(messages.getString("button.save"));
-                languageLabel.setText(messages.getString("languageing"));
-                configLabel.setText(messages.getString("configuredirectorying"));
-
-            }
-        });
-
-        Spring st = Spring.constant(10);
-        Spring st2 = Spring.constant(35);
-        Spring st3 = Spring.constant(100);
-        Spring st4 = Spring.constant(200);
-
-
-        container.add(topicLabel);
-        springLayout.putConstraint(SpringLayout.NORTH, topicLabel, st, SpringLayout.NORTH, container);
-        springLayout.putConstraint(SpringLayout.WEST, topicLabel, st, SpringLayout.WEST, container);
-
-        container.add(textField);
-        springLayout.putConstraint(SpringLayout.WEST, textField, st2, SpringLayout.EAST, topicLabel);
-        springLayout.putConstraint(SpringLayout.NORTH, textField, 0, SpringLayout.NORTH, topicLabel);
-        springLayout.putConstraint(SpringLayout.EAST, textField, Spring.minus(st), SpringLayout.EAST, container);
-        //白名单
-        container.add(blackLabel);
-        springLayout.putConstraint(SpringLayout.WEST, blackLabel, 0, SpringLayout.WEST, topicLabel);
-        springLayout.putConstraint(SpringLayout.NORTH, blackLabel, st, SpringLayout.SOUTH, topicLabel);
-
-        container.add(blackTextField);
-        springLayout.putConstraint(SpringLayout.WEST, blackTextField, 0, SpringLayout.WEST, textField);
-        springLayout.putConstraint(SpringLayout.NORTH, blackTextField, 0, SpringLayout.NORTH, blackLabel);
-        springLayout.putConstraint(SpringLayout.EAST, blackTextField, Spring.minus(st), SpringLayout.EAST, container);
-        //后缀
-        container.add(suffixLabel);
-        springLayout.putConstraint(SpringLayout.WEST, suffixLabel, 0, SpringLayout.WEST, blackLabel);
-        springLayout.putConstraint(SpringLayout.NORTH, suffixLabel, st, SpringLayout.SOUTH, blackLabel);
-
-        container.add(suffixTextField);
-        springLayout.putConstraint(SpringLayout.WEST, suffixTextField, 0, SpringLayout.WEST, textField);
-        springLayout.putConstraint(SpringLayout.NORTH, suffixTextField, 0, SpringLayout.NORTH, suffixLabel);
-        springLayout.putConstraint(SpringLayout.EAST, suffixTextField, Spring.minus(st), SpringLayout.EAST, container);
-        //自定义报错poc
-        container.add(errorPocLabel);
-        springLayout.putConstraint(SpringLayout.WEST, errorPocLabel, 0, SpringLayout.WEST, suffixLabel);
-        springLayout.putConstraint(SpringLayout.NORTH, errorPocLabel, st, SpringLayout.SOUTH, suffixLabel);
-
-        container.add(errorPocTextField);
-        springLayout.putConstraint(SpringLayout.WEST, errorPocTextField, 0, SpringLayout.WEST, textField);
-        springLayout.putConstraint(SpringLayout.NORTH, errorPocTextField, 0, SpringLayout.NORTH, errorPocLabel);
-        springLayout.putConstraint(SpringLayout.EAST, errorPocTextField, Spring.minus(st), SpringLayout.EAST, container);
-        //新加参数黑名单
-        container.add(blackParams);
-        springLayout.putConstraint(SpringLayout.WEST, blackParams, 0, SpringLayout.WEST, errorPocLabel);
-        springLayout.putConstraint(SpringLayout.NORTH, blackParams, st, SpringLayout.SOUTH, errorPocLabel);
-
-        container.add(blackParamsField);
-        springLayout.putConstraint(SpringLayout.WEST, blackParamsField, 0, SpringLayout.WEST, textField);
-        springLayout.putConstraint(SpringLayout.NORTH, blackParamsField, 0, SpringLayout.NORTH, blackParams);
-        springLayout.putConstraint(SpringLayout.EAST, blackParamsField, Spring.minus(st), SpringLayout.EAST, container);
-
-        container.add(switchChexk);
-        springLayout.putConstraint(SpringLayout.WEST, switchChexk, 0, SpringLayout.WEST, blackParams);
-        springLayout.putConstraint(SpringLayout.NORTH, switchChexk, st, SpringLayout.SOUTH, blackParams);
-
-        container.add(cookieChexk);
-        springLayout.putConstraint(SpringLayout.WEST, cookieChexk, st2, SpringLayout.EAST, switchChexk);
-        springLayout.putConstraint(SpringLayout.NORTH, cookieChexk, 0, SpringLayout.NORTH, switchChexk);
-
-        //container.add(errorChexk);
-        //springLayout.putConstraint(SpringLayout.WEST, errorChexk, st2, SpringLayout.EAST, cookieChexk);
-        //springLayout.putConstraint(SpringLayout.NORTH, errorChexk, 0, SpringLayout.NORTH, switchChexk);
-
-        container.add(vulnChexk);
-        springLayout.putConstraint(SpringLayout.WEST, vulnChexk, st2, SpringLayout.EAST, cookieChexk);
-        springLayout.putConstraint(SpringLayout.NORTH, vulnChexk, 0, SpringLayout.NORTH, switchChexk);
-
-        container.add(errorChexk);
-        springLayout.putConstraint(SpringLayout.WEST, errorChexk, st2, SpringLayout.EAST, vulnChexk);
-        springLayout.putConstraint(SpringLayout.NORTH, errorChexk, 0, SpringLayout.NORTH, switchChexk);
-
-        container.add(numChexk);
-        springLayout.putConstraint(SpringLayout.WEST, numChexk, st2, SpringLayout.EAST, errorChexk);
-        springLayout.putConstraint(SpringLayout.NORTH, numChexk, 0, SpringLayout.NORTH, switchChexk);
-
-        container.add(stringChexk);
-        springLayout.putConstraint(SpringLayout.WEST, stringChexk, st2, SpringLayout.EAST, numChexk);
-        springLayout.putConstraint(SpringLayout.NORTH, stringChexk, 0, SpringLayout.NORTH, switchChexk);
-
-        container.add(orderChexk);
-        springLayout.putConstraint(SpringLayout.WEST, orderChexk, st2, SpringLayout.EAST, stringChexk);
-        springLayout.putConstraint(SpringLayout.NORTH, orderChexk, 0, SpringLayout.NORTH, switchChexk);
-
-        container.add(boolChexk);
-        springLayout.putConstraint(SpringLayout.WEST, boolChexk, st2, SpringLayout.EAST, orderChexk);
-        springLayout.putConstraint(SpringLayout.NORTH, boolChexk, 0, SpringLayout.NORTH, switchChexk);
-
-        container.add(diyChexk);
-        springLayout.putConstraint(SpringLayout.WEST, diyChexk, st2, SpringLayout.EAST, boolChexk);
-        springLayout.putConstraint(SpringLayout.NORTH, diyChexk, 0, SpringLayout.NORTH, switchChexk);
-
-        container.add(conBt);
-        springLayout.putConstraint(SpringLayout.WEST, conBt, st2, SpringLayout.EAST, diyChexk);
-        springLayout.putConstraint(SpringLayout.NORTH, conBt, 0, SpringLayout.NORTH, switchChexk);
-
-        container.add(configLabel);
-        springLayout.putConstraint(SpringLayout.WEST, configLabel, 0, SpringLayout.WEST, blackLabel);
-        springLayout.putConstraint(SpringLayout.NORTH, configLabel, st, SpringLayout.SOUTH, switchChexk);
-
-        container.add(configTextField);
-        springLayout.putConstraint(SpringLayout.WEST, configTextField, 0, SpringLayout.WEST, blackTextField);
-        springLayout.putConstraint(SpringLayout.NORTH, configTextField, 0, SpringLayout.NORTH, configLabel);
-        springLayout.putConstraint(SpringLayout.EAST, configTextField, Spring.minus(st4), SpringLayout.EAST, container);
-
-        container.add(loadBt);
-        springLayout.putConstraint(SpringLayout.NORTH, loadBt, 0, SpringLayout.NORTH, configLabel);
-        springLayout.putConstraint(SpringLayout.EAST, loadBt, Spring.minus(st3), SpringLayout.EAST, container);
-
-        container.add(saveBt);
-        springLayout.putConstraint(SpringLayout.NORTH, saveBt, 0, SpringLayout.NORTH, configLabel);
-        springLayout.putConstraint(SpringLayout.EAST, saveBt, Spring.minus(st), SpringLayout.EAST, container);
-
         container.add(blackPathLabel);
-        springLayout.putConstraint(SpringLayout.WEST, blackPathLabel, 0, SpringLayout.WEST, configLabel);
-        springLayout.putConstraint(SpringLayout.NORTH, blackPathLabel, st, SpringLayout.SOUTH, configLabel);
+        layout.putConstraint(SpringLayout.WEST, blackPathLabel, 0, SpringLayout.WEST, configLabel);
+        layout.putConstraint(SpringLayout.NORTH, blackPathLabel, st, SpringLayout.SOUTH, configLabel);
 
         container.add(blackPathScrollPane);
-        springLayout.putConstraint(SpringLayout.WEST, blackPathScrollPane, 0, SpringLayout.WEST, textField);
-        springLayout.putConstraint(SpringLayout.NORTH, blackPathScrollPane, 0, SpringLayout.NORTH, blackPathLabel);
-        springLayout.putConstraint(SpringLayout.EAST, blackPathScrollPane, Spring.minus(st), SpringLayout.EAST, container);
-        //springLayout.putConstraint(SpringLayout.EAST, diyScrollPane, -10, SpringLayout.HORIZONTAL_CENTER, container);
+        layout.putConstraint(SpringLayout.WEST, blackPathScrollPane, 0, SpringLayout.WEST, textField);
+        layout.putConstraint(SpringLayout.NORTH, blackPathScrollPane, 0, SpringLayout.NORTH, blackPathLabel);
+        layout.putConstraint(SpringLayout.EAST, blackPathScrollPane, Spring.minus(st), SpringLayout.EAST, container);
 
+        return blackPathScrollPane;
+    }
+
+    private JScrollPane setupPayloadsAndSettings(Container container, SpringLayout layout,
+                                                  JLabel diyLabel, JLabel resRegexLabel,
+                                                  JLabel timeLabel, JLabel staticTimeLabel, JLabel startTimeLabel,
+                                                  JLabel blackParamsLabel, Component blackPathScrollPane,
+                                                  Spring st, Spring st2) {
+        // Create DIY payloads text area
+        diyTextArea = new JTextArea(TEXTAREA_ROWS_XLARGE, TEXTAREA_ROWS_MEDIUM);
+        JScrollPane diyScrollPane = new JScrollPane();
+        diyScrollPane.setViewportView(diyTextArea);
+        diyTextArea.setLineWrap(true);
+
+        // Create response regex text area
+        regexTextArea = new JTextArea(TEXTAREA_ROWS_REGULAR, TEXTAREA_ROWS_MEDIUM);
+        JScrollPane regexScrollPane = new JScrollPane();
+        regexScrollPane.setViewportView(regexTextArea);
+        regexTextArea.setLineWrap(true);
+
+        // Create time settings text fields
+        timeTextField = new JTextField(TEXTAREA_ROWS_MEDIUM);
+        staticTimeTextField = new JTextField(TEXTAREA_ROWS_MEDIUM);
+        staticTimeTextField.setText("100");
+        startTimeTextField = new JTextField(TEXTAREA_ROWS_MEDIUM);
+        startTimeTextField.setText("0");
+        JLabel endTimeLabel = new JLabel("-");
+        endTimeTextField = new JTextField(TEXTAREA_ROWS_MEDIUM);
+        endTimeTextField.setText("0");
+
+        // Layout left column (DIY payloads)
         container.add(diyLabel);
-        springLayout.putConstraint(SpringLayout.NORTH, diyLabel, st, SpringLayout.SOUTH, blackPathScrollPane);
-        springLayout.putConstraint(SpringLayout.WEST, diyLabel, 0, SpringLayout.WEST, blackParams);
-        container.add(resRegexLabel);
-        //SpringLayout.Constraints contentLabeln = springLayout.getConstraints(resRegexLabel);
-        springLayout.putConstraint(SpringLayout.WEST, resRegexLabel, 10, SpringLayout.HORIZONTAL_CENTER, container);
-        springLayout.putConstraint(SpringLayout.NORTH, resRegexLabel, st, SpringLayout.SOUTH, blackPathScrollPane);
+        layout.putConstraint(SpringLayout.NORTH, diyLabel, st, SpringLayout.SOUTH, blackPathScrollPane);
+        layout.putConstraint(SpringLayout.WEST, diyLabel, 0, SpringLayout.WEST, blackParamsLabel);
 
         container.add(diyScrollPane);
-        springLayout.putConstraint(SpringLayout.WEST, diyScrollPane, 0, SpringLayout.WEST, textField);
-        springLayout.putConstraint(SpringLayout.NORTH, diyScrollPane, 0, SpringLayout.NORTH, diyLabel);
-        springLayout.putConstraint(SpringLayout.EAST, diyScrollPane, -10, SpringLayout.HORIZONTAL_CENTER, container);
+        layout.putConstraint(SpringLayout.WEST, diyScrollPane, 0, SpringLayout.WEST, textField);
+        layout.putConstraint(SpringLayout.NORTH, diyScrollPane, 0, SpringLayout.NORTH, diyLabel);
+        layout.putConstraint(SpringLayout.EAST, diyScrollPane, -PADDING_SMALL, SpringLayout.HORIZONTAL_CENTER, container);
+
+        // Layout right column (Response regex and time settings)
+        container.add(resRegexLabel);
+        layout.putConstraint(SpringLayout.WEST, resRegexLabel, PADDING_SMALL, SpringLayout.HORIZONTAL_CENTER, container);
+        layout.putConstraint(SpringLayout.NORTH, resRegexLabel, st, SpringLayout.SOUTH, blackPathScrollPane);
 
         container.add(regexScrollPane);
-        springLayout.putConstraint(SpringLayout.WEST, regexScrollPane, 25, SpringLayout.EAST, resRegexLabel);
-        springLayout.putConstraint(SpringLayout.NORTH, regexScrollPane, 0, SpringLayout.NORTH, diyLabel);
-        springLayout.putConstraint(SpringLayout.EAST, regexScrollPane, Spring.minus(st), SpringLayout.EAST, container);
+        layout.putConstraint(SpringLayout.WEST, regexScrollPane, PADDING_SPECIAL, SpringLayout.EAST, resRegexLabel);
+        layout.putConstraint(SpringLayout.NORTH, regexScrollPane, 0, SpringLayout.NORTH, diyLabel);
+        layout.putConstraint(SpringLayout.EAST, regexScrollPane, Spring.minus(st), SpringLayout.EAST, container);
 
+        // Time settings
         container.add(timeLabel);
-        springLayout.putConstraint(SpringLayout.WEST, timeLabel, 0, SpringLayout.WEST, resRegexLabel);
-        springLayout.putConstraint(SpringLayout.NORTH, timeLabel, st, SpringLayout.SOUTH, regexScrollPane);
+        layout.putConstraint(SpringLayout.WEST, timeLabel, 0, SpringLayout.WEST, resRegexLabel);
+        layout.putConstraint(SpringLayout.NORTH, timeLabel, st, SpringLayout.SOUTH, regexScrollPane);
 
         container.add(timeTextField);
-        springLayout.putConstraint(SpringLayout.WEST, timeTextField, 0, SpringLayout.WEST, regexScrollPane);
-        springLayout.putConstraint(SpringLayout.NORTH, timeTextField, 0, SpringLayout.NORTH, timeLabel);
+        layout.putConstraint(SpringLayout.WEST, timeTextField, 0, SpringLayout.WEST, regexScrollPane);
+        layout.putConstraint(SpringLayout.NORTH, timeTextField, 0, SpringLayout.NORTH, timeLabel);
 
         container.add(staticTimeLabel);
-        springLayout.putConstraint(SpringLayout.WEST, staticTimeLabel, 0, SpringLayout.WEST, resRegexLabel);
-        springLayout.putConstraint(SpringLayout.NORTH, staticTimeLabel, st, SpringLayout.SOUTH, timeLabel);
+        layout.putConstraint(SpringLayout.WEST, staticTimeLabel, 0, SpringLayout.WEST, resRegexLabel);
+        layout.putConstraint(SpringLayout.NORTH, staticTimeLabel, st, SpringLayout.SOUTH, timeLabel);
 
         container.add(staticTimeTextField);
-        springLayout.putConstraint(SpringLayout.WEST, staticTimeTextField, 0, SpringLayout.WEST, regexScrollPane);
-        springLayout.putConstraint(SpringLayout.NORTH, staticTimeTextField, 0, SpringLayout.NORTH, staticTimeLabel);
+        layout.putConstraint(SpringLayout.WEST, staticTimeTextField, 0, SpringLayout.WEST, regexScrollPane);
+        layout.putConstraint(SpringLayout.NORTH, staticTimeTextField, 0, SpringLayout.NORTH, staticTimeLabel);
 
         container.add(startTimeLabel);
-        springLayout.putConstraint(SpringLayout.WEST, startTimeLabel, 0, SpringLayout.WEST, resRegexLabel);
-        springLayout.putConstraint(SpringLayout.NORTH, startTimeLabel, st, SpringLayout.SOUTH, staticTimeLabel);
+        layout.putConstraint(SpringLayout.WEST, startTimeLabel, 0, SpringLayout.WEST, resRegexLabel);
+        layout.putConstraint(SpringLayout.NORTH, startTimeLabel, st, SpringLayout.SOUTH, staticTimeLabel);
 
         container.add(startTimeTextField);
-        springLayout.putConstraint(SpringLayout.WEST, startTimeTextField, 0, SpringLayout.WEST, regexScrollPane);
-        springLayout.putConstraint(SpringLayout.NORTH, startTimeTextField, 0, SpringLayout.NORTH, startTimeLabel);
+        layout.putConstraint(SpringLayout.WEST, startTimeTextField, 0, SpringLayout.WEST, regexScrollPane);
+        layout.putConstraint(SpringLayout.NORTH, startTimeTextField, 0, SpringLayout.NORTH, startTimeLabel);
 
         container.add(endTimeLabel);
-        springLayout.putConstraint(SpringLayout.WEST, endTimeLabel, st, SpringLayout.EAST, startTimeTextField);
-        springLayout.putConstraint(SpringLayout.NORTH, endTimeLabel, 0, SpringLayout.NORTH, startTimeLabel);
+        layout.putConstraint(SpringLayout.WEST, endTimeLabel, st, SpringLayout.EAST, startTimeTextField);
+        layout.putConstraint(SpringLayout.NORTH, endTimeLabel, 0, SpringLayout.NORTH, startTimeLabel);
 
         container.add(endTimeTextField);
-        springLayout.putConstraint(SpringLayout.WEST, endTimeTextField, st, SpringLayout.EAST, endTimeLabel);
-        springLayout.putConstraint(SpringLayout.NORTH, endTimeTextField, 0, SpringLayout.NORTH, startTimeLabel);
+        layout.putConstraint(SpringLayout.WEST, endTimeTextField, st, SpringLayout.EAST, endTimeLabel);
+        layout.putConstraint(SpringLayout.NORTH, endTimeTextField, 0, SpringLayout.NORTH, startTimeLabel);
+
+        return diyScrollPane;
+    }
+
+    private void setupLanguage(Container container, SpringLayout layout, JLabel languageLabel,
+                                JLabel blackParamsLabel, JScrollPane diyScrollPane, Spring st, Spring st2) {
+        // Create language combo box
+        languageComboBox = new JComboBox<>(LANGUAGES);
+        languageComboBox.setSelectedIndex(index);
 
         container.add(languageLabel);
-        springLayout.putConstraint(SpringLayout.NORTH, languageLabel, st, SpringLayout.SOUTH, diyScrollPane);
-        springLayout.putConstraint(SpringLayout.WEST, languageLabel, 0, SpringLayout.WEST, blackParams);
+        layout.putConstraint(SpringLayout.NORTH, languageLabel, st, SpringLayout.SOUTH, diyScrollPane);
+        layout.putConstraint(SpringLayout.WEST, languageLabel, 0, SpringLayout.WEST, blackParamsLabel);
 
         container.add(languageComboBox);
-        springLayout.putConstraint(SpringLayout.WEST, languageComboBox, 0, SpringLayout.WEST, textField);
-        springLayout.putConstraint(SpringLayout.NORTH, languageComboBox, 0, SpringLayout.NORTH, languageLabel);
-        //springLayout.putConstraint(SpringLayout.EAST, languageComboBox, Spring.minus(st), SpringLayout.EAST, container);
-        messages = ResourceBundle.getBundle("Messages", LOCALES[index]);
-        topicLabel.setText(messages.getString("Domainwhitelisting"));
-        blackLabel.setText(messages.getString("Domainblacklisting"));
-        suffixLabel.setText(messages.getString("Prohibitsuffixing"));
-        errorPocLabel.setText(messages.getString("ErrorTypePOCing"));
-        blackParams.setText(messages.getString("Parameterblacklisting"));
-        switchChexk.setText(messages.getString("checkbox.switch"));
-        cookieChexk.setText(messages.getString("checkbox.Testcookies"));
-        vulnChexk.setText(messages.getString("checkbox.Acceptrepeater"));
-        errorChexk.setText(messages.getString("checkbox.Testerrortype"));
-        numChexk.setText(messages.getString("checkbox.Testnumericaltypes"));
-        stringChexk.setText(messages.getString("checkbox.Teststringtype"));
-        orderChexk.setText(messages.getString("checkbox.Testordertype"));
-        boolChexk.setText(messages.getString("checkbox.Testbooleantype"));
-        diyChexk.setText(messages.getString("checkbox.Testdiypayloads"));
-        diyLabel.setText(messages.getString("CustomizePayloadsing"));
-        resRegexLabel.setText(messages.getString("ResponsetoRegularmatchingrulesing"));
-        timeLabel.setText(messages.getString("ResponsetoDelaytimeing"));
-        staticTimeLabel.setText(messages.getString("Fixedintervalbetweenrequestsing"));
-        startTimeLabel.setText(messages.getString("Requestsintervalrangeing"));
-        blackPathLabel.setText(messages.getString("Pathblacklisting"));
-        conBt.setText(messages.getString("button.confirm"));
-        loadBt.setText(messages.getString("button.load"));
-        saveBt.setText(messages.getString("button.save"));
-        languageLabel.setText(messages.getString("languageing"));
-        configLabel.setText(messages.getString("configuredirectorying"));
-        return container;
+        layout.putConstraint(SpringLayout.WEST, languageComboBox, 0, SpringLayout.WEST, textField);
+        layout.putConstraint(SpringLayout.NORTH, languageComboBox, 0, SpringLayout.NORTH, languageLabel);
+    }
+
+    private void handleConfirmButton() {
+        String whiteList = textField.getText();
+        if (!whiteList.isBlank()) {
+            MyFilterRequest.whiteListSet = new HashSet<>(Arrays.asList(whiteList.trim().split("\\|")));
+        } else {
+            MyFilterRequest.whiteListSet.clear();
+        }
+
+        String blackList = blackTextField.getText();
+        if (!blackList.isBlank()) {
+            MyFilterRequest.blackListSet = new HashSet<>(Arrays.asList(blackList.trim().split("\\|")));
+        } else {
+            MyFilterRequest.blackListSet.clear();
+        }
+
+        String blackParamsList = blackParamsField.getText();
+        if (!blackParamsList.isBlank()) {
+            MyHttpHandler.blackParamsSet = new HashSet<>(Arrays.asList(blackParamsList.trim().split("\\|")));
+        } else {
+            MyHttpHandler.blackParamsSet.clear();
+        }
+
+        String unLegalExtension = suffixTextField.getText();
+        if (!unLegalExtension.isBlank()) {
+            MyFilterRequest.unLegalExtensionSet = new HashSet<>(Arrays.asList(unLegalExtension.trim().split("\\|")));
+        } else {
+            MyFilterRequest.unLegalExtensionSet = new HashSet<>(DefaultConfig.DEFAULT_SUFFIX_SET);
+        }
+
+        String errorPocList = errorPocTextField.getText();
+        if (!errorPocList.isBlank()) {
+            MyHttpHandler.errPocs = errorPocList.trim().split("\\|");
+            MyHttpHandler.errPocsj = deriveJsonErrPocs(MyHttpHandler.errPocs);
+        } else {
+            MyHttpHandler.errPocs = DefaultConfig.DEFAULT_ERR_POCS.clone();
+            MyHttpHandler.errPocsj = DefaultConfig.DEFAULT_ERR_POCS_JSON.clone();
+        }
+
+        String diyPayloadsStr = diyTextArea.getText();
+        if (!diyPayloadsStr.isBlank()) {
+            MyHttpHandler.diyPayloads = readLinesFromTextArea(diyTextArea);
+        } else {
+            MyHttpHandler.diyPayloads.clear();
+        }
+
+        String diyRegexsStr = regexTextArea.getText();
+        if (!diyRegexsStr.isBlank()) {
+            MyHttpHandler.diyRegexs = readLinesFromTextArea(regexTextArea);
+        } else {
+            MyHttpHandler.diyRegexs.clear();
+        }
+
+        MyHttpHandler.intTime = parseIntWithDefault(timeTextField.getText(), DefaultConfig.DEFAULT_DELAY_TIME_MS);
+        MyHttpHandler.staticTime = parseIntWithDefault(staticTimeTextField.getText(), DefaultConfig.DEFAULT_STATIC_TIME_MS);
+        MyHttpHandler.startTime = parseIntWithDefault(startTimeTextField.getText(), DefaultConfig.DEFAULT_START_TIME_MS);
+        MyHttpHandler.endTime = parseIntWithDefault(endTimeTextField.getText(), DefaultConfig.DEFAULT_END_TIME_MS);
+
+        String blackPathStr = blackPathTextArea.getText();
+        if (!blackPathStr.isBlank()) {
+            MyFilterRequest.blackPathSet = readLinesFromTextArea(blackPathTextArea);
+        } else {
+            MyFilterRequest.blackPathSet.clear();
+        }
+    }
+
+    /**
+     * Show file chooser dialog
+     * @param dialogTitle Dialog title
+     * @param isOpen true for open dialog, false for save dialog
+     * @return Selected file or null if cancelled
+     */
+    private File showFileChooser(String dialogTitle, boolean isOpen) {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle(dialogTitle);
+        fileChooser.setCurrentDirectory(new File("."));
+        fileChooser.setPreferredSize(new Dimension(FILE_CHOOSER_WIDTH, FILE_CHOOSER_HEIGHT));
+
+        int result = isOpen
+            ? fileChooser.showOpenDialog(null)
+            : fileChooser.showSaveDialog(null);
+
+        return (result == JFileChooser.APPROVE_OPTION)
+            ? fileChooser.getSelectedFile()
+            : null;
+    }
+
+    private void handleLoadButton() {
+        File file = showFileChooser("Load", true);
+        String message;
+        if (file != null) {
+            message = "Load success";
+            configTextField.setText(file.getAbsolutePath());
+            loadConfiguration(file);
+        } else {
+            message = "Load cancel";
+        }
+        JOptionPane.showMessageDialog(null, message, "Load", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private void handleSaveButton() {
+        File file = showFileChooser("Save", false);
+        String message;
+        if (file != null) {
+            message = "Save success";
+            Properties prop = buildConfigProperties();
+            try (java.io.OutputStreamWriter fw = new java.io.OutputStreamWriter(
+                new java.io.FileOutputStream(file), java.nio.charset.StandardCharsets.UTF_8)) {
+                prop.store(fw, null);
+            } catch (IOException ex) {
+                throw new RuntimeException(ex);
+            }
+        } else {
+            message = "Save cancel";
+        }
+        JOptionPane.showMessageDialog(null, message, "Save", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private void handleLanguageChange(JLabel topicLabel, JLabel blackLabel, JLabel suffixLabel, JLabel errorPocLabel,
+                                       JLabel blackParamsLabel, JLabel diyLabel, JLabel resRegexLabel, JLabel timeLabel,
+                                       JLabel staticTimeLabel, JLabel startTimeLabel, JLabel blackPathLabel,
+                                       JButton conBt, JButton loadBt, JButton saveBt,
+                                       JLabel languageLabel, JLabel configLabel) {
+        index = languageComboBox.getSelectedIndex();
+        Locale locale = LOCALES[index];
+        messages = ResourceBundle.getBundle("Messages", locale);
+        updateLanguageLabels(topicLabel, blackLabel, suffixLabel, errorPocLabel,
+            blackParamsLabel, diyLabel, resRegexLabel, timeLabel,
+            staticTimeLabel, startTimeLabel, blackPathLabel,
+            conBt, loadBt, saveBt, languageLabel, configLabel);
     }
 
     public String myBase64Decode(String base64Str) {
@@ -1243,11 +1288,16 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
     }
 
     public String decodeUnicode(String unicodeStr) {
-        StringBuffer sb = new StringBuffer();
+        StringBuilder sb = new StringBuilder();
         Matcher matcher = Pattern.compile("\\\\u([0-9a-fA-F]{4})").matcher(unicodeStr);
         while (matcher.find()) {
-            String ch = String.valueOf((char) Integer.parseInt(matcher.group(1), 16));
-            sb.append(ch);
+            try {
+                String ch = String.valueOf((char) Integer.parseInt(matcher.group(1), 16));
+                sb.append(ch);
+            } catch (NumberFormatException e) {
+                // If parsing fails, skip this unicode sequence
+                sb.append(matcher.group(0));
+            }
         }
         return sb.toString();
     }
@@ -1274,10 +1324,30 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
     }
 
     private String toPrettyFormat(String json) {
-        JsonParser jsonParser = new JsonParser();
-        JsonObject jsonObject = jsonParser.parse(json).getAsJsonObject();
+        JsonObject jsonObject = JsonParser.parseString(json).getAsJsonObject();
         Gson gson = new GsonBuilder().setPrettyPrinting().create();
         return gson.toJson(jsonObject);
+    }
+
+    /**
+     * Add text transformation listener to button
+     * @param button Button to attach listener
+     * @param source Source JTextArea to read from
+     * @param target Target JTextArea to write to
+     * @param transformer Transformation function
+     */
+    private void addTextTransformListener(
+        JButton button,
+        JTextArea source,
+        JTextArea target,
+        java.util.function.Function<String, String> transformer
+    ) {
+        button.addActionListener(e -> {
+            String text = source.getText();
+            if (!text.isEmpty()) {
+                target.setText(transformer.apply(text));
+            }
+        });
     }
 
     private Component getToolComponent() {
@@ -1319,85 +1389,24 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
 
         JButton encBt = new JButton("base64解码->");
         int offsetx = Spring.width(encBt).getValue() / 2;
-        encBt.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                String text = textArea.getText();
-                if (!text.isEmpty()) {
-                    String decodedText = myBase64Decode(text);
-                    textArea2.setText(decodedText);
-                }
-            }
-        });
         JButton dedBt = new JButton("<-base64编码");
-        dedBt.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                String text = textArea2.getText();
-                if (!text.isEmpty()) {
-                    String encodedText = myBase64Encode(text);
-                    textArea.setText(encodedText);
-                }
-            }
-        });
-
         JButton unBt = new JButton("unicode解码");
-        unBt.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                String text = textArea3.getText();
-                if (!text.isEmpty()) {
-                    String mytext = decodeUnicode(text);
-                    textArea3.setText(mytext);
-                }
-            }
-        });
         JButton unxBt = new JButton("unicode编码");
-        unxBt.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                String text = textArea3.getText();
-                if (!text.isEmpty()) {
-                    String mytext = unicodeEncode(text);
-                    textArea3.setText(mytext);
-                }
-            }
-        });
         JButton urlBt = new JButton("url编码");
-        urlBt.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                String text = textArea5.getText();
-                if (!text.isEmpty()) {
-                    String encodedText = encodeUrl(text);
-                    textArea5.setText(encodedText);
-                }
-            }
-        });
         JButton urlxBt = new JButton("url解码");
-        urlxBt.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                String text = textArea5.getText();
-                if (!text.isEmpty()) {
-                    String mytext = decodeUrl(text);
-                    textArea5.setText(mytext);
-                }
-            }
-        });
         JButton formatbt = new JButton("JSON格式化");
-        formatbt.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                String text = textArea2.getText();
-                if (!text.isEmpty()) {
-                    String prettyText = toPrettyFormat(StringEscapeUtils.unescapeJava(text));
-                    textArea2.setText(prettyText);
-                }
-            }
-        });
-        Spring st = Spring.constant(15);
-        Spring st2 = Spring.constant(35);
+
+        // Attach text transformation listeners
+        addTextTransformListener(encBt, textArea, textArea2, this::myBase64Decode);
+        addTextTransformListener(dedBt, textArea2, textArea, this::myBase64Encode);
+        addTextTransformListener(unBt, textArea3, textArea3, this::decodeUnicode);
+        addTextTransformListener(unxBt, textArea3, textArea3, this::unicodeEncode);
+        addTextTransformListener(urlBt, textArea5, textArea5, this::encodeUrl);
+        addTextTransformListener(urlxBt, textArea5, textArea5, this::decodeUrl);
+        addTextTransformListener(formatbt, textArea2, textArea2,
+            text -> toPrettyFormat(org.apache.commons.text.StringEscapeUtils.unescapeJava(text)));
+        Spring st = Spring.constant(PADDING_MEDIUM);
+        Spring st2 = Spring.constant(PADDING_COMPONENT);
 
 
         container.add(topicLabel);
@@ -1405,13 +1414,13 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
         springLayout.putConstraint(SpringLayout.WEST, topicLabel, st, SpringLayout.WEST, container);
         container.add(contentLabel);
         SpringLayout.Constraints contentLabeln = springLayout.getConstraints(contentLabel);
-        springLayout.putConstraint(SpringLayout.WEST, contentLabel, 90, SpringLayout.HORIZONTAL_CENTER, container);
+        springLayout.putConstraint(SpringLayout.WEST, contentLabel, PADDING_CENTER_OFFSET, SpringLayout.HORIZONTAL_CENTER, container);
         contentLabeln.setY(st);
 
         container.add(scrollPane);
         springLayout.putConstraint(SpringLayout.WEST, scrollPane, 0, SpringLayout.WEST, topicLabel);
         springLayout.putConstraint(SpringLayout.NORTH, scrollPane, st, SpringLayout.SOUTH, topicLabel);
-        springLayout.putConstraint(SpringLayout.EAST, scrollPane, -90, SpringLayout.HORIZONTAL_CENTER, container);
+        springLayout.putConstraint(SpringLayout.EAST, scrollPane, -PADDING_CENTER_OFFSET, SpringLayout.HORIZONTAL_CENTER, container);
 
         container.add(scrollPane2);
         springLayout.putConstraint(SpringLayout.WEST, scrollPane2, 0, SpringLayout.WEST, contentLabel);

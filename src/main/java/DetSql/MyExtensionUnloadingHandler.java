@@ -9,38 +9,16 @@ import java.io.IOException;
 import java.util.Properties;
 
 public class MyExtensionUnloadingHandler implements ExtensionUnloadingHandler {
-    //textField.getText(),blackTextField.getText(),suffixTextField.getText(),errorPocTextField.getText(),String.valueOf(switchChexk.isSelected()),String.valueOf(cookieChexk.isSelected()),String.valueOf(errorChexk.isSelected()),String.valueOf(vulnChexk.isSelected())
+    //textField.getText(),blackTextField.getText(),suffixTextField.getText(),errorPocTextField.getText(),String.valueOf(switchCheck.isSelected()),String.valueOf(cookieCheck.isSelected()),String.valueOf(errorCheck.isSelected()),String.valueOf(vulnCheck.isSelected())
 
     @Override
     public void extensionUnloaded() {
-        Properties prop = new Properties();
-        prop.setProperty("whitelist", DetSql.textField.getText());//
-        prop.setProperty("blacklist", DetSql.blackTextField.getText());//
-        prop.setProperty("suffixlist", DetSql.suffixTextField.getText());//
-        prop.setProperty("errpoclist", DetSql.errorPocTextField.getText());//
-        prop.setProperty("paramslist", DetSql.blackParamsField.getText());//
-        prop.setProperty("delaytime", DetSql.timeTextField.getText());//
-        prop.setProperty("statictime", DetSql.staticTimeTextField.getText());//
-        prop.setProperty("starttime", DetSql.startTimeTextField.getText());//
-        prop.setProperty("endtime", DetSql.endTimeTextField.getText());//
-        prop.setProperty("switch", String.valueOf(DetSql.switchChexk.isSelected()));
-        prop.setProperty("cookiecheck", String.valueOf(DetSql.cookieChexk.isSelected()));
-        prop.setProperty("errorcheck", String.valueOf(DetSql.errorChexk.isSelected()));
-        prop.setProperty("numcheck", String.valueOf(DetSql.numChexk.isSelected()));
-        prop.setProperty("stringcheck", String.valueOf(DetSql.stringChexk.isSelected()));
-        prop.setProperty("ordercheck", String.valueOf(DetSql.orderChexk.isSelected()));
-        prop.setProperty("repeatercheck", String.valueOf(DetSql.vulnChexk.isSelected()));
-        prop.setProperty("boolcheck", String.valueOf(DetSql.boolChexk.isSelected()));
-        prop.setProperty("diycheck", String.valueOf(DetSql.diyChexk.isSelected()));
-        prop.setProperty("diypayloads", DetSql.diyTextArea.getText());
-        prop.setProperty("diyregex", DetSql.regexTextArea.getText());
-        prop.setProperty("blackpath", DetSql.blackPathTextArea.getText());
-        prop.setProperty("languageindex", String.valueOf(DetSql.index));
+        Properties prop = DetSql.buildConfigProperties();
 
-        try {
-            FileWriter fw = new FileWriter(System.getProperty("user.home")+ File.separator+"DetSqlConfig.txt");
-            prop.store(fw, null);
-            fw.close();
+        try (java.io.OutputStreamWriter writer = new java.io.OutputStreamWriter(
+                new java.io.FileOutputStream(System.getProperty("user.home")+ File.separator+"DetSqlConfig.txt"),
+                java.nio.charset.StandardCharsets.UTF_8)) {
+            prop.store(writer, null);
         } catch (IOException ex) {
             throw new RuntimeException(ex);
         }
