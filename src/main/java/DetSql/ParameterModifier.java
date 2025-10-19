@@ -13,14 +13,14 @@ import burp.api.montoya.http.message.requests.HttpRequest;
  * - 直接传递 ParsedHttpParameter，从根本上消除索引错位问题
  *
  * @author DetSql Team
- * @version 2.9
+ * @version 3.0
  */
 @FunctionalInterface
 public interface ParameterModifier {
     /**
      * 修改指定参数的值,添加payload
      *
-     * 重构说明 (v2.9):
+     * 重构说明 (v3.0):
      * - 移除了 paramIndex 参数，直接传递 ParsedHttpParameter
      * - 从根本上消除了"子集过滤导致索引错位"的问题
      * - 实现类内部通过 sourceRequest.parameters(type).indexOf(param) 获取真实索引

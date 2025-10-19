@@ -71,10 +71,10 @@ public class PocTableModel extends AbstractTableModel {
         // 数据相同检查(通过hash比较,避免深度遍历)
         if (log.size() == logEntry.size()) {
             boolean same = IntStream.range(0, log.size())
-                .allMatch(i -> Objects.equals(
-                    log.get(i).getMyHash(),
-                    logEntry.get(i).getMyHash()
-                ));
+                    .allMatch(i -> Objects.equals(
+                        log.get(i).getMyHash(),
+                        logEntry.get(i).getMyHash()
+                    ));
             if (same) {
                 return;  // 数据相同,无需更新
             }

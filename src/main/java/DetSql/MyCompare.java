@@ -2,10 +2,8 @@
  * @saoshao<1224165231@qq.com>
  */
 package DetSql;
-
 import org.apache.commons.text.similarity.JaccardSimilarity;
 import org.apache.commons.text.similarity.LevenshteinDistance;
-
 import java.text.NumberFormat;
 import java.util.*;
 import java.util.function.BiFunction;
@@ -36,7 +34,7 @@ public class MyCompare {
             String poc1, String poc2,
             boolean html_flag,
             BiFunction<String, String, Double> similarityFunc) {
-
+        List<Double> list = new ArrayList<>();
         int lengthDiff = Math.abs(s1.length() - s2.length());
 
         if (lengthDiff <= 1) {
@@ -59,7 +57,7 @@ public class MyCompare {
             return List.of(0.0);
         }
 
-        List<Double> list = new ArrayList<>();
+
 
         if (html_flag) {
             String[] newStrList;

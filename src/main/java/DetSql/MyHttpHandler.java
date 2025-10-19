@@ -1019,7 +1019,7 @@ public class MyHttpHandler implements HttpHandler {
             HttpRequestResponse resp2 = sendHttpRequest(req2, DEFAULT_RETRY_COUNT);
             String body2 = extractResponseBody(resp2);
 
-            List<Double> sim2 = MyCompare.averageLevenshtein(body1, body2, "", "", htmlFlag);
+            List<Double> sim2 = MyCompare.averageLevenshtein(body1, body2, "", "''", htmlFlag);
             double minSim2 = Collections.min(sim2);
 
             if (minSim2 > config.getSimilarityThreshold()) {
@@ -1038,9 +1038,8 @@ public class MyHttpHandler implements HttpHandler {
             HttpRequestResponse resp3 = sendHttpRequest(req3, DEFAULT_RETRY_COUNT);
             String body3 = extractResponseBody(resp3);
 
-            List<Double> sim3 = MyCompare.averageLevenshtein(sourceBody, body3, "", "'+'", htmlFlag);
+            List<Double> sim3 = MyCompare.averageLevenshtein(sourceBody, body3, "", "['+]", htmlFlag);
             double maxSim3 = Collections.max(sim3);
-
             if (maxSim3 > config.getSimilarityThreshold()) {
                 // Success: '+' concatenation same as original → confirmed SQL injection
                 pocEntries.add(PocLogEntry.fromResponse(
@@ -1057,7 +1056,7 @@ public class MyHttpHandler implements HttpHandler {
             HttpRequestResponse resp4 = sendHttpRequest(req4, DEFAULT_RETRY_COUNT);
             String body4 = extractResponseBody(resp4);
 
-            List<Double> sim4 = MyCompare.averageLevenshtein(sourceBody, body4, "", "'||'", htmlFlag);
+            List<Double> sim4 = MyCompare.averageLevenshtein(sourceBody, body4, "", "['|]", htmlFlag);
             double maxSim4 = Collections.max(sim4);
 
             if (maxSim4 > config.getSimilarityThreshold()) {
@@ -1160,7 +1159,7 @@ public class MyHttpHandler implements HttpHandler {
             String body2 = extractResponseBody(resp2);
 
             // 检查与原始响应的相似度
-            List<Double> sim2Source = MyCompare.averageLevenshtein(sourceBody, body2, "", "", htmlFlag);
+            List<Double> sim2Source = MyCompare.averageLevenshtein(sourceBody, body2, "", "-abc", htmlFlag);
             double minSim2Source = Collections.min(sim2Source);
 
             if (minSim2Source > config.getSimilarityThreshold()) {
@@ -1173,7 +1172,7 @@ public class MyHttpHandler implements HttpHandler {
             ));
 
             // 检查与测试1响应的相似度
-            List<Double> sim2First = MyCompare.averageLevenshtein(body1, body2, "", "", htmlFlag);
+            List<Double> sim2First = MyCompare.averageLevenshtein(body1, body2, "0-0-0", "abc", htmlFlag);
             double minSim2First = Collections.min(sim2First);
 
             if (minSim2First <= config.getSimilarityThreshold()) {
