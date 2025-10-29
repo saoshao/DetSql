@@ -760,12 +760,13 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
                 tabbedPane1.addTab("CodeTool", new JPanel());
 
                 // Sync selected tab to content card
+                // Use fixed English keys regardless of tab title language
+                final String[] CARD_KEYS = {"DashBoard", "Config", "CodeTool"};
                 tabbedPane1.addChangeListener(e -> {
                     int idx = tabbedPane1.getSelectedIndex();
-                    if (idx >= 0) {
-                        String title = tabbedPane1.getTitleAt(idx);
+                    if (idx >= 0 && idx < CARD_KEYS.length) {
                         CardLayout cl = (CardLayout) contentCards.getLayout();
-                        cl.show(contentCards, title);
+                        cl.show(contentCards, CARD_KEYS[idx]);
                     }
                 });
 
