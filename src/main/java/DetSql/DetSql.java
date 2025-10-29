@@ -140,7 +140,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
             int rangeEnd = ee.getEndOffset();
             try {
                 String line = textArea.getText(rangeStart, rangeEnd - rangeStart)
-                    .replaceFirst("[\n\r]+$", "");
+                        .replaceFirst("[\n\r]+$", "");
                 if (!line.isBlank()) {
                     result.add(line);
                 }
@@ -194,8 +194,8 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
     private Set<String> parseSetProperty(Properties prop, String key, Set<String> defaultValue) {
         String value = prop.getProperty(key, "");
         return value.isBlank()
-            ? defaultValue
-            : new HashSet<>(Arrays.asList(value.split("\\|")));
+                ? defaultValue
+                : new HashSet<>(Arrays.asList(value.split("\\|")));
     }
 
     /**
@@ -218,11 +218,11 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
      * @param configLabel Config directory label
      */
     private void updateLanguageLabels(
-        JLabel topicLabel, JLabel blackLabel, JLabel suffixLabel, JLabel errorPocLabel,
-        JLabel blackParams, JLabel diyLabel, JLabel resRegexLabel, JLabel timeLabel,
-        JLabel staticTimeLabel, JLabel startTimeLabel, JLabel blackPathLabel,
-        JButton conBt, JButton loadBt, JButton saveBt,
-        JLabel languageLabel, JLabel configLabel) {
+            JLabel topicLabel, JLabel blackLabel, JLabel suffixLabel, JLabel errorPocLabel,
+            JLabel blackParams, JLabel diyLabel, JLabel resRegexLabel, JLabel timeLabel,
+            JLabel staticTimeLabel, JLabel startTimeLabel, JLabel blackPathLabel,
+            JButton conBt, JButton loadBt, JButton saveBt,
+            JLabel languageLabel, JLabel configLabel) {
 
         topicLabel.setText(messages.getString("Domainwhitelisting"));
         blackLabel.setText(messages.getString("Domainblacklisting"));
@@ -454,7 +454,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
 
         // 使用新的日志系统 - 启动信息始终输出
         logger.always("################################################");
-        logger.always("[#]  DetSql v3.0.0 loaded successfully");
+        logger.always("[#]  DetSql v3.1.0 loaded successfully");
         logger.always("[#]  Author: saoshao");
         logger.always("[#]  Email: 1224165231@qq.com");
         logger.always("[#]  Github: https://github.com/saoshao/DetSql");
@@ -758,14 +758,13 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
                 tabbedPane1.addTab("DashBoard", new JPanel());
                 tabbedPane1.addTab("Config", new JPanel());
                 tabbedPane1.addTab("CodeTool", new JPanel());
-
+                final String[] CARD_KEYS = {"DashBoard", "Config", "CodeTool"};
                 // Sync selected tab to content card
                 tabbedPane1.addChangeListener(e -> {
                     int idx = tabbedPane1.getSelectedIndex();
-                    if (idx >= 0) {
-                        String title = tabbedPane1.getTitleAt(idx);
+                    if (idx >= 0&& idx < CARD_KEYS.length) {
                         CardLayout cl = (CardLayout) contentCards.getLayout();
-                        cl.show(contentCards, title);
+                        cl.show(contentCards, CARD_KEYS[idx]);
                     }
                 });
 
@@ -872,23 +871,23 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
         loadBt.addActionListener(e -> handleLoadButton());
         saveBt.addActionListener(e -> handleSaveButton());
         languageComboBox.addActionListener(e -> handleLanguageChange(topicLabel, blackLabel, suffixLabel, errorPocLabel,
-            blackParamsLabel, diyLabel, resRegexLabel, timeLabel, staticTimeLabel, startTimeLabel, blackPathLabel,
-            conBt, loadBt, saveBt, languageLabel, configLabel));
+                blackParamsLabel, diyLabel, resRegexLabel, timeLabel, staticTimeLabel, startTimeLabel, blackPathLabel,
+                conBt, loadBt, saveBt, languageLabel, configLabel));
 
         // Initialize language bundle and update all labels
         messages = ResourceBundle.getBundle("Messages", LOCALES[index]);
         updateLanguageLabels(topicLabel, blackLabel, suffixLabel, errorPocLabel,
-            blackParamsLabel, diyLabel, resRegexLabel, timeLabel,
-            staticTimeLabel, startTimeLabel, blackPathLabel,
-            conBt, loadBt, saveBt, languageLabel, configLabel);
+                blackParamsLabel, diyLabel, resRegexLabel, timeLabel,
+                staticTimeLabel, startTimeLabel, blackPathLabel,
+                conBt, loadBt, saveBt, languageLabel, configLabel);
 
         return container;
     }
 
     private void setupDomainFilters(Container container, SpringLayout layout,
-                                     JLabel topicLabel, JLabel blackLabel, JLabel suffixLabel,
-                                     JLabel errorPocLabel, JLabel blackParamsLabel,
-                                     Spring st, Spring st2) {
+                                    JLabel topicLabel, JLabel blackLabel, JLabel suffixLabel,
+                                    JLabel errorPocLabel, JLabel blackParamsLabel,
+                                    Spring st, Spring st2) {
         // Create text fields
         textField = new JTextField(TEXTFIELD_COLUMNS);
         blackTextField = new JTextField(TEXTFIELD_COLUMNS);
@@ -1004,8 +1003,8 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
     }
 
     private void setupConfigPath(Container container, SpringLayout layout, JLabel configLabel,
-                                  JButton loadBt, JButton saveBt, JLabel blackLabel,
-                                  Spring st, Spring st2, Spring st3, Spring st4) {
+                                 JButton loadBt, JButton saveBt, JLabel blackLabel,
+                                 Spring st, Spring st2, Spring st3, Spring st4) {
         // Create config path text field
         configTextField = new JTextField(TEXTFIELD_COLUMNS);
         configTextField.setEditable(false);
@@ -1029,7 +1028,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
     }
 
     private JScrollPane setupBlackPath(Container container, SpringLayout layout, JLabel blackPathLabel,
-                                        JLabel configLabel, Spring st, Spring st2) {
+                                       JLabel configLabel, Spring st, Spring st2) {
         // Create black path text area
         blackPathTextArea = new JTextArea(TEXTAREA_ROWS_SMALL, TEXTAREA_ROWS_MEDIUM);
         JScrollPane blackPathScrollPane = new JScrollPane();
@@ -1049,10 +1048,10 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
     }
 
     private JScrollPane setupPayloadsAndSettings(Container container, SpringLayout layout,
-                                                  JLabel diyLabel, JLabel resRegexLabel,
-                                                  JLabel timeLabel, JLabel staticTimeLabel, JLabel startTimeLabel,
-                                                  JLabel blackParamsLabel, Component blackPathScrollPane,
-                                                  Spring st, Spring st2) {
+                                                 JLabel diyLabel, JLabel resRegexLabel,
+                                                 JLabel timeLabel, JLabel staticTimeLabel, JLabel startTimeLabel,
+                                                 JLabel blackParamsLabel, Component blackPathScrollPane,
+                                                 Spring st, Spring st2) {
         // Create DIY payloads text area
         diyTextArea = new JTextArea(TEXTAREA_ROWS_XLARGE, TEXTAREA_ROWS_MEDIUM);
         JScrollPane diyScrollPane = new JScrollPane();
@@ -1132,7 +1131,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
     }
 
     private void setupLanguage(Container container, SpringLayout layout, JLabel languageLabel,
-                                JLabel blackParamsLabel, JScrollPane diyScrollPane, Spring st, Spring st2) {
+                               JLabel blackParamsLabel, JScrollPane diyScrollPane, Spring st, Spring st2) {
         // Create language combo box
         languageComboBox = new JComboBox<>(LANGUAGES);
         languageComboBox.setSelectedIndex(index);
@@ -1224,12 +1223,12 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
         fileChooser.setPreferredSize(new Dimension(FILE_CHOOSER_WIDTH, FILE_CHOOSER_HEIGHT));
 
         int result = isOpen
-            ? fileChooser.showOpenDialog(null)
-            : fileChooser.showSaveDialog(null);
+                ? fileChooser.showOpenDialog(null)
+                : fileChooser.showSaveDialog(null);
 
         return (result == JFileChooser.APPROVE_OPTION)
-            ? fileChooser.getSelectedFile()
-            : null;
+                ? fileChooser.getSelectedFile()
+                : null;
     }
 
     private void handleLoadButton() {
@@ -1252,7 +1251,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
             message = "Save success";
             Properties prop = buildConfigProperties();
             try (java.io.OutputStreamWriter fw = new java.io.OutputStreamWriter(
-                new java.io.FileOutputStream(file), java.nio.charset.StandardCharsets.UTF_8)) {
+                    new java.io.FileOutputStream(file), java.nio.charset.StandardCharsets.UTF_8)) {
                 prop.store(fw, null);
             } catch (IOException ex) {
                 throw new RuntimeException(ex);
@@ -1264,17 +1263,17 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
     }
 
     private void handleLanguageChange(JLabel topicLabel, JLabel blackLabel, JLabel suffixLabel, JLabel errorPocLabel,
-                                       JLabel blackParamsLabel, JLabel diyLabel, JLabel resRegexLabel, JLabel timeLabel,
-                                       JLabel staticTimeLabel, JLabel startTimeLabel, JLabel blackPathLabel,
-                                       JButton conBt, JButton loadBt, JButton saveBt,
-                                       JLabel languageLabel, JLabel configLabel) {
+                                      JLabel blackParamsLabel, JLabel diyLabel, JLabel resRegexLabel, JLabel timeLabel,
+                                      JLabel staticTimeLabel, JLabel startTimeLabel, JLabel blackPathLabel,
+                                      JButton conBt, JButton loadBt, JButton saveBt,
+                                      JLabel languageLabel, JLabel configLabel) {
         index = languageComboBox.getSelectedIndex();
         Locale locale = LOCALES[index];
         messages = ResourceBundle.getBundle("Messages", locale);
         updateLanguageLabels(topicLabel, blackLabel, suffixLabel, errorPocLabel,
-            blackParamsLabel, diyLabel, resRegexLabel, timeLabel,
-            staticTimeLabel, startTimeLabel, blackPathLabel,
-            conBt, loadBt, saveBt, languageLabel, configLabel);
+                blackParamsLabel, diyLabel, resRegexLabel, timeLabel,
+                staticTimeLabel, startTimeLabel, blackPathLabel,
+                conBt, loadBt, saveBt, languageLabel, configLabel);
     }
 
     public String myBase64Decode(String base64Str) {
@@ -1337,10 +1336,10 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
      * @param transformer Transformation function
      */
     private void addTextTransformListener(
-        JButton button,
-        JTextArea source,
-        JTextArea target,
-        java.util.function.Function<String, String> transformer
+            JButton button,
+            JTextArea source,
+            JTextArea target,
+            java.util.function.Function<String, String> transformer
     ) {
         button.addActionListener(e -> {
             String text = source.getText();
@@ -1404,7 +1403,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
         addTextTransformListener(urlBt, textArea5, textArea5, this::encodeUrl);
         addTextTransformListener(urlxBt, textArea5, textArea5, this::decodeUrl);
         addTextTransformListener(formatbt, textArea2, textArea2,
-            text -> toPrettyFormat(org.apache.commons.text.StringEscapeUtils.unescapeJava(text)));
+                text -> toPrettyFormat(org.apache.commons.text.StringEscapeUtils.unescapeJava(text)));
         Spring st = Spring.constant(PADDING_MEDIUM);
         Spring st2 = Spring.constant(PADDING_COMPONENT);
 

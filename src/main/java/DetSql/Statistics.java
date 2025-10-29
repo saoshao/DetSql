@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Thread-safe statistics tracker for DetSql
  * Tracks detection progress and resource usage
- *
+
  * Usage:
  *   Statistics stats = new Statistics();
  *   stats.incrementRequestsProcessed();
