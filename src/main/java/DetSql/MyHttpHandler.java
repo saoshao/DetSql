@@ -23,6 +23,9 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.swing.SwingUtilities;
 import DetSql.ResponseExtractor;
+import burp.api.montoya.utilities.URLUtils;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParser;
 
 public class MyHttpHandler implements HttpHandler {
     // Response size thresholds
@@ -84,6 +87,7 @@ public class MyHttpHandler implements HttpHandler {
     public final PocTableModel pocTableModel;
     public final ConcurrentHashMap<String, List<PocLogEntry>> attackMap;
     public CryptoUtils cryptoUtils;
+    public URLUtils urlUtils;
     public Lock lk;
     public static volatile String[] errPocs = DefaultConfig.DEFAULT_ERR_POCS.clone();
     public static volatile String[] errPocsj = DefaultConfig.DEFAULT_ERR_POCS_JSON.clone();
@@ -226,6 +230,7 @@ public class MyHttpHandler implements HttpHandler {
         this.semaphore = new Semaphore(config.getThreadPoolSize());
         this.semaphore2 = new Semaphore(config.getThreadPoolSize2());
         this.cryptoUtils = api.utilities().cryptoUtils();
+        this.urlUtils = api.utilities().urlUtils();
         this.lk = new ReentrantLock();
         this.countId = 1;  // Dashboard ID 从 1 开始
     }
@@ -475,7 +480,6 @@ public class MyHttpHandler implements HttpHandler {
         boolean orderFlag = false;
         boolean stringFlag = false;
         boolean boolFlag = false;
-
         boolean diyFlag = false;
         List<PocLogEntry> getAttackList = attackMap.get(requestSm3Hash);
         if (!sourceHttpRequest.parameters(HttpParameterType.URL).isEmpty()) {
@@ -487,10 +491,10 @@ public class MyHttpHandler implements HttpHandler {
             }
             //报错 - 使用提取的方法
             errFlag = testErrorInjection(newHttpParameters, sourceHttpRequest,
-                (source, name, value, payload) -> {
+                (source, name, value, payload,jIndex) -> {
                     List<HttpParameter> pocParams = new ArrayList<>(newHttpParameters);
                     int index = newHttpParameters.indexOf(HttpParameter.urlParameter(name, value));
-                    pocParams.set(index, HttpParameter.urlParameter(name, value + payload));
+                    pocParams.set(index, HttpParameter.urlParameter(name, value.substring(0,jIndex) + payload+value.substring(jIndex)));
                     return source.withUpdatedParameters(pocParams);
                 }, requestSm3Hash);
 
@@ -564,10 +568,10 @@ public class MyHttpHandler implements HttpHandler {
                 }
                 //err - 使用提取的方法
                 errFlag = testErrorInjection(newHttpParameters, sourceHttpRequest,
-                    (source, name, value, payload) -> {
+                    (source, name, value, payload,jIndex) -> {
                         List<HttpParameter> pocParams = new ArrayList<>(newHttpParameters);
                         int index = newHttpParameters.indexOf(HttpParameter.bodyParameter(name, value));
-                        pocParams.set(index, HttpParameter.bodyParameter(name, value + payload));
+                        pocParams.set(index, HttpParameter.bodyParameter(name, value.substring(0,jIndex) + payload+value.substring(jIndex)));
                         return source.withUpdatedParameters(pocParams);
                     }, requestSm3Hash);
 
@@ -844,10 +848,10 @@ public class MyHttpHandler implements HttpHandler {
             }
             //err - 使用提取的方法
             errFlag = testErrorInjection(newHttpParameters, sourceHttpRequest,
-                (source, name, value, payload) -> {
+                (source, name, value, payload,jIndex) -> {
                     List<HttpParameter> pocParams = new ArrayList<>(newHttpParameters);
                     int index = newHttpParameters.indexOf(HttpParameter.cookieParameter(name, value));
-                    pocParams.set(index, HttpParameter.cookieParameter(name, value + payload));
+                    pocParams.set(index, HttpParameter.cookieParameter(name, value.substring(0,jIndex) + payload+value.substring(jIndex)));
                     return source.withUpdatedParameters(pocParams);
                 }, requestSm3Hash);
 
@@ -978,7 +982,7 @@ public class MyHttpHandler implements HttpHandler {
         boolean foundVulnerability = false;
         List<PocLogEntry> attackList = attackMap.get(requestHash);
 
-        stringloop:
+
         for (int i = 0; i < params.size(); i++) {
             // Check for thread interruption
             if (Thread.currentThread().isInterrupted()) {
@@ -996,78 +1000,84 @@ public class MyHttpHandler implements HttpHandler {
             // Collect all PoC results for this parameter
             List<PocLogEntry> pocEntries = new ArrayList<>();
 
-            // Step 1: Single quote test - expect dissimilar (breaks SQL syntax)
-            HttpRequest req1 = modifier.modifyParameter(sourceRequest, param, "'");
-            HttpRequestResponse resp1 = sendHttpRequest(req1, DEFAULT_RETRY_COUNT);
-            String body1 = extractResponseBody(resp1);
+            String paramValue = param.value();
+            Set<Integer> jIndexs = getJSet(paramValue);
+            stringloop:
+            for (Integer jIndex : jIndexs) {
+                // Step 1: Single quote test - expect dissimilar (breaks SQL syntax)
+                HttpRequest req1 = modifier.modifyParameter(sourceRequest, param, "'",jIndex);
+                HttpRequestResponse resp1 = sendHttpRequest(req1, DEFAULT_RETRY_COUNT);
+                String body1 = extractResponseBody(resp1);
 
-            List<Double> sim1 = MyCompare.averageLevenshtein(sourceBody, body1, "", "", htmlFlag);
-            double minSim1 = Collections.min(sim1);
+                List<Double> sim1 = MyCompare.averageLevenshtein(sourceBody, body1, "", "", htmlFlag);
+                double minSim1 = Collections.min(sim1);
 
-            if (minSim1 > config.getSimilarityThreshold()) {
-                // Failed: single quote didn't change response → not an injection point
-                continue stringloop;
-            }
+                if (minSim1 > config.getSimilarityThreshold()) {
+                    // Failed: single quote didn't change response → not an injection point
+                    continue stringloop;
+                }
 
-            pocEntries.add(PocLogEntry.fromResponse(
-                paramName, "'", MyCompare.formatPercent(minSim1),
-                VULN_TYPE_STRING, resp1, requestHash
-            ));
-
-            // Step 2: Double quote test - expect dissimilar from step 1
-            HttpRequest req2 = modifier.modifyParameter(sourceRequest, param, "''");
-            HttpRequestResponse resp2 = sendHttpRequest(req2, DEFAULT_RETRY_COUNT);
-            String body2 = extractResponseBody(resp2);
-
-            List<Double> sim2 = MyCompare.averageLevenshtein(body1, body2, "", "''", htmlFlag);
-            double minSim2 = Collections.min(sim2);
-
-            if (minSim2 > config.getSimilarityThreshold()) {
-                // Failed: double quote same as single quote → not SQL injection
-                continue stringloop;
-            }
-
-            pocEntries.add(PocLogEntry.fromResponse(
-                paramName, "''", MyCompare.formatPercent(minSim2),
-                VULN_TYPE_STRING, resp2, requestHash
-            ));
-
-            // Step 3: '+' test - expect similar to original response
-            String plusPayload = modifier.needsUrlEncoding() ? "'%2B'" : "'+'";
-            HttpRequest req3 = modifier.modifyParameter(sourceRequest, param, plusPayload);
-            HttpRequestResponse resp3 = sendHttpRequest(req3, DEFAULT_RETRY_COUNT);
-            String body3 = extractResponseBody(resp3);
-
-            List<Double> sim3 = MyCompare.averageLevenshtein(sourceBody, body3, "", "['+]", htmlFlag);
-            double maxSim3 = Collections.max(sim3);
-            if (maxSim3 > config.getSimilarityThreshold()) {
-                // Success: '+' concatenation same as original → confirmed SQL injection
                 pocEntries.add(PocLogEntry.fromResponse(
-                    paramName, "'+'", MyCompare.formatPercent(maxSim3),
-                    VULN_TYPE_STRING, resp3, requestHash
+                        paramName, "'", MyCompare.formatPercent(minSim1),
+                        VULN_TYPE_STRING, resp1, requestHash
                 ));
-                attackList.addAll(pocEntries);
-                foundVulnerability = true;
-                continue stringloop; // Skip to next parameter
-            }
 
-            // Step 4: '||' test - alternative concatenation (Oracle/PostgreSQL)
-            HttpRequest req4 = modifier.modifyParameter(sourceRequest, param, "'||'");
-            HttpRequestResponse resp4 = sendHttpRequest(req4, DEFAULT_RETRY_COUNT);
-            String body4 = extractResponseBody(resp4);
+                // Step 2: Double quote test - expect dissimilar from step 1
+                HttpRequest req2 = modifier.modifyParameter(sourceRequest, param, "''",jIndex);
+                HttpRequestResponse resp2 = sendHttpRequest(req2, DEFAULT_RETRY_COUNT);
+                String body2 = extractResponseBody(resp2);
 
-            List<Double> sim4 = MyCompare.averageLevenshtein(sourceBody, body4, "", "['|]", htmlFlag);
-            double maxSim4 = Collections.max(sim4);
+                List<Double> sim2 = MyCompare.averageLevenshtein(body1, body2, "", "''", htmlFlag);
+                double minSim2 = Collections.min(sim2);
 
-            if (maxSim4 > config.getSimilarityThreshold()) {
-                // Success: '||' concatenation same as original → confirmed SQL injection
+                if (minSim2 > config.getSimilarityThreshold()) {
+                    // Failed: double quote same as single quote → not SQL injection
+                    continue stringloop;
+                }
+
                 pocEntries.add(PocLogEntry.fromResponse(
-                    paramName, "'||'", MyCompare.formatPercent(maxSim4),
-                    VULN_TYPE_STRING, resp4, requestHash
+                        paramName, "''", MyCompare.formatPercent(minSim2),
+                        VULN_TYPE_STRING, resp2, requestHash
                 ));
-                attackList.addAll(pocEntries);
-                foundVulnerability = true;
+
+                // Step 3: '+' test - expect similar to original response
+                String plusPayload = modifier.needsUrlEncoding() ? "'%2B'" : "'+'";
+                HttpRequest req3 = modifier.modifyParameter(sourceRequest, param, plusPayload,jIndex);
+                HttpRequestResponse resp3 = sendHttpRequest(req3, DEFAULT_RETRY_COUNT);
+                String body3 = extractResponseBody(resp3);
+
+                List<Double> sim3 = MyCompare.averageLevenshtein(sourceBody, body3, "", "['+]", htmlFlag);
+                double maxSim3 = Collections.max(sim3);
+                if (maxSim3 > config.getSimilarityThreshold()) {
+                    // Success: '+' concatenation same as original → confirmed SQL injection
+                    pocEntries.add(PocLogEntry.fromResponse(
+                            paramName, "'+'", MyCompare.formatPercent(maxSim3),
+                            VULN_TYPE_STRING, resp3, requestHash
+                    ));
+                    attackList.addAll(pocEntries);
+                    foundVulnerability = true;
+                    continue stringloop; // Skip to next parameter
+                }
+
+                // Step 4: '||' test - alternative concatenation (Oracle/PostgreSQL)
+                HttpRequest req4 = modifier.modifyParameter(sourceRequest, param, "'||'",jIndex);
+                HttpRequestResponse resp4 = sendHttpRequest(req4, DEFAULT_RETRY_COUNT);
+                String body4 = extractResponseBody(resp4);
+
+                List<Double> sim4 = MyCompare.averageLevenshtein(sourceBody, body4, "", "['|]", htmlFlag);
+                double maxSim4 = Collections.max(sim4);
+
+                if (maxSim4 > config.getSimilarityThreshold()) {
+                    // Success: '||' concatenation same as original → confirmed SQL injection
+                    pocEntries.add(PocLogEntry.fromResponse(
+                            paramName, "'||'", MyCompare.formatPercent(maxSim4),
+                            VULN_TYPE_STRING, resp4, requestHash
+                    ));
+                    attackList.addAll(pocEntries);
+                    foundVulnerability = true;
+                }
             }
+
         }
 
         return foundVulnerability;
@@ -1111,7 +1121,7 @@ public class MyHttpHandler implements HttpHandler {
         boolean foundVuln = false;
         List<PocLogEntry> attackList = attackMap.get(requestHash);
 
-        numloop:
+
         for (int i = 0; i < params.size(); i++) {
             // 检查线程中断
             if (Thread.currentThread().isInterrupted()) {
@@ -1131,54 +1141,58 @@ public class MyHttpHandler implements HttpHandler {
             if (!isNumeric(paramValue)) {
                 continue;
             }
+            Set<Integer> jIndexs = getJSet(paramValue);
+            numloop:
+            for (Integer jIndex : jIndexs) {
+                List<PocLogEntry> pocEntries = new ArrayList<>();
 
-            List<PocLogEntry> pocEntries = new ArrayList<>();
+                // 测试1: value-0-0-0 - 期望与原始响应相似
+                String payload1 = "-0-0-0";
+                HttpRequest req1 = modifier.modifyParameter(sourceRequest, param, payload1,jIndex);
+                HttpRequestResponse resp1 = sendHttpRequest(req1, DEFAULT_RETRY_COUNT);
+                String body1 = extractResponseBody(resp1);
 
-            // 测试1: value-0-0-0 - 期望与原始响应相似
-            String payload1 = "-0-0-0";
-            HttpRequest req1 = modifier.modifyParameter(sourceRequest, param, payload1);
-            HttpRequestResponse resp1 = sendHttpRequest(req1, DEFAULT_RETRY_COUNT);
-            String body1 = extractResponseBody(resp1);
+                List<Double> sim1 = MyCompare.averageLevenshtein(sourceBody, body1, "", payload1, htmlFlag);
+                double maxSim1 = Collections.max(sim1);
 
-            List<Double> sim1 = MyCompare.averageLevenshtein(sourceBody, body1, "", payload1, htmlFlag);
-            double maxSim1 = Collections.max(sim1);
+                if (maxSim1 <= config.getSimilarityThreshold()) {
+                    continue numloop; // 测试失败，跳过此参数
+                }
 
-            if (maxSim1 <= config.getSimilarityThreshold()) {
-                continue numloop; // 测试失败，跳过此参数
+                pocEntries.add(PocLogEntry.fromResponse(
+                        paramName, payload1, MyCompare.formatPercent(maxSim1),
+                        VULN_TYPE_NUMERIC, resp1, requestHash
+                ));
+
+                // 测试2: value-abc - 期望与原始响应和测试1响应都不相似
+                String payload2 = "-abc";
+                HttpRequest req2 = modifier.modifyParameter(sourceRequest, param, payload2,jIndex);
+                HttpRequestResponse resp2 = sendHttpRequest(req2, DEFAULT_RETRY_COUNT);
+                String body2 = extractResponseBody(resp2);
+
+                // 检查与原始响应的相似度
+                List<Double> sim2Source = MyCompare.averageLevenshtein(sourceBody, body2, "", "-abc", htmlFlag);
+                double minSim2Source = Collections.min(sim2Source);
+
+                if (minSim2Source > config.getSimilarityThreshold()) {
+                    continue numloop; // 测试失败，跳过此参数
+                }
+
+                pocEntries.add(PocLogEntry.fromResponse(
+                        paramName, payload2, MyCompare.formatPercent(minSim2Source),
+                        VULN_TYPE_NUMERIC, resp2, requestHash
+                ));
+
+                // 检查与测试1响应的相似度
+                List<Double> sim2First = MyCompare.averageLevenshtein(body1, body2, "0-0-0", "abc", htmlFlag);
+                double minSim2First = Collections.min(sim2First);
+
+                if (minSim2First <= config.getSimilarityThreshold()) {
+                    attackList.addAll(pocEntries);
+                    foundVuln = true;
+                }
             }
 
-            pocEntries.add(PocLogEntry.fromResponse(
-                paramName, payload1, MyCompare.formatPercent(maxSim1),
-                VULN_TYPE_NUMERIC, resp1, requestHash
-            ));
-
-            // 测试2: value-abc - 期望与原始响应和测试1响应都不相似
-            String payload2 = "-abc";
-            HttpRequest req2 = modifier.modifyParameter(sourceRequest, param, payload2);
-            HttpRequestResponse resp2 = sendHttpRequest(req2, DEFAULT_RETRY_COUNT);
-            String body2 = extractResponseBody(resp2);
-
-            // 检查与原始响应的相似度
-            List<Double> sim2Source = MyCompare.averageLevenshtein(sourceBody, body2, "", "-abc", htmlFlag);
-            double minSim2Source = Collections.min(sim2Source);
-
-            if (minSim2Source > config.getSimilarityThreshold()) {
-                continue numloop; // 测试失败，跳过此参数
-            }
-
-            pocEntries.add(PocLogEntry.fromResponse(
-                paramName, payload2, MyCompare.formatPercent(minSim2Source),
-                VULN_TYPE_NUMERIC, resp2, requestHash
-            ));
-
-            // 检查与测试1响应的相似度
-            List<Double> sim2First = MyCompare.averageLevenshtein(body1, body2, "0-0-0", "abc", htmlFlag);
-            double minSim2First = Collections.min(sim2First);
-
-            if (minSim2First <= config.getSimilarityThreshold()) {
-                attackList.addAll(pocEntries);
-                foundVuln = true;
-            }
         }
 
         return foundVuln;
@@ -1252,7 +1266,7 @@ public class MyHttpHandler implements HttpHandler {
         boolean foundVuln = false;
         List<PocLogEntry> attackList = attackMap.get(requestHash);
 
-        orderloop:
+
         for (int i = 0; i < params.size(); i++) {
             // 检查线程中断
             if (Thread.currentThread().isInterrupted()) {
@@ -1272,95 +1286,99 @@ public class MyHttpHandler implements HttpHandler {
             if (paramValue.isBlank()) {
                 continue;
             }
+            Set<Integer> jIndexs = getJSet(paramValue);
+            orderloop:
+            for (Integer jIndex : jIndexs) {
+                List<PocLogEntry> pocEntries = new ArrayList<>();
 
-            List<PocLogEntry> pocEntries = new ArrayList<>();
+                // 测试1: value,0 - 期望与原始响应不相似 (无效列索引)
+                HttpRequest req1 = modifier.modifyParameter(sourceRequest, param, ",0",jIndex);
+                HttpRequestResponse resp1 = sendHttpRequest(req1, DEFAULT_RETRY_COUNT);
+                String body1 = extractResponseBody(resp1);
 
-            // 测试1: value,0 - 期望与原始响应不相似 (无效列索引)
-            HttpRequest req1 = modifier.modifyParameter(sourceRequest, param, ",0");
-            HttpRequestResponse resp1 = sendHttpRequest(req1, DEFAULT_RETRY_COUNT);
-            String body1 = extractResponseBody(resp1);
+                List<Double> sim1 = MyCompare.averageJaccard(sourceBody, body1, "", "", htmlFlag);
+                double minSim1 = Collections.min(sim1);
 
-            List<Double> sim1 = MyCompare.averageJaccard(sourceBody, body1, "", "", htmlFlag);
-            double minSim1 = Collections.min(sim1);
+                if (minSim1 > config.getSimilarityThreshold()) {
+                    continue orderloop; // 测试失败,跳过此参数
+                }
 
-            if (minSim1 > config.getSimilarityThreshold()) {
-                continue orderloop; // 测试失败,跳过此参数
-            }
-
-            pocEntries.add(PocLogEntry.fromResponse(
-                paramName, ",0", MyCompare.formatPercent(minSim1),
-                VULN_TYPE_ORDER, resp1, requestHash
-            ));
-
-            // 测试2: value,xxxxxx - 期望与原始响应不相似 (无效列名)
-            HttpRequest req2 = modifier.modifyParameter(sourceRequest, param, ",XXXXXX");
-            HttpRequestResponse resp2 = sendHttpRequest(req2, DEFAULT_RETRY_COUNT);
-            String body2 = extractResponseBody(resp2);
-
-            List<Double> sim2 = MyCompare.averageJaccard(sourceBody, body2, "", "", htmlFlag);
-            double minSim2 = Collections.min(sim2);
-
-            if (minSim2 > config.getSimilarityThreshold()) {
-                continue orderloop; // 测试失败,跳过此参数
-            }
-
-            pocEntries.add(PocLogEntry.fromResponse(
-                paramName, ",XXXXXX", MyCompare.formatPercent(minSim2),
-                VULN_TYPE_ORDER, resp2, requestHash
-            ));
-
-            // 测试3: 验证两个无效输入响应相似 (都是错误响应)
-            List<Double> sim3 = MyCompare.averageJaccard(body1, body2, "", "", htmlFlag);
-            double maxSim3 = Collections.max(sim3);
-
-            if (maxSim3 <= config.getSimilarityThreshold()) {
-                continue orderloop; // 测试失败,两个错误响应应该相似
-            }
-
-            // 测试4a: value,1 - 期望与原始响应相似 (有效列索引)
-            HttpRequest req4a = modifier.modifyParameter(sourceRequest, param, ",1");
-            HttpRequestResponse resp4a = sendHttpRequest(req4a, DEFAULT_RETRY_COUNT);
-            String body4a = extractResponseBody(resp4a);
-
-            List<Double> sim4a = MyCompare.averageJaccard(sourceBody, body4a, "", "", htmlFlag);
-            double maxSim4a = Collections.max(sim4a);
-
-            // 同时检查 ,1 与 ,0 不相似 (避免所有响应都相同的情况)
-            List<Double> sim4aVs1 = MyCompare.averageJaccard(body1, body4a, "", "", htmlFlag);
-            double minSim4aVs1 = Collections.min(sim4aVs1);
-
-            if (maxSim4a > config.getSimilarityThreshold() && minSim4aVs1 <= config.getSimilarityThreshold()) {
-                // 成功: ,1 与原始相似,且与 ,0 不相似
                 pocEntries.add(PocLogEntry.fromResponse(
-                    paramName, ",1", MyCompare.formatPercent(maxSim4a),
-                    VULN_TYPE_ORDER, resp4a, requestHash
+                        paramName, ",0", MyCompare.formatPercent(minSim1),
+                        VULN_TYPE_ORDER, resp1, requestHash
                 ));
-                attackList.addAll(pocEntries);
-                foundVuln = true;
-                continue orderloop;
-            }
 
-            // 测试4b: value,2 - 备选测试 (另一个有效列索引)
-            HttpRequest req4b = modifier.modifyParameter(sourceRequest, param, ",2");
-            HttpRequestResponse resp4b = sendHttpRequest(req4b, DEFAULT_RETRY_COUNT);
-            String body4b = extractResponseBody(resp4b);
+                // 测试2: value,xxxxxx - 期望与原始响应不相似 (无效列名)
+                HttpRequest req2 = modifier.modifyParameter(sourceRequest, param, ",XXXXXX",jIndex);
+                HttpRequestResponse resp2 = sendHttpRequest(req2, DEFAULT_RETRY_COUNT);
+                String body2 = extractResponseBody(resp2);
 
-            List<Double> sim4b = MyCompare.averageJaccard(sourceBody, body4b, "", "", htmlFlag);
-            double maxSim4b = Collections.max(sim4b);
+                List<Double> sim2 = MyCompare.averageJaccard(sourceBody, body2, "", "", htmlFlag);
+                double minSim2 = Collections.min(sim2);
 
-            // 同时检查 ,2 与 ,0 不相似
-            List<Double> sim4bVs1 = MyCompare.averageJaccard(body1, body4b, "", "", htmlFlag);
-            double minSim4bVs1 = Collections.min(sim4bVs1);
+                if (minSim2 > config.getSimilarityThreshold()) {
+                    continue orderloop; // 测试失败,跳过此参数
+                }
 
-            if (maxSim4b > config.getSimilarityThreshold() && minSim4bVs1 <= config.getSimilarityThreshold()) {
-                // 成功: ,2 与原始相似,且与 ,0 不相似
                 pocEntries.add(PocLogEntry.fromResponse(
-                    paramName, ",2", MyCompare.formatPercent(maxSim4b),
-                    VULN_TYPE_ORDER, resp4b, requestHash
+                        paramName, ",XXXXXX", MyCompare.formatPercent(minSim2),
+                        VULN_TYPE_ORDER, resp2, requestHash
                 ));
-                attackList.addAll(pocEntries);
-                foundVuln = true;
+
+                // 测试3: 验证两个无效输入响应相似 (都是错误响应)
+                List<Double> sim3 = MyCompare.averageJaccard(body1, body2, "", "", htmlFlag);
+                double maxSim3 = Collections.max(sim3);
+
+                if (maxSim3 <= config.getSimilarityThreshold()) {
+                    continue orderloop; // 测试失败,两个错误响应应该相似
+                }
+
+                // 测试4a: value,1 - 期望与原始响应相似 (有效列索引)
+                HttpRequest req4a = modifier.modifyParameter(sourceRequest, param, ",1",jIndex);
+                HttpRequestResponse resp4a = sendHttpRequest(req4a, DEFAULT_RETRY_COUNT);
+                String body4a = extractResponseBody(resp4a);
+
+                List<Double> sim4a = MyCompare.averageJaccard(sourceBody, body4a, "", "", htmlFlag);
+                double maxSim4a = Collections.max(sim4a);
+
+                // 同时检查 ,1 与 ,0 不相似 (避免所有响应都相同的情况)
+                List<Double> sim4aVs1 = MyCompare.averageJaccard(body1, body4a, "", "", htmlFlag);
+                double minSim4aVs1 = Collections.min(sim4aVs1);
+
+                if (maxSim4a > config.getSimilarityThreshold() && minSim4aVs1 <= config.getSimilarityThreshold()) {
+                    // 成功: ,1 与原始相似,且与 ,0 不相似
+                    pocEntries.add(PocLogEntry.fromResponse(
+                            paramName, ",1", MyCompare.formatPercent(maxSim4a),
+                            VULN_TYPE_ORDER, resp4a, requestHash
+                    ));
+                    attackList.addAll(pocEntries);
+                    foundVuln = true;
+                    continue orderloop;
+                }
+
+                // 测试4b: value,2 - 备选测试 (另一个有效列索引)
+                HttpRequest req4b = modifier.modifyParameter(sourceRequest, param, ",2",jIndex);
+                HttpRequestResponse resp4b = sendHttpRequest(req4b, DEFAULT_RETRY_COUNT);
+                String body4b = extractResponseBody(resp4b);
+
+                List<Double> sim4b = MyCompare.averageJaccard(sourceBody, body4b, "", "", htmlFlag);
+                double maxSim4b = Collections.max(sim4b);
+
+                // 同时检查 ,2 与 ,0 不相似
+                List<Double> sim4bVs1 = MyCompare.averageJaccard(body1, body4b, "", "", htmlFlag);
+                double minSim4bVs1 = Collections.min(sim4bVs1);
+
+                if (maxSim4b > config.getSimilarityThreshold() && minSim4bVs1 <= config.getSimilarityThreshold()) {
+                    // 成功: ,2 与原始相似,且与 ,0 不相似
+                    pocEntries.add(PocLogEntry.fromResponse(
+                            paramName, ",2", MyCompare.formatPercent(maxSim4b),
+                            VULN_TYPE_ORDER, resp4b, requestHash
+                    ));
+                    attackList.addAll(pocEntries);
+                    foundVuln = true;
+                }
             }
+
         }
 
         return foundVuln;
@@ -1409,7 +1427,7 @@ public class MyHttpHandler implements HttpHandler {
         boolean foundVuln = false;
         List<PocLogEntry> attackList = attackMap.get(requestHash);
 
-        boolloop:
+
         for (int i = 0; i < params.size(); i++) {
             // 检查线程中断
             if (Thread.currentThread().isInterrupted()) {
@@ -1423,112 +1441,117 @@ public class MyHttpHandler implements HttpHandler {
             if (shouldSkipParameter(paramName)) {
                 continue;
             }
+            String paramValue = param.value();
+            Set<Integer> jIndexs = getJSet(paramValue);
+            boolloop:
+            for (Integer jIndex : jIndexs) {
+                List<PocLogEntry> pocEntries = new ArrayList<>();
+                String referenceBody;  // 用于最后一步比较的参考响应
 
-            List<PocLogEntry> pocEntries = new ArrayList<>();
-            String referenceBody;  // 用于最后一步比较的参考响应
-
-            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            // 步骤1: '||EXP(710)||' - 触发溢出
-            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            HttpRequest req1 = modifier.modifyParameter(
-                sourceRequest, param, "'||EXP(710)||'"
-            );
-            HttpRequestResponse resp1 = sendHttpRequest(req1, DEFAULT_RETRY_COUNT);
-            String body1 = extractResponseBody(resp1);
-
-            List<Double> sim1 = MyCompare.averageLevenshtein(
-                sourceBody, body1, "", "", htmlFlag
-            );
-            double minSim1 = Collections.min(sim1);
-
-            if (minSim1 > config.getSimilarityThreshold()) {
-                // 失败: EXP(710)没有改变响应 → 不可能是注入点
-                continue boolloop;
-            }
-
-            pocEntries.add(PocLogEntry.fromResponse(
-                paramName, "'||EXP(710)||'", MyCompare.formatPercent(minSim1),
-                VULN_TYPE_BOOLEAN, resp1, requestHash
-            ));
-
-            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            // 步骤2a: '||EXP(290)||' - 正常值 (主要路径)
-            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            HttpRequest req2 = modifier.modifyParameter(
-                sourceRequest, param, "'||EXP(290)||'"
-            );
-            HttpRequestResponse resp2 = sendHttpRequest(req2, DEFAULT_RETRY_COUNT);
-            String body2 = extractResponseBody(resp2);
-
-            List<Double> sim2 = MyCompare.averageLevenshtein(
-                body1, body2, "", "", htmlFlag
-            );
-            double minSim2 = Collections.min(sim2);
-
-            if (minSim2 <= config.getSimilarityThreshold()) {
-                // 成功: EXP(290)与EXP(710)响应不同
-                pocEntries.add(PocLogEntry.fromResponse(
-                    paramName, "'||EXP(290)||'", MyCompare.formatPercent(minSim2),
-                    VULN_TYPE_BOOLEAN, resp2, requestHash
-                ));
-                referenceBody = body2;
-            } else {
                 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                // 步骤2b: '||1/0||' - 备选路径 (Division by zero)
+                // 步骤1: '||EXP(710)||' - 触发溢出
                 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                // URL参数需要URL编码: / → %2F
-                String divZeroPayload = modifier.needsUrlEncoding()
-                    ? "'||1%2F0||'" : "'||1/0||'";
-
-                HttpRequest req2b = modifier.modifyParameter(
-                    sourceRequest, param, divZeroPayload
+                HttpRequest req1 = modifier.modifyParameter(
+                        sourceRequest, param, "'||EXP(710)||'",jIndex
                 );
-                HttpRequestResponse resp2b = sendHttpRequest(req2b, DEFAULT_RETRY_COUNT);
-                String body2b = extractResponseBody(resp2b);
+                HttpRequestResponse resp1 = sendHttpRequest(req1, DEFAULT_RETRY_COUNT);
+                String body1 = extractResponseBody(resp1);
 
-                List<Double> sim2b = MyCompare.averageLevenshtein(
-                    sourceBody, body2b, "", "'||1/0||'", htmlFlag
+                List<Double> sim1 = MyCompare.averageLevenshtein(
+                        sourceBody, body1, "", "", htmlFlag
                 );
-                double maxSim2b = Collections.max(sim2b);
+                double minSim1 = Collections.min(sim1);
 
-                if (maxSim2b <= config.getSimilarityThreshold()) {
-                    // 失败: 备选路径也失败
+                if (minSim1 > config.getSimilarityThreshold()) {
+                    // 失败: EXP(710)没有改变响应 → 不可能是注入点
                     continue boolloop;
                 }
 
                 pocEntries.add(PocLogEntry.fromResponse(
-                    paramName, divZeroPayload, MyCompare.formatPercent(maxSim2b),
-                    VULN_TYPE_BOOLEAN, resp2b, requestHash
+                        paramName, "'||EXP(710)||'", MyCompare.formatPercent(minSim1),
+                        VULN_TYPE_BOOLEAN, resp1, requestHash
                 ));
-                referenceBody = body2b;
+
+                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                // 步骤2a: '||EXP(290)||' - 正常值 (主要路径)
+                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                HttpRequest req2 = modifier.modifyParameter(
+                        sourceRequest, param, "'||EXP(290)||'",jIndex
+                );
+                HttpRequestResponse resp2 = sendHttpRequest(req2, DEFAULT_RETRY_COUNT);
+                String body2 = extractResponseBody(resp2);
+
+                List<Double> sim2 = MyCompare.averageLevenshtein(
+                        body1, body2, "", "", htmlFlag
+                );
+                double minSim2 = Collections.min(sim2);
+
+                if (minSim2 <= config.getSimilarityThreshold()) {
+                    // 成功: EXP(290)与EXP(710)响应不同
+                    pocEntries.add(PocLogEntry.fromResponse(
+                            paramName, "'||EXP(290)||'", MyCompare.formatPercent(minSim2),
+                            VULN_TYPE_BOOLEAN, resp2, requestHash
+                    ));
+                    referenceBody = body2;
+                } else {
+                    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                    // 步骤2b: '||1/0||' - 备选路径 (Division by zero)
+                    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                    // URL参数需要URL编码: / → %2F
+                    String divZeroPayload = modifier.needsUrlEncoding()
+                            ? "'||1%2F0||'" : "'||1/0||'";
+
+                    HttpRequest req2b = modifier.modifyParameter(
+                            sourceRequest, param, divZeroPayload,jIndex
+                    );
+                    HttpRequestResponse resp2b = sendHttpRequest(req2b, DEFAULT_RETRY_COUNT);
+                    String body2b = extractResponseBody(resp2b);
+
+                    List<Double> sim2b = MyCompare.averageLevenshtein(
+                            sourceBody, body2b, "", "'||1/0||'", htmlFlag
+                    );
+                    double maxSim2b = Collections.max(sim2b);
+
+                    if (maxSim2b <= config.getSimilarityThreshold()) {
+                        // 失败: 备选路径也失败
+                        continue boolloop;
+                    }
+
+                    pocEntries.add(PocLogEntry.fromResponse(
+                            paramName, divZeroPayload, MyCompare.formatPercent(maxSim2b),
+                            VULN_TYPE_BOOLEAN, resp2b, requestHash
+                    ));
+                    referenceBody = body2b;
+                }
+
+                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                // 步骤3: '||1/1||' - 应该与步骤2相似
+                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                String divOnePayload = modifier.needsUrlEncoding()
+                        ? "'||1%2F1||'" : "'||1/1||'";
+
+                HttpRequest req3 = modifier.modifyParameter(
+                        sourceRequest, param, divOnePayload,jIndex
+                );
+                HttpRequestResponse resp3 = sendHttpRequest(req3, DEFAULT_RETRY_COUNT);
+                String body3 = extractResponseBody(resp3);
+
+                List<Double> sim3 = MyCompare.averageLevenshtein(
+                        referenceBody, body3, "EXP\\(290\\)", "1/1", htmlFlag
+                );
+                double maxSim3 = Collections.max(sim3);
+
+                if (maxSim3 > config.getSimilarityThreshold()) {
+                    // 成功: 1/1 与参考响应相似 → 确认Boolean注入
+                    pocEntries.add(PocLogEntry.fromResponse(
+                            paramName, divOnePayload, MyCompare.formatPercent(maxSim3),
+                            VULN_TYPE_BOOLEAN, resp3, requestHash
+                    ));
+                    attackList.addAll(pocEntries);
+                    foundVuln = true;
+                }
             }
 
-            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            // 步骤3: '||1/1||' - 应该与步骤2相似
-            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            String divOnePayload = modifier.needsUrlEncoding()
-                ? "'||1%2F1||'" : "'||1/1||'";
-
-            HttpRequest req3 = modifier.modifyParameter(
-                sourceRequest, param, divOnePayload
-            );
-            HttpRequestResponse resp3 = sendHttpRequest(req3, DEFAULT_RETRY_COUNT);
-            String body3 = extractResponseBody(resp3);
-
-            List<Double> sim3 = MyCompare.averageLevenshtein(
-                referenceBody, body3, "EXP\\(290\\)", "1/1", htmlFlag
-            );
-            double maxSim3 = Collections.max(sim3);
-
-            if (maxSim3 > config.getSimilarityThreshold()) {
-                // 成功: 1/1 与参考响应相似 → 确认Boolean注入
-                pocEntries.add(PocLogEntry.fromResponse(
-                    paramName, divOnePayload, MyCompare.formatPercent(maxSim3),
-                    VULN_TYPE_BOOLEAN, resp3, requestHash
-                ));
-                attackList.addAll(pocEntries);
-                foundVuln = true;
-            }
         }
 
         return foundVuln;
@@ -1573,47 +1596,51 @@ public class MyHttpHandler implements HttpHandler {
             if (shouldSkipParameter(paramName)) {
                 continue;
             }
+            String paramValue = param.value();
+            Set<Integer> jIndexs = getJSet(paramValue);
+            for (Integer jIndex : jIndexs) {
+                // 测试所有DIY Payload
+                for (String payload : diyPayloads) {
+                    HttpRequest pocRequest = modifier.modifyParameter(
+                            sourceRequest, param, payload,jIndex
+                    );
+                    HttpRequestResponse pocResponse = sendHttpRequest(pocRequest, DEFAULT_RETRY_COUNT);
+                    String responseBody = extractResponseBody(pocResponse);
 
-            // 测试所有DIY Payload
-            for (String payload : diyPayloads) {
-                HttpRequest pocRequest = modifier.modifyParameter(
-                    sourceRequest, param, payload
-                );
-                HttpRequestResponse pocResponse = sendHttpRequest(pocRequest, DEFAULT_RETRY_COUNT);
-                String responseBody = extractResponseBody(pocResponse);
-
-                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                // 检测方式1: Regex匹配
-                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                if (!diyRegexs.isEmpty()) {
-                    String matchedRegex = diyRegexCheck(responseBody);
-                    if (matchedRegex != null) {
-                        attackList.add(PocLogEntry.fromResponse(
-                            paramName, payload, null,
-                            VULN_TYPE_DIY + "(" + matchedRegex + ")",
-                            pocResponse, requestHash
-                        ));
-                        foundVuln = true;
+                    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                    // 检测方式1: Regex匹配
+                    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                    if (!diyRegexs.isEmpty()) {
+                        String matchedRegex = diyRegexCheck(responseBody);
+                        if (matchedRegex != null) {
+                            attackList.add(PocLogEntry.fromResponse(
+                                    paramName, payload, null,
+                                    VULN_TYPE_DIY + "(" + matchedRegex + ")",
+                                    pocResponse, requestHash
+                            ));
+                            foundVuln = true;
+                        }
                     }
-                }
 
-                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                // 检测方式2: Time延迟
-                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                if (!DetSql.timeTextField.getText().isEmpty()) {
-                    long responseTime = pocResponse.timingData()
-                        .map(timing -> timing.timeBetweenRequestSentAndEndOfResponse().toMillis())
-                        .orElse(0L);
-                    if (responseTime > intTime) {
-                        attackList.add(PocLogEntry.fromResponse(
-                            paramName, payload, null,
-                            VULN_TYPE_DIY + "(time)",
-                            pocResponse, requestHash
-                        ));
-                        foundVuln = true;
+                    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                    // 检测方式2: Time延迟
+                    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                    if (!DetSql.timeTextField.getText().isEmpty()) {
+                        long responseTime = pocResponse.timingData()
+                                .map(timing -> timing.timeBetweenRequestSentAndEndOfResponse().toMillis())
+                                .orElse(0L);
+                        if (responseTime > intTime) {
+                            attackList.add(PocLogEntry.fromResponse(
+                                    paramName, payload, null,
+                                    VULN_TYPE_DIY + "(time)",
+                                    pocResponse, requestHash
+                            ));
+                            foundVuln = true;
+                        }
                     }
                 }
             }
+
         }
 
         return foundVuln;
@@ -1710,7 +1737,7 @@ public class MyHttpHandler implements HttpHandler {
      */
     @FunctionalInterface
     private interface PocRequestBuilder {
-        HttpRequest buildRequest(HttpRequest source, String paramName, String paramValue, String payload);
+        HttpRequest buildRequest(HttpRequest source, String paramName, String paramValue, String payload,int index);
     }
 
     /**
@@ -1743,19 +1770,22 @@ public class MyHttpHandler implements HttpHandler {
             }
 
             String paramValue = params.get(i).value();
-            for (String poc : errPocs) {
-                HttpRequest pocRequest = requestBuilder.buildRequest(sourceRequest, paramName, paramValue, poc);
-                HttpRequestResponse pocResponse = sendHttpRequest(pocRequest, DEFAULT_RETRY_COUNT);
-                String responseBody = extractResponseBody(pocResponse);
-                String matchedRule = ErrSqlCheck(responseBody);
+            Set<Integer> jIndexs=getJSet(paramValue);
+            for (Integer jIndex : jIndexs) {
+                for (String poc : errPocs) {
+                    HttpRequest pocRequest = requestBuilder.buildRequest(sourceRequest, paramName, paramValue, poc,jIndex);
+                    HttpRequestResponse pocResponse = sendHttpRequest(pocRequest, DEFAULT_RETRY_COUNT);
+                    String responseBody = extractResponseBody(pocResponse);
+                    String matchedRule = ErrSqlCheck(responseBody);
 
-                if (matchedRule != null) {
-                    PocLogEntry logEntry = PocLogEntry.fromResponse(
-                        paramName, poc, null, VULN_TYPE_ERROR + "(" + matchedRule + ")",
-                        pocResponse, requestHash
-                    );
-                    getAttackList.add(logEntry);
-                    foundVuln = true;
+                    if (matchedRule != null) {
+                        PocLogEntry logEntry = PocLogEntry.fromResponse(
+                                paramName, poc, null, VULN_TYPE_ERROR + "(" + matchedRule + ")",
+                                pocResponse, requestHash
+                        );
+                        getAttackList.add(logEntry);
+                        foundVuln = true;
+                    }
                 }
             }
         }
@@ -1996,7 +2026,6 @@ public class MyHttpHandler implements HttpHandler {
                 if (bodyLength == 0) {
                     return;
                 }
-
                 // Choose semaphore based on response size
                 Semaphore sem;
                 if (bodyLength < SMALL_RESPONSE_THRESHOLD) {
@@ -2007,14 +2036,106 @@ public class MyHttpHandler implements HttpHandler {
                     // Skip oversized responses
                     return;
                 }
-
                 // Process with selected semaphore
                 processRequestWithSemaphore(httpRequestResponse, sem);
-
             } catch (Exception e) {
                 logger.error("Thread processing failed", e);
                 statistics.incrementDetectionErrors();
             }
         }).start();
+    }
+    /**
+     * 判断参数值是否是json字符串
+     *
+     * @param jsonStr 参数值
+     * @return 参数值为json字符串为真
+     */
+    private boolean isJsonStr(String jsonStr){
+        JsonElement jsonElement;
+        try {
+            jsonElement = JsonParser.parseString(jsonStr);
+        } catch (Exception e) {
+            return false;
+        }
+        if (jsonElement == null) {
+            return false;
+        }
+        return jsonElement.isJsonObject();
+    }
+    /**
+     * 判断参数值url解码后是否是json字符串
+     *
+     * @param jsonUrlStr 参数值
+     * @return 参数值url解码后为json字符串为真
+     */
+    private boolean isUrlJsonStr(String jsonUrlStr){
+        return isJsonStr(urlUtils.decode(jsonUrlStr));
+    }
+
+    /**
+     * 得到url编码的json字符串值的索引集合
+     * {"a":{"b":"2"},"c":10,"d":["e","f"],"g":"h"}
+     * set为值2,e,f,h后一位的索引，[12,29,33,42]
+     * @param jsonstr 输入url编码的json字符串
+     * @return set集合
+     */
+    private Set<Integer> reJson(String jsonstr) {
+        Set<Integer> set = new HashSet<>();
+        String[] splitJson = jsonstr.split("\"");
+        int splen=splitJson.length;
+        int[] lenarr = new int[splen];
+        int length=0;
+        for (int n=0;n<splen;n++) {
+            length+=splitJson[n].length();
+            lenarr[n]=length;
+        }
+        for (int i = 1; i < splen; i+=2) {
+            if (!splitJson[i+1].startsWith(":")){
+               set.add(lenarr[i]+i);
+            }
+
+        }
+        return set;
+    }
+    /**
+     * 得到url编码的json字符串值的索引集合
+     * %7B%22a%22%3A%7B%22b%22%3A%222%22%7D%2C%22c%22%3A10%2C%22d%22%3A%5B%22e%22%2C%22f%22%5D%2C%22g%22%3A%22h%22%7D
+     * set为值2,e,f,h后一位的索引，[30, 71, 81, 104]
+     * @param jsonstr 输入url编码的json字符串
+     * @return set集合
+     */
+    private Set<Integer> reUrlJson(String jsonstr) {
+        Set<Integer> set = new HashSet<>();
+        String[] splitJson = jsonstr.split("%22");
+        int splen=splitJson.length;
+        int[] lenarr = new int[splen];
+        int length=0;
+        for (int n=0;n<splen;n++) {
+            length+=splitJson[n].length();
+            lenarr[n]=length;
+        }
+
+        for (int i = 1; i < splen; i+=2) {
+            if (!(splitJson[i+1].startsWith("%3A")||splitJson[i+1].startsWith("%3a"))){
+                set.add(lenarr[i]+i*3);
+            }
+
+        }
+        return set;
+    }
+
+    /**
+     * 当参数值为json字符串，将参数值转化为set索引集合，当参数值不为json字符串时返回值长度的Set，用于构造新的payloads
+     * @param paramValue 参数值
+     * @return 返回json索引集合，
+     */
+    private Set<Integer> getJSet(String paramValue){
+        if(isJsonStr(paramValue)){
+            return reJson(paramValue);
+        }else if(isUrlJsonStr(paramValue)){
+            return reUrlJson(paramValue);
+        }else{
+            return new HashSet<>(List.of(paramValue.length()));
+        }
     }
 }

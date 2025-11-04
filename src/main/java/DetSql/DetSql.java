@@ -454,7 +454,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
 
         // 使用新的日志系统 - 启动信息始终输出
         logger.always("################################################");
-        logger.always("[#]  DetSql v3.1.0 loaded successfully");
+        logger.always("[#]  DetSql v3.2.0 loaded successfully");
         logger.always("[#]  Author: saoshao");
         logger.always("[#]  Email: 1224165231@qq.com");
         logger.always("[#]  Github: https://github.com/saoshao/DetSql");

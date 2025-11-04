@@ -20,6 +20,7 @@ import java.util.List;
  */
 public final class ParameterModifiers {
 
+
     private ParameterModifiers() {
         // 工具类不允许实例化
     }
@@ -38,7 +39,7 @@ public final class ParameterModifiers {
         public HttpRequest modifyParameter(
                 HttpRequest sourceRequest,
                 ParsedHttpParameter param,
-                String payload) {
+                String payload,int jsonIndex) {
 
             // 1. 获取所有URL参数
             List<ParsedHttpParameter> parsedParams =
@@ -57,11 +58,20 @@ public final class ParameterModifiers {
             for (int i = 0; i < parsedParams.size(); i++) {
                 ParsedHttpParameter p = parsedParams.get(i);
                 if (i == paramIndex) {
-                    // 修改目标参数
-                    newParams.add(HttpParameter.urlParameter(
-                        param.name(),
-                        param.value() + payload
-                    ));
+                    if(jsonIndex==0){
+                        // 修改目标参数
+                        newParams.add(HttpParameter.urlParameter(
+                                param.name(),
+                                param.value() + payload
+                        ));
+                    }else if(jsonIndex>0&&jsonIndex<=param.value().length()){
+                        // 修改目标参数
+                        newParams.add(HttpParameter.urlParameter(
+                                param.name(),
+                                param.value().substring(0,jsonIndex) + payload+param.value().substring(jsonIndex)
+                        ));
+                    }
+
                 } else {
                     // 保持其他参数不变
                     newParams.add(HttpParameter.urlParameter(p.name(), p.value()));
@@ -91,7 +101,7 @@ public final class ParameterModifiers {
         public HttpRequest modifyParameter(
                 HttpRequest sourceRequest,
                 ParsedHttpParameter param,
-                String payload) {
+                String payload,int jsonIndex) {
 
             // 1. 获取所有BODY参数
             List<ParsedHttpParameter> parsedParams =
@@ -110,10 +120,18 @@ public final class ParameterModifiers {
             for (int i = 0; i < parsedParams.size(); i++) {
                 ParsedHttpParameter p = parsedParams.get(i);
                 if (i == paramIndex) {
-                    newParams.add(HttpParameter.bodyParameter(
-                        param.name(),
-                        param.value() + payload
-                    ));
+                    if(jsonIndex==0){
+                        newParams.add(HttpParameter.bodyParameter(
+                                param.name(),
+                                param.value() + payload
+                        ));
+                    } else if (jsonIndex>0&&jsonIndex<=param.value().length()) {
+                        newParams.add(HttpParameter.bodyParameter(
+                                param.name(),
+                                param.value().substring(0,jsonIndex) + payload+param.value().substring(jsonIndex)
+                        ));
+                    }
+
                 } else {
                     newParams.add(HttpParameter.bodyParameter(p.name(), p.value()));
                 }
@@ -137,7 +155,7 @@ public final class ParameterModifiers {
         public HttpRequest modifyParameter(
                 HttpRequest sourceRequest,
                 ParsedHttpParameter param,
-                String payload) {
+                String payload,int jsonIndex) {
 
             // 1. 直接从 param 对象获取偏移量信息
             int valueStart = param.valueOffsets().startIndexInclusive();
@@ -181,7 +199,7 @@ public final class ParameterModifiers {
         public HttpRequest modifyParameter(
                 HttpRequest sourceRequest,
                 ParsedHttpParameter param,
-                String payload) {
+                String payload,int jsonIndex) {
 
             // 1. 直接从 param 对象获取偏移量信息
             int valueStart = param.valueOffsets().startIndexInclusive();
@@ -225,7 +243,7 @@ public final class ParameterModifiers {
         public HttpRequest modifyParameter(
                 HttpRequest sourceRequest,
                 ParsedHttpParameter param,
-                String payload) {
+                String payload,int jsonIndex) {
 
             // 1. 获取所有COOKIE参数
             List<ParsedHttpParameter> parsedParams =

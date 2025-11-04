@@ -3,6 +3,8 @@ package DetSql;
 import burp.api.montoya.http.message.params.ParsedHttpParameter;
 import burp.api.montoya.http.message.requests.HttpRequest;
 
+import java.util.Optional;
+
 /**
  * 参数修改策略接口 - 封装不同参数类型的修改方式
  *
@@ -31,10 +33,11 @@ public interface ParameterModifier {
      * @return 修改后的新请求 (新对象)
      */
     HttpRequest modifyParameter(
-        HttpRequest sourceRequest,
-        ParsedHttpParameter param,
-        String payload
-    );
+            HttpRequest sourceRequest,
+            ParsedHttpParameter param,
+            String payload,
+            int jsonIndex
+            );
 
     /**
      * 默认方法: 判断是否需要URL编码
