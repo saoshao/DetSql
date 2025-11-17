@@ -28,6 +28,10 @@ public class MyFilterRequest {
 
     public static Set<String> unLegalExtensionSet = new HashSet<>(DefaultConfig.DEFAULT_SUFFIX_SET);
 
+    // 参数黑名单 - 从 MyHttpHandler 迁移到这里
+    // 因为过滤逻辑在这个类中
+    public static Set<String> blackParamsSet = new HashSet<>();
+
 
     //过滤一，来源为Proxy,Repeater
     public static boolean fromProxySource(HttpResponseReceived httpResponseReceived) {
@@ -40,14 +44,30 @@ public class MyFilterRequest {
         return httpResponseReceived.toolSource().isFromTool(ToolType.REPEATER);
     }
 
+    /**
+     * 正确的域名匹配逻辑：精确匹配或子域名匹配
+     * @param host 要检查的主机名
+     * @param pattern 匹配模式（域名）
+     * @return true 如果匹配，false 否则
+     */
+    private static boolean domainMatches(String host, String pattern) {
+        // 都转换为小写进行比较
+        String hostLower = host.toLowerCase();
+        String patternLower = pattern.toLowerCase();
+
+        // 精确匹配或者子域名匹配（注意前面必须有点号）
+        return hostLower.equals(patternLower)
+            || hostLower.endsWith("." + patternLower);
+    }
+
     //过滤二，保留白名单域名
     public static boolean matchesWhiteList(HttpResponseReceived httpResponseReceived) {
         if (whiteListSet.isEmpty()) {
             return true;
         }
         String host = httpResponseReceived.initiatingRequest().httpService().host();
-        for (String s : whiteListSet) {
-            if (host.toLowerCase().endsWith(s.trim())) {
+        for (String pattern : whiteListSet) {
+            if (domainMatches(host, pattern)) {
                 return true;
             }
         }
@@ -61,8 +81,8 @@ public class MyFilterRequest {
             return false;
         }
         String host = httpResponseReceived.initiatingRequest().httpService().host();
-        for (String s : blackListSet) {
-            if (host.toLowerCase().endsWith(s.trim())) {
+        for (String pattern : blackListSet) {
+            if (domainMatches(host, pattern)) {
                 return true;
             }
         }
@@ -90,7 +110,7 @@ public class MyFilterRequest {
         if (params == null || params.isEmpty()) return false;
         // 如果全部参数名都在黑名单内，则视为无效（直接跳过测试）
         for (ParsedHttpParameter p : params) {
-            if (!MyHttpHandler.blackParamsSet.contains(p.name())) {
+            if (!MyFilterRequest.blackParamsSet.contains(p.name())) {
                 return true; // 至少存在一个未被黑名单过滤的参数
             }
         }
@@ -119,8 +139,8 @@ public class MyFilterRequest {
         String cleanedText = path.replaceAll("\\n|\\r|\\r\\n", "");
 
         for (String rule : blackPathSet) {
-            Pattern pattern = Pattern.compile(rule, Pattern.CASE_INSENSITIVE);
-            if (pattern.matcher(cleanedText).find()) {
+            // 使用 RegexUtils 防止 ReDoS 攻击
+            if (RegexUtils.safeMatch(rule, cleanedText)) {
                 return true;
 
             }

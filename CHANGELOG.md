@@ -1,9 +1,161 @@
 # Changelog
 
-All notable changes to DetSql will be documented in this file.
+所有重要的变更都将记录在此文件中。
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
+并且该项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
+
+## [Unreleased]
+
+## [3.3.0] - 2025-11-17
+
+### 安全加固与质量提升
+
+本次发布是一次全面的安全加固和代码质量提升版本，重点解决了多个安全漏洞，新增了安全工具类，完善了测试覆盖，并优化了 UI 绑定机制的性能。
+
+#### 🔒 Security
+
+**修复关键安全漏洞**
+- 修复配置文件路径遍历漏洞（P0）
+- 修复内部可变集合直接暴露问题（P0）
+- 修复 ReDoS（正则表达式拒绝服务）漏洞（P1）
+- 修复索引越界和线程爆炸问题（P1）
+- 修复 parseDelimitedString 方法的安全过滤绕过问题
+- 修复域名过滤 endsWith() 导致的子域名绕过漏洞
+- 修复 reJson() 和 reUrlJson() 的数组越界问题
+
+**新增安全工具类**
+- `RegexUtils.java` - 安全的正则表达式工具类，提供 200ms 超时保护机制
+- `SafeString.java` - 安全的字符串操作工具类，防止索引越界
+
+#### ⚡ Performance
+- 实现 UI 组件与 DetSqlConfig 的双向自动绑定机制
+- UI 绑定机制性能优化（Linus 风格重构）
+  - 消除不必要的监听器创建和销毁
+  - 优化事件传播机制
+  - 减少内存分配和 GC 压力
+- 优化 MyHttpHandler.processRequestInternal 方法，降低嵌套深度至 3 层
+- 优化 RegexUtils 正则执行器配置以提升 CI 环境稳定性
+- 简化并发控制并消除静态变量
+
+#### ✨ Added
+
+**UI 双向绑定机制**
+- 新增 `BindingContext.java` - 绑定上下文管理
+- 新增 `UIBindingHelper.java` - UI 绑定辅助工具
+- 使用观察者模式实现配置变更实时同步
+- 支持多种 UI 组件类型（JTextField、JCheckBox、JSpinner 等）
+
+**表格模型优化**
+- SourceTableModel 新增 Hash 索引机制，提升查询性能
+- SourceTableModel 和 PocTableModel 新增 remove() 方法支持行删除
+- 优化表格列宽显示，提升用户体验
+- 统一列名与 Burp Proxy 一致
+
+#### 🧪 Tests
+
+**新增测试套件**（测试覆盖率显著提升）
+- `DetSqlInitializationTest.java` - DetSql 初始化测试
+- `DetSqlConfigTest.java` - 配置管理测试
+- `DetSqlConfigValidationTest.java` - 配置验证测试
+- `MyHttpHandlerIntegrationTest.java` - MyHttpHandler 集成测试
+- `MyCompareBoundaryTest.java` - MyCompare 边界测试
+- `MyCompareComprehensiveTest.java` - MyCompare 综合测试
+- `DomainFilterTest.java` - 域名过滤测试
+- `SuffixAndParamsFilterTest.java` - 后缀和参数过滤测试
+- `ParseDelimitedStringIntegrationTest.java` - 字符串解析测试
+- `RegexUtilsTest.java` - 正则工具测试（包含 ReDoS 保护测试）
+- `SafeStringTest.java` - 安全字符串测试
+- `UIBindingHelperTest.java` - UI 绑定测试
+- `UIBindingPerformanceTest.java` - UI 绑定性能测试
+- `AttackMapCacheTest.java` - 攻击映射缓存测试
+
+**性能基准测试套件**
+- `ReDoSBenchmark.java` - ReDoS 性能基准测试
+- `PerformanceTestUtils.java` - 性能测试工具
+- `PerformanceReportGenerator.java` - 性能报告生成器
+
+**修复测试问题**
+- 修复 CI 环境下 RegexUtils 超时测试的不稳定性
+- 修正 SafeStringTest 中 emoji 字符串的 char 索引预期
+- 移除 RegexUtils 测试中的 shutdown 调用以修复 RejectedExecutionException
+- 修复 Maven 构建警告和测试失败问题
+
+#### 🔧 CI/CD
+- 新增 benchmarks.yml - 性能基准测试工作流
+- 更新 ci.yml 和 codeql.yml 工作流配置
+- 优化 workflow 触发条件，添加 paths 过滤以避免不必要的 CI 运行
+- 工作流现在仅在源代码、pom.xml 或工作流文件本身变更时触发
+
+#### 🐛 Fixed
+- 消除所有编译警告，提升代码质量
+- 修复 Maven 资源插件编码警告
+- 修复 pom.xml 中的参数配置错误
+- 统一使用 UTF-8 编码
+- 修复 DetSqlInitializationTest 中的异步 UI 更新问题
+- 添加 SwingUtilities.invokeAndWait 等待异步操作完成
+
+#### 📚 Documentation
+- 完善 CHANGELOG.md，详细记录所有变更
+- 更新 README.md，添加最新功能说明
+- 同步上游仓库 tags (2.7, 3.0, 3.1, 3.2.0)
+
+#### 🧹 Refactored
+- 删除 `ThreadSafeAttackMap.java`（仅用于测试的简化实现）
+- 移除未使用的标签变量
+- 清理未使用的 Spring 参数
+- 回滚 LRU 并删除未使用代码
+
+#### 📊 Statistics
+- 测试结果：所有 344 个测试通过，构建成功
+- 代码变更：39 个文件修改
+- 新增代码：8217 行
+- 删除代码：1358 行
+- 净增加：6859 行
+
+---
+
+## [3.2.0] - 2025-11-05
+
+### JSON参数支持增强
+
+#### Added
+- **JSON字符串参数检测**：支持对参数值中嵌套的JSON字符串进行SQL注入检测
+- **深度参数解析**：能够识别和处理多层嵌套的JSON结构中的参数
+
+#### Changed
+- 重构 `MyHttpHandler.java` 的参数处理逻辑（775行变更）
+- 优化 `ParameterModifier` 接口，增强对复杂数据类型的支持
+- 改进 `ParameterModifiers` 类，提供更灵活的参数修改策略
+
+---
+
+## [3.1.0] - 2025-10-29
+
+### 配置页面修复
+
+#### Fixed
+- **配置页面显示问题**：修复因国际化导致配置页面无法显示的问题 (#46)
+  - 根本原因：CardLayout使用英文key注册组件，但tab标题会被国际化翻译
+  - 解决方案：使用固定索引映射数组CARD_KEYS，通过tab索引获取对应key
+
+---
+
+## [3.0.0] - 2025-10-19
+
+### 字符类型检测优化
+
+#### Changed
+- **字符类型判断逻辑调整**：优化SQL注入检测中的字符类型识别算法
+- 改进 `MyCompare.java` 中的相似度比较逻辑
+- 优化 `MyHttpHandler.java` 的检测流程
+- 更新 `PocTableModel.java` 的数据展示逻辑
+
+#### Added
+- **GitHub Actions支持**：添加CI/CD工作流配置
+- **代码质量提升**：修复CodeQL检测到的代码质量问题
+
+---
 
 ## [2.9.0] - 2025-10-13
 
@@ -110,7 +262,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [2.7.0] - 2024-12-XX
+## [2.7.0] - 2025-10-09
 
 ### 性能优化与安全加固
 

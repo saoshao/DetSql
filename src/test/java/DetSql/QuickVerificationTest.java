@@ -1,14 +1,11 @@
 package DetSql;
 
 import java.util.Locale;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 /**
  * 快速验证测试
  * 验证所有修复是否正常工作
- * 
+ *
  * 运行方式: java DetSql.QuickVerificationTest
  */
 public class QuickVerificationTest {
@@ -25,12 +22,9 @@ public class QuickVerificationTest {
         testMessagesEnglishLoading();
         testMessagesUIConfig();
         testMessagesWithParameters();
-        testThreadSafeAttackMapBasic();
-        testThreadSafeAttackMapConcurrency();
         testPocLogEntryFactoryMethod();
         testLogHelperWithoutInitialization();
         testMessagesKeyNotFound();
-        testThreadSafeAttackMapEdgeCases();
         
         System.out.println("\n╔══════════════════════════════════════════════════════════════╗");
         System.out.println("║                    测试结果汇总                              ║");
@@ -128,69 +122,6 @@ public class QuickVerificationTest {
         });
     }
 
-    public static void testThreadSafeAttackMapBasic() {
-        runTest("测试 5: ThreadSafeAttackMap 基本操作", () -> {
-            ThreadSafeAttackMap map = new ThreadSafeAttackMap();
-            
-            // 初始化
-            map.initializeRequest("test_hash");
-            
-            // 添加条目
-            PocLogEntry entry = new PocLogEntry(
-                "username", "' OR '1'='1", "90%", "errsql",
-                "1234", "200", "0.123", null, "test_hash"
-            );
-            map.addEntry("test_hash", entry);
-            
-            // 验证
-            assertTrue(map.hasAttacks("test_hash"), "应该有攻击记录");
-            assertEquals(1, map.getAttackCount("test_hash"), "应该有 1 条记录");
-            
-            System.out.println("✅ ThreadSafeAttackMap 基本操作测试通过");
-        });
-    }
-
-    public static void testThreadSafeAttackMapConcurrency() {
-        runTest("测试 6: ThreadSafeAttackMap 并发安全", () -> {
-            try {
-                ThreadSafeAttackMap map = new ThreadSafeAttackMap();
-                ExecutorService executor = Executors.newFixedThreadPool(10);
-                
-                // 并发写入 100 次
-                for (int i = 0; i < 100; i++) {
-                    final int index = i;
-                    executor.submit(() -> {
-                        String hash = "request_" + (index % 10);
-                        map.initializeRequest(hash);
-                        
-                        PocLogEntry entry = new PocLogEntry(
-                            "param" + index, "payload", "90%", "errsql",
-                            "1234", "200", "0.123", null, hash
-                        );
-                        map.addEntry(hash, entry);
-                    });
-                }
-                
-                executor.shutdown();
-                assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS), "应该在 5 秒内完成");
-                
-                // 验证结果
-                assertEquals(10, map.size(), "应该有 10 个不同的请求");
-                
-                // 验证每个请求的条目数
-                int totalEntries = 0;
-                for (int i = 0; i < 10; i++) {
-                    String hash = "request_" + i;
-                    totalEntries += map.getAttackCount(hash);
-                }
-                assertEquals(100, totalEntries, "总共应该有 100 条记录");
-                
-                System.out.println("✅ ThreadSafeAttackMap 并发安全测试通过");
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-        });
-    }
 
     public static void testPocLogEntryFactoryMethod() {
         runTest("测试 7: PocLogEntry 工厂方法", () -> {
@@ -235,32 +166,6 @@ public class QuickVerificationTest {
             assertEquals("non.existent.key", notFound, "应该返回键本身");
             
             System.out.println("✅ Messages 降级处理测试通过");
-        });
-    }
-
-    public static void testThreadSafeAttackMapEdgeCases() {
-        runTest("测试 10: ThreadSafeAttackMap 边界情况", () -> {
-            ThreadSafeAttackMap map = new ThreadSafeAttackMap();
-            
-            // 测试未初始化的请求
-            assertFalse(map.hasAttacks("non_existent"), "不存在的请求应该返回 false");
-            assertEquals(0, map.getAttackCount("non_existent"), "不存在的请求应该返回 0");
-            
-            // 测试空列表
-            map.initializeRequest("empty");
-            assertFalse(map.hasAttacks("empty"), "空列表应该返回 false");
-            assertEquals(0, map.getAttackCount("empty"), "空列表应该返回 0");
-            
-            // 测试清空
-            map.initializeRequest("test");
-            map.addEntry("test", new PocLogEntry(
-                "param", "payload", "90%", "errsql",
-                "1234", "200", "0.123", null, "test"
-            ));
-            map.clear();
-            assertEquals(0, map.size(), "清空后应该为 0");
-            
-            System.out.println("✅ ThreadSafeAttackMap 边界情况测试通过");
         });
     }
 }

@@ -57,7 +57,7 @@ public class PocTableModel extends AbstractTableModel {
         };
     }
 
-    public synchronized void add(List<PocLogEntry> logEntry) {
+    public synchronized void replaceAll(List<PocLogEntry> logEntry) {
         // 空数据处理
         if (logEntry == null || logEntry.isEmpty()) {
             if (!log.isEmpty()) {
@@ -88,5 +88,12 @@ public class PocTableModel extends AbstractTableModel {
 
     public synchronized PocLogEntry get(int rowIndex) {
         return log.get(rowIndex);
+    }
+
+    public synchronized void remove(int modelIndex) {
+        if (modelIndex >= 0 && modelIndex < log.size()) {
+            log.remove(modelIndex);
+            fireTableRowsDeleted(modelIndex, modelIndex);
+        }
     }
 }

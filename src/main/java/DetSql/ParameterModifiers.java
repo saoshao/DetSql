@@ -15,7 +15,7 @@ import java.util.List;
  * - testStringInjection(params, ParameterModifiers.URL, ...)
  * - testNumericInjection(params, ParameterModifiers.BODY, ...)
  *
- * @author DetSql Team
+ * @author kenyon
  * @version 3.0
  */
 public final class ParameterModifiers {

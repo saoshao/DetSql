@@ -17,8 +17,7 @@ import burp.api.montoya.utilities.CryptoUtils;
 import burp.api.montoya.utilities.DigestAlgorithm;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.swing.SwingUtilities;
@@ -81,19 +80,36 @@ public class MyHttpHandler implements HttpHandler {
     public final DetSqlConfig config; // 配置对象
     private final DetSqlLogger logger; // 日志系统
     private final Statistics statistics; // 统计系统
-    public Semaphore semaphore;
-    public Semaphore semaphore2;
     public final SourceTableModel sourceTableModel;//两张表
     public final PocTableModel pocTableModel;
     public final ConcurrentHashMap<String, List<PocLogEntry>> attackMap;
+
+    // 安全的线程池，防止线程爆炸
+    private static final ThreadPoolExecutor SCAN_EXECUTOR = new ThreadPoolExecutor(
+        Runtime.getRuntime().availableProcessors(),
+        Runtime.getRuntime().availableProcessors() * 2,
+        60L, TimeUnit.SECONDS,
+        new ArrayBlockingQueue<>(1000),
+        new ThreadFactory() {
+            private int counter = 0;
+            @Override
+            public Thread newThread(Runnable r) {
+                Thread t = new Thread(r, "DetSql-Scan-" + counter++);
+                t.setDaemon(true);
+                return t;
+            }
+        },
+        new ThreadPoolExecutor.CallerRunsPolicy()
+    );
+
     public CryptoUtils cryptoUtils;
     public URLUtils urlUtils;
-    public Lock lk;
-    public static volatile String[] errPocs = DefaultConfig.DEFAULT_ERR_POCS.clone();
-    public static volatile String[] errPocsj = DefaultConfig.DEFAULT_ERR_POCS_JSON.clone();
-    public static Set<String> diyPayloads = ConcurrentHashMap.newKeySet();
-    public static Set<String> diyRegexs = ConcurrentHashMap.newKeySet();
-    public static volatile int intTime = DefaultConfig.DEFAULT_DELAY_TIME_MS;
+
+    // Dashboard ID counter - thread-safe atomic increment
+    private final AtomicInteger countId = new AtomicInteger(1);
+
+    // 已迁移到 DetSqlConfig - 这些静态变量已废弃
+    // 所有配置现在通过 this.config 访问
     private static final String[] rules = {
             "the\\s+used\\s+select\\s+statements\\s+have\\s+different\\s+number\\s+of\\s+columns",
             "An\\s+illegal\\s+character\\s+has\\s+been\\s+found\\s+in\\s+the\\s+statement",
@@ -210,12 +226,13 @@ public class MyHttpHandler implements HttpHandler {
         // Precompile newline removal pattern
         NEWLINE_PATTERN = Pattern.compile("\\n|\\r|\\r\\n");
     }
-    public int countId;
-    public static Set<String> blackParamsSet = ConcurrentHashMap.newKeySet();
-    public static Set<String> whiteParamsSet = ConcurrentHashMap.newKeySet();
-    public static volatile int staticTime = 100;
-    public static volatile int startTime = 0;
-    public static volatile int endTime = 0;
+    // 已迁移到 DetSqlConfig - 这些静态变量已废弃
+    // 所有配置现在通过 this.config 访问
+    // blackParamsSet -> config.getBlackListParams()
+    // whiteParamsSet -> 未使用,已删除
+    // staticTime -> config.getStaticTimeMs()
+    // startTime -> config.getStartTimeMs()
+    // endTime -> config.getEndTimeMs()
 
     public MyHttpHandler(MontoyaApi mapi, SourceTableModel sourceTableModel, PocTableModel pocTableModel,
                         ConcurrentHashMap<String, List<PocLogEntry>> attackMap, DetSqlConfig config,
@@ -227,12 +244,8 @@ public class MyHttpHandler implements HttpHandler {
         this.sourceTableModel = sourceTableModel;
         this.pocTableModel = pocTableModel;
         this.attackMap = attackMap;
-        this.semaphore = new Semaphore(config.getThreadPoolSize());
-        this.semaphore2 = new Semaphore(config.getThreadPoolSize2());
         this.cryptoUtils = api.utilities().cryptoUtils();
         this.urlUtils = api.utilities().urlUtils();
-        this.lk = new ReentrantLock();
-        this.countId = 1;  // Dashboard ID 从 1 开始
     }
 
     @Override
@@ -247,17 +260,12 @@ public class MyHttpHandler implements HttpHandler {
     private static class RequestContext {
         final boolean isSmallResponse;
         final boolean isFromProxy;
-        final Semaphore semaphore;
         final String hash;
 
-        RequestContext(HttpResponseReceived response, CryptoUtils crypto,
-                      Semaphore normalSemaphore, Semaphore throttledSemaphore) {
+        RequestContext(HttpResponseReceived response, CryptoUtils crypto) {
             int bodyLength = response.bodyToString().length();
             this.isSmallResponse = bodyLength < SMALL_RESPONSE_THRESHOLD;
             this.isFromProxy = MyFilterRequest.fromProxySource(response);
-
-            // Choose semaphore based on response size
-            this.semaphore = isSmallResponse ? normalSemaphore : throttledSemaphore;
 
             // Proxy uses SM3 hash, Repeater uses timestamp
             this.hash = isFromProxy
@@ -285,51 +293,42 @@ public class MyHttpHandler implements HttpHandler {
 
     /**
      * Creates initial log entry and returns the log index
+     * Thread-safe: uses AtomicInteger for ID generation and putIfAbsent for map initialization
      */
     private int createLogEntry(HttpResponseReceived response, String hash) {
-        lk.lock();
-        try {
-            int logIndex = countId;
-            countId++; // move into lock to ensure uniqueness
-            attackMap.putIfAbsent(hash, new ArrayList<>()); // initialize under lock to avoid races
+        // Atomically get and increment ID
+        int logIndex = countId.getAndIncrement();
 
-            final int finalLogIndex = logIndex;
-            SwingUtilities.invokeLater(() -> {
-                sourceTableModel.add(new SourceLogEntry(
-                    finalLogIndex,
-                    response.toolSource().toolType().toolName(),
-                    hash,
-                    "run",
-                    response.bodyToString().length(),
-                    HttpRequestResponse.httpRequestResponse(
-                        response.initiatingRequest(),
-                        HttpResponse.httpResponse()
-                    ),
-                    response.initiatingRequest().httpService().toString(),
-                    response.initiatingRequest().method(),
-                    response.initiatingRequest().pathWithoutQuery()
-                ));
-            });
-            return logIndex;
-        } finally {
-            lk.unlock();
-        }
+        // Thread-safe map initialization - only one thread will succeed
+        attackMap.putIfAbsent(hash, new ArrayList<>());
+
+        final int finalLogIndex = logIndex;
+        SwingUtilities.invokeLater(() -> {
+            sourceTableModel.add(new SourceLogEntry(
+                finalLogIndex,
+                response.toolSource().toolType().toolName(),
+                hash,
+                "run",
+                response.bodyToString().length(),
+                HttpRequestResponse.httpRequestResponse(
+                    response.initiatingRequest(),
+                    HttpResponse.httpResponse()
+                ),
+                response.initiatingRequest().httpService().toString(),
+                response.initiatingRequest().method(),
+                response.initiatingRequest().pathWithoutQuery()
+            ));
+        });
+        return logIndex;
     }
 
     // Package-private helper for concurrency smoke tests without instantiating heavy dependencies
-    static int allocateIdAndInitMapForTest(Lock lock,
-                                           int[] countIdRef,
+    static int allocateIdAndInitMapForTest(AtomicInteger countIdRef,
                                            java.util.concurrent.ConcurrentHashMap<String, java.util.List<PocLogEntry>> map,
                                            String hash) {
-        lock.lock();
-        try {
-            int id = countIdRef[0];
-            countIdRef[0]++;
-            map.putIfAbsent(hash, new java.util.ArrayList<>());
-            return id;
-        } finally {
-            lock.unlock();
-        }
+        int id = countIdRef.getAndIncrement();
+        map.putIfAbsent(hash, new java.util.ArrayList<>());
+        return id;
     }
 
     /**
@@ -345,30 +344,35 @@ public class MyHttpHandler implements HttpHandler {
         }
 
         SwingUtilities.invokeLater(() -> {
+            HttpRequestResponse httpRR = HttpRequestResponse.httpRequestResponse(
+                response.initiatingRequest(),
+                finalVulnType.isBlank()
+                    ? HttpResponse.httpResponse()
+                    : HttpResponse.httpResponse(response.toByteArray())
+            );
+
             SourceLogEntry newEntry = new SourceLogEntry(
                 finalLogIndex,
                 response.toolSource().toolType().toolName(),
                 hash,
                 finalVulnType,
                 response.bodyToString().length(),
-                finalVulnType.isBlank() ? null : HttpRequestResponse.httpRequestResponse(
-                    response.initiatingRequest(),
-                    HttpResponse.httpResponse(response.toByteArray())
-                ),
+                httpRR,
                 response.initiatingRequest().httpService().toString(),
                 response.initiatingRequest().method(),
                 response.initiatingRequest().pathWithoutQuery()
             );
 
-            int rowIndex = sourceTableModel.log.indexOf(
+            int rowIndex = sourceTableModel.indexOf(
                 new SourceLogEntry(finalLogIndex, null, null, null, 0, null, null, null, null)
             );
-            sourceTableModel.updateVulnState(newEntry, rowIndex, rowIndex);
+            sourceTableModel.updateVulnState(newEntry, rowIndex);
         });
     }
 
     /**
      * Unified request processing - replaces 4 duplicate code blocks
+     * Concurrency is controlled by SCAN_EXECUTOR's thread pool, no additional semaphore needed
      */
     private void processRequest(HttpResponseReceived response, RequestContext ctx) {
         Thread.currentThread().setName(ctx.hash);
@@ -384,36 +388,31 @@ public class MyHttpHandler implements HttpHandler {
 
         try {
             String vulnType = "";
-            ctx.semaphore.acquire();
-            try {
-                if (!Thread.currentThread().isInterrupted()) {
-                    long startTime = System.currentTimeMillis();
-                    vulnType = processAutoResponse(response, ctx.hash);
-                    long duration = System.currentTimeMillis() - startTime;
-                    statistics.recordTestTime(duration);
-                    
-                    if (vulnType != null && !vulnType.isEmpty() && !vulnType.equals("手动停止")) {
-                        logger.info("✓ Vulnerability found: " + vulnType + " in " + ctx.hash);
-                        try {
-                            java.util.List<PocLogEntry> entries = attackMap.get(ctx.hash);
-                            if (entries != null) {
-                                statistics.recordFromEntries(
-                                    response.initiatingRequest().url(),
-                                    response.initiatingRequest().method(),
-                                    entries
-                                );
-                            }
-                        } catch (Exception ignore) {
-                            // do not break flow on statistics aggregation error
+            if (!Thread.currentThread().isInterrupted()) {
+                long startTime = System.currentTimeMillis();
+                vulnType = processAutoResponse(response, ctx.hash);
+                long duration = System.currentTimeMillis() - startTime;
+                statistics.recordTestTime(duration);
+
+                if (vulnType != null && !vulnType.isEmpty() && !vulnType.equals("手动停止")) {
+                    logger.info("✓ Vulnerability found: " + vulnType + " in " + ctx.hash);
+                    try {
+                        java.util.List<PocLogEntry> entries = attackMap.get(ctx.hash);
+                        if (entries != null) {
+                            statistics.recordFromEntries(
+                                response.initiatingRequest().url(),
+                                response.initiatingRequest().method(),
+                                entries
+                            );
                         }
-                    } else {
-                        logger.debug("No vulnerability found in " + ctx.hash + " (took " + duration + "ms)");
+                    } catch (Exception ignore) {
+                        // do not break flow on statistics aggregation error
                     }
+                } else {
+                    logger.debug("No vulnerability found in " + ctx.hash + " (took " + duration + "ms)");
                 }
-            } finally {
-                ctx.semaphore.release();
-                updateLogEntry(response, ctx.hash, logIndex, vulnType);
             }
+            updateLogEntry(response, ctx.hash, logIndex, vulnType);
         } catch (InterruptedException e) {
             updateLogEntry(response, ctx.hash, logIndex, "手动停止");
             logger.warn("Request processing interrupted: " + ctx.hash);
@@ -425,7 +424,7 @@ public class MyHttpHandler implements HttpHandler {
 
     @Override
     public ResponseReceivedAction handleHttpResponseReceived(HttpResponseReceived httpResponseReceived) {
-        new Thread(() -> {
+        SCAN_EXECUTOR.execute(() -> {
             try {
                 int bodyLength = httpResponseReceived.bodyToString().length();
 
@@ -450,9 +449,7 @@ public class MyHttpHandler implements HttpHandler {
                 // Unified processing with context
                 RequestContext ctx = new RequestContext(
                     httpResponseReceived,
-                    cryptoUtils,
-                    semaphore,
-                    semaphore2
+                    cryptoUtils
                 );
 
                 processRequest(httpResponseReceived, ctx);
@@ -461,7 +458,7 @@ public class MyHttpHandler implements HttpHandler {
                 logger.error("HTTP response handling failed", e);
                 statistics.incrementDetectionErrors();
             }
-        }).start();
+        });
 
         return ResponseReceivedAction.continueWith(httpResponseReceived);
     }
@@ -474,442 +471,223 @@ public class MyHttpHandler implements HttpHandler {
         return processRequestInternal(sourceHttpRequest, sourceBody, html_flag, requestSm3Hash);
     }
 
-    private String processRequestInternal(HttpRequest sourceHttpRequest, String sourceBody, boolean html_flag, String requestSm3Hash) throws InterruptedException {
-        boolean errFlag = false;
-        boolean numFlag = false;
-        boolean orderFlag = false;
-        boolean stringFlag = false;
-        boolean boolFlag = false;
-        boolean diyFlag = false;
-        List<PocLogEntry> getAttackList = attackMap.get(requestSm3Hash);
-        if (!sourceHttpRequest.parameters(HttpParameterType.URL).isEmpty()) {
-            //新参数
-            List<ParsedHttpParameter> parameters = sourceHttpRequest.parameters(HttpParameterType.URL);
-            ArrayList<HttpParameter> newHttpParameters = new ArrayList<>();
-            for (ParsedHttpParameter parameter : parameters) {
-                newHttpParameters.add(HttpParameter.urlParameter(parameter.name(), parameter.value()));
-            }
-            //报错 - 使用提取的方法
-            errFlag = testErrorInjection(newHttpParameters, sourceHttpRequest,
-                (source, name, value, payload,jIndex) -> {
-                    List<HttpParameter> pocParams = new ArrayList<>(newHttpParameters);
-                    int index = newHttpParameters.indexOf(HttpParameter.urlParameter(name, value));
-                    pocParams.set(index, HttpParameter.urlParameter(name, value.substring(0,jIndex) + payload+value.substring(jIndex)));
-                    return source.withUpdatedParameters(pocParams);
-                }, requestSm3Hash);
+    /**
+     * 内部类：测试结果集合，消除了6个flag变量的混乱
+     * 这种结构化的方式更清晰、更易于维护和扩展
+     */
+    private static class TestResult {
+        boolean hasErrorInjection = false;
+        boolean hasStringInjection = false;
+        boolean hasNumericInjection = false;
+        boolean hasOrderInjection = false;
+        boolean hasBooleanInjection = false;
+        boolean hasDiyInjection = false;
 
-            // URL参数 - DIY Payload检测（使用统一方法）
-            if (testDiyInjection(
-                sourceHttpRequest,
-                parameters,
-                ParameterModifiers.URL,
-                requestSm3Hash
-            )) {
-                diyFlag = true;
-            }
-
-
-            // URL参数 - 字符串注入检测 (使用统一方法)
-            stringFlag = testStringInjection(
-                sourceHttpRequest,
-                sourceBody,
-                html_flag,
-                parameters,
-                ParameterModifiers.URL,
-                requestSm3Hash
-            );
-
-
-            // URL参数 - 数字注入检测 (使用统一方法)
-            if (testNumericInjection(
-                sourceHttpRequest,
-                sourceBody,
-                html_flag,
-                parameters,
-                ParameterModifiers.URL,
-                requestSm3Hash
-            )) {
-                numFlag = true;
-            }
-
-
-            // URL参数 - Order注入检测 (使用统一方法)
-            if (testOrderInjection(
-                sourceHttpRequest,
-                sourceBody,
-                html_flag,
-                parameters,
-                ParameterModifiers.URL,
-                requestSm3Hash
-            )) {
-                orderFlag = true;
-            }
-            // URL参数 - Boolean注入检测 (使用统一方法)
-            if (testBooleanInjection(
-                sourceHttpRequest,
-                sourceBody,
-                html_flag,
-                parameters,
-                ParameterModifiers.URL,
-                requestSm3Hash
-            )) {
-                boolFlag = true;
-            }
-
-        }
-        //处理post/PUT
-        if (sourceHttpRequest.method().equals(METHOD_POST) || sourceHttpRequest.method().equals(METHOD_PUT)) {
-            if (!sourceHttpRequest.parameters(HttpParameterType.BODY).isEmpty()) {
-                //新参数
-                List<ParsedHttpParameter> parameters = sourceHttpRequest.parameters(HttpParameterType.BODY);
-                ArrayList<HttpParameter> newHttpParameters = new ArrayList<>();
-                for (ParsedHttpParameter parameter : parameters) {
-                    newHttpParameters.add(HttpParameter.bodyParameter(parameter.name(), parameter.value()));
-                }
-                //err - 使用提取的方法
-                errFlag = testErrorInjection(newHttpParameters, sourceHttpRequest,
-                    (source, name, value, payload,jIndex) -> {
-                        List<HttpParameter> pocParams = new ArrayList<>(newHttpParameters);
-                        int index = newHttpParameters.indexOf(HttpParameter.bodyParameter(name, value));
-                        pocParams.set(index, HttpParameter.bodyParameter(name, value.substring(0,jIndex) + payload+value.substring(jIndex)));
-                        return source.withUpdatedParameters(pocParams);
-                    }, requestSm3Hash);
-
-                // BODY参数 - DIY Payload检测（使用统一方法）
-                if (testDiyInjection(
-                    sourceHttpRequest,
-                    parameters,
-                    ParameterModifiers.BODY,
-                    requestSm3Hash
-                )) {
-                    diyFlag = true;
-                }
-                // BODY参数 - 字符串注入检测 (使用统一方法)
-                stringFlag = testStringInjection(
-                    sourceHttpRequest,
-                    sourceBody,
-                    html_flag,
-                    parameters,
-                    ParameterModifiers.BODY,
-                    requestSm3Hash
-                );
-
-
-                // BODY参数 - 数字注入检测 (使用统一方法)
-                if (testNumericInjection(
-                    sourceHttpRequest,
-                    sourceBody,
-                    html_flag,
-                    parameters,
-                    ParameterModifiers.BODY,
-                    requestSm3Hash
-                )) {
-                    numFlag = true;
-                }
-
-                // BODY参数 - Order注入检测 (使用统一方法)
-                if (testOrderInjection(
-                    sourceHttpRequest,
-                    sourceBody,
-                    html_flag,
-                    parameters,
-                    ParameterModifiers.BODY,
-                    requestSm3Hash
-                )) {
-                    orderFlag = true;
-                }
-                // BODY参数 - Boolean注入检测 (使用统一方法)
-                if (testBooleanInjection(
-                    sourceHttpRequest,
-                    sourceBody,
-                    html_flag,
-                    parameters,
-                    ParameterModifiers.BODY,
-                    requestSm3Hash
-                )) {
-                    boolFlag = true;
-                }
-            } else if (!sourceHttpRequest.parameters(HttpParameterType.JSON).isEmpty()) {
-                List<ParsedHttpParameter> parameters = sourceHttpRequest.parameters(HttpParameterType.JSON);
-                String sourceRequestIndex = sourceHttpRequest.toByteArray().toString();
-                int bodyStartIndex = sourceHttpRequest.bodyOffset();
-                //err - 使用提取的方法 (JSON需要引号检查,使用errPocsj)
-                errFlag = testErrorInjectionStringBased(parameters, sourceHttpRequest,
-                    sourceRequestIndex, bodyStartIndex, errPocsj, true, requestSm3Hash);
-                //diy
-                if (shouldRunDiyInjection()){
-                    for (ParsedHttpParameter parameter : parameters) {
-                        int valueStart = parameter.valueOffsets().startIndexInclusive();
-                        int valueEnd = parameter.valueOffsets().endIndexExclusive();
-                        if (sourceRequestIndex.charAt(valueStart - 1) == '"' && sourceRequestIndex.charAt(valueEnd) == '"') {
-                            String paramName = parameter.name();
-                            if(shouldSkipParameter(paramName)){
-                                continue;
-                            }
-                            String prefix = sourceRequestIndex.substring(bodyStartIndex, valueEnd);
-                            String suffix = sourceRequestIndex.substring(valueEnd);
-                            for (String errPoc : diyPayloads) {
-                                String pocBody = prefix + errPoc + suffix;
-                                HttpRequest pocHttpRequest = sourceHttpRequest.withBody(pocBody);
-                                HttpRequestResponse pocHttpRequestResponse = sendHttpRequest(pocHttpRequest, DEFAULT_RETRY_COUNT);
-                                String pocResponseBody = extractResponseBody(pocHttpRequestResponse);
-                                if(!diyRegexs.isEmpty()){
-                                    String resBool = diyRegexCheck(pocResponseBody);
-                                    if (resBool != null) {
-                                        PocLogEntry logEntry = PocLogEntry.fromResponse(paramName, errPoc, null, VULN_TYPE_DIY + "(" + resBool + ")", pocHttpRequestResponse, requestSm3Hash);
-                                        getAttackList.add(logEntry);
-                                        diyFlag = true;
-                                    }
-                                }
-                                long responseTime = pocHttpRequestResponse.timingData()
-                                    .map(timing -> timing.timeBetweenRequestSentAndEndOfResponse().toMillis())
-                                    .orElse(0L);
-                                if(!DetSql.timeTextField.getText().isEmpty() && responseTime > intTime){
-                                    PocLogEntry logEntry = PocLogEntry.fromResponse(paramName, errPoc, null, VULN_TYPE_DIY + "(time)", pocHttpRequestResponse, requestSm3Hash);
-                                    getAttackList.add(logEntry);
-                                    diyFlag = true;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // JSON参数 - 字符串注入检测 (使用统一方法)
-                // 预过滤：只测试被双引号包裹的字符串值
-                List<ParsedHttpParameter> jsonStringParams = new ArrayList<>();
-                for (ParsedHttpParameter param : parameters) {
-                    int valueStart = param.valueOffsets().startIndexInclusive();
-                    int valueEnd = param.valueOffsets().endIndexExclusive();
-                    if (sourceRequestIndex.charAt(valueStart - 1) == '"' && sourceRequestIndex.charAt(valueEnd) == '"') {
-                        jsonStringParams.add(param);
-                    }
-                }
-                stringFlag = testStringInjection(
-                    sourceHttpRequest,
-                    sourceBody,
-                    html_flag,
-                    jsonStringParams,
-                    ParameterModifiers.JSON,
-                    requestSm3Hash
-                );
-
-                // JSON参数 - Order注入检测 (使用统一方法)
-                // 预过滤：只测试被双引号包裹且非空的字符串值
-                List<ParsedHttpParameter> jsonOrderParams = new ArrayList<>();
-                for (ParsedHttpParameter param : parameters) {
-                    int valueStart = param.valueOffsets().startIndexInclusive();
-                    int valueEnd = param.valueOffsets().endIndexExclusive();
-                    if (sourceRequestIndex.charAt(valueStart - 1) == '"'
-                        && sourceRequestIndex.charAt(valueEnd) == '"'
-                        && valueStart != valueEnd) {
-                        jsonOrderParams.add(param);
-                    }
-                }
-                if (testOrderInjection(
-                    sourceHttpRequest,
-                    sourceBody,
-                    html_flag,
-                    jsonOrderParams,
-                    ParameterModifiers.JSON,
-                    requestSm3Hash
-                )) {
-                    orderFlag = true;
-                }
-
-                // JSON参数 - Boolean注入检测 (使用统一方法)
-                // 预过滤：只测试被双引号包裹的字符串值
-                List<ParsedHttpParameter> jsonBoolParams = new ArrayList<>();
-                for (ParsedHttpParameter param : parameters) {
-                    int valueStart = param.valueOffsets().startIndexInclusive();
-                    int valueEnd = param.valueOffsets().endIndexExclusive();
-                    if (sourceRequestIndex.charAt(valueStart - 1) == '"'
-                        && sourceRequestIndex.charAt(valueEnd) == '"') {
-                        jsonBoolParams.add(param);
-                    }
-                }
-                if (testBooleanInjection(
-                    sourceHttpRequest,
-                    sourceBody,
-                    html_flag,
-                    jsonBoolParams,
-                    ParameterModifiers.JSON,
-                    requestSm3Hash
-                )) {
-                    boolFlag = true;
-                }
-
-
-            } else if (!sourceHttpRequest.parameters(HttpParameterType.XML).isEmpty()) {
-
-                List<ParsedHttpParameter> parameters = sourceHttpRequest.parameters(HttpParameterType.XML);
-                String sourceRequestIndex = sourceHttpRequest.toByteArray().toString();
-                int bodyStartIndex = sourceHttpRequest.bodyOffset();
-                //err - 使用提取的方法 (XML不需要引号检查,使用errPocsj)
-                errFlag = testErrorInjectionStringBased(parameters, sourceHttpRequest,
-                    sourceRequestIndex, bodyStartIndex, errPocsj, false, requestSm3Hash);
-                //diy
-                if (shouldRunDiyInjection()){
-                    for (ParsedHttpParameter parameter : parameters) {
-                        int valueEnd = parameter.valueOffsets().endIndexExclusive();
-                        String paramName = parameter.name();
-                        if(shouldSkipParameter(paramName)){
-                            continue;
-                        }
-                        String prefix = sourceRequestIndex.substring(bodyStartIndex, valueEnd);
-                        String suffix = sourceRequestIndex.substring(valueEnd);
-                        for (String errPoc : diyPayloads) {
-                            String pocBody = prefix + errPoc + suffix;
-                            HttpRequest pocHttpRequest = sourceHttpRequest.withBody(pocBody);
-                            HttpRequestResponse pocHttpRequestResponse = sendHttpRequest(pocHttpRequest, DEFAULT_RETRY_COUNT);
-                            String pocResponseBody = extractResponseBody(pocHttpRequestResponse);
-                            if(!diyRegexs.isEmpty()){
-                                String resBool = diyRegexCheck(pocResponseBody);
-                                if (resBool != null) {
-                                    PocLogEntry logEntry = PocLogEntry.fromResponse(paramName, errPoc, null, "diypoc(" + resBool + ")", pocHttpRequestResponse, requestSm3Hash);
-                                    getAttackList.add(logEntry);
-                                    diyFlag = true;
-                                }
-                            }
-                            long responseTime = pocHttpRequestResponse.timingData()
-                                .map(timing -> timing.timeBetweenRequestSentAndEndOfResponse().toMillis())
-                                .orElse(0L);
-                            if(!DetSql.timeTextField.getText().isEmpty() && responseTime > intTime){
-                                PocLogEntry logEntry = PocLogEntry.fromResponse(paramName, errPoc, null, "diypoc(time)", pocHttpRequestResponse, requestSm3Hash);
-                                getAttackList.add(logEntry);
-                                diyFlag = true;
-                            }
-                        }
-                    }
-                }
-
-
-                // XML参数 - 数字注入检测 (使用统一方法)
-                if (testNumericInjection(
-                    sourceHttpRequest,
-                    sourceBody,
-                    html_flag,
-                    parameters,
-                    ParameterModifiers.XML,
-                    requestSm3Hash
-                )) {
-                    numFlag = true;
-                }
-                // XML参数 - 字符串注入检测 (使用统一方法)
-                stringFlag = testStringInjection(
-                    sourceHttpRequest,
-                    sourceBody,
-                    html_flag,
-                    parameters,
-                    ParameterModifiers.XML,
-                    requestSm3Hash
-                );
-                // XML参数 - Order注入检测 (使用统一方法)
-                // 预过滤：只测试非空的参数值
-                List<ParsedHttpParameter> xmlOrderParams = new ArrayList<>();
-                for (ParsedHttpParameter param : parameters) {
-                    int valueStart = param.valueOffsets().startIndexInclusive();
-                    int valueEnd = param.valueOffsets().endIndexExclusive();
-                    if (valueStart != valueEnd) {
-                        xmlOrderParams.add(param);
-                    }
-                }
-                if (testOrderInjection(
-                    sourceHttpRequest,
-                    sourceBody,
-                    html_flag,
-                    xmlOrderParams,
-                    ParameterModifiers.XML,
-                    requestSm3Hash
-                )) {
-                    orderFlag = true;
-                }
-
-                // XML参数 - Boolean注入检测 (使用统一方法)
-                if (testBooleanInjection(
-                    sourceHttpRequest,
-                    sourceBody,
-                    html_flag,
-                    parameters,
-                    ParameterModifiers.XML,
-                    requestSm3Hash
-                )) {
-                    boolFlag = true;
-                }
-
-
-            }
-        }//POST 处理结束
-        //处理cookie
-        if (DetSql.cookieCheck.isSelected() && !sourceHttpRequest.parameters(HttpParameterType.COOKIE).isEmpty()) {
-            List<ParsedHttpParameter> parameters = sourceHttpRequest.parameters(HttpParameterType.COOKIE);
-            ArrayList<HttpParameter> newHttpParameters = new ArrayList<>();
-            for (ParsedHttpParameter parameter : parameters) {
-                newHttpParameters.add(HttpParameter.cookieParameter(parameter.name(), parameter.value()));
-            }
-            //err - 使用提取的方法
-            errFlag = testErrorInjection(newHttpParameters, sourceHttpRequest,
-                (source, name, value, payload,jIndex) -> {
-                    List<HttpParameter> pocParams = new ArrayList<>(newHttpParameters);
-                    int index = newHttpParameters.indexOf(HttpParameter.cookieParameter(name, value));
-                    pocParams.set(index, HttpParameter.cookieParameter(name, value.substring(0,jIndex) + payload+value.substring(jIndex)));
-                    return source.withUpdatedParameters(pocParams);
-                }, requestSm3Hash);
-
-            // COOKIE参数 - DIY Payload检测（使用统一方法）
-            if (testDiyInjection(
-                sourceHttpRequest,
-                parameters,
-                ParameterModifiers.COOKIE,
-                requestSm3Hash
-            )) {
-                diyFlag = true;
-            }
-            // COOKIE参数 - 字符串注入检测 (使用统一方法)
-            stringFlag = testStringInjection(
-                sourceHttpRequest,
-                sourceBody,
-                html_flag,
-                parameters,
-                ParameterModifiers.COOKIE,
-                requestSm3Hash
-            );
-
-            // COOKIE参数 - 数字注入检测 (使用统一方法)
-            if (testNumericInjection(
-                sourceHttpRequest,
-                sourceBody,
-                html_flag,
-                parameters,
-                ParameterModifiers.COOKIE,
-                requestSm3Hash
-            )) {
-                numFlag = true;
-            }
-            // COOKIE参数 - Order注入检测 (使用统一方法)
-            if (testOrderInjection(
-                sourceHttpRequest,
-                sourceBody,
-                html_flag,
-                parameters,
-                ParameterModifiers.COOKIE,
-                requestSm3Hash
-            )) {
-                orderFlag = true;
-            }
-
-            // COOKIE参数 - Boolean注入检测 (使用统一方法)
-            if (testBooleanInjection(
-                sourceHttpRequest,
-                sourceBody,
-                html_flag,
-                parameters,
-                ParameterModifiers.COOKIE,
-                requestSm3Hash
-            )) {
-                boolFlag = true;
+        void mergeFrom(TestResult other) {
+            if (other != null) {
+                this.hasErrorInjection |= other.hasErrorInjection;
+                this.hasStringInjection |= other.hasStringInjection;
+                this.hasNumericInjection |= other.hasNumericInjection;
+                this.hasOrderInjection |= other.hasOrderInjection;
+                this.hasBooleanInjection |= other.hasBooleanInjection;
+                this.hasDiyInjection |= other.hasDiyInjection;
             }
         }
-        return buildResultString(errFlag, stringFlag, numFlag, orderFlag, boolFlag, diyFlag);
+
+        String toResultString() {
+            return buildResultStringExposed(hasErrorInjection, hasStringInjection, hasNumericInjection,
+                    hasOrderInjection, hasBooleanInjection, hasDiyInjection);
+        }
+    }
+
+
+   private String processRequestInternal(HttpRequest sourceHttpRequest, String sourceBody, boolean html_flag, String requestSm3Hash) throws InterruptedException {
+        TestResult result = new TestResult();
+        String sourceRequestStr = sourceHttpRequest.toByteArray().toString();
+        int bodyStartIndex = sourceHttpRequest.bodyOffset();
+
+        // 处理URL参数
+        processUrlParameters(sourceHttpRequest, sourceBody, html_flag, requestSm3Hash, result);
+
+        // 处理POST/PUT请求的参数
+        if (isPostOrPutRequest(sourceHttpRequest)) {
+            processBodyParameters(sourceHttpRequest, sourceBody, html_flag, requestSm3Hash, result);
+            processJsonParameters(sourceHttpRequest, sourceBody, html_flag, sourceRequestStr, bodyStartIndex, requestSm3Hash, result);
+            processXmlParameters(sourceHttpRequest, sourceBody, html_flag, sourceRequestStr, bodyStartIndex, requestSm3Hash, result);
+        }
+
+        // 处理COOKIE参数
+        processCookieParameters(sourceHttpRequest, sourceBody, html_flag, requestSm3Hash, result);
+
+        return result.toResultString();
+    }
+
+    /**
+     * 处理URL参数的注入检测 (<30行)
+     */
+    private void processUrlParameters(HttpRequest sourceHttpRequest, String sourceBody, boolean html_flag, String requestSm3Hash, TestResult result) throws InterruptedException {
+        List<ParsedHttpParameter> parameters = sourceHttpRequest.parameters(HttpParameterType.URL);
+        if (parameters.isEmpty()) return;
+
+        List<HttpParameter> httpParams = convertToHttpParameters(parameters, HttpParameterType.URL);
+
+        if (testErrorInjection(httpParams, sourceHttpRequest, createUrlParameterModifier(httpParams), requestSm3Hash)) {
+            result.hasErrorInjection = true;
+        }
+        if (testDiyInjection(sourceHttpRequest, parameters, ParameterModifiers.URL, requestSm3Hash)) {
+            result.hasDiyInjection = true;
+        }
+        if (testStringInjection(sourceHttpRequest, sourceBody, html_flag, parameters, ParameterModifiers.URL, requestSm3Hash)) {
+            result.hasStringInjection = true;
+        }
+        if (testNumericInjection(sourceHttpRequest, sourceBody, html_flag, parameters, ParameterModifiers.URL, requestSm3Hash)) {
+            result.hasNumericInjection = true;
+        }
+        if (testOrderInjection(sourceHttpRequest, sourceBody, html_flag, parameters, ParameterModifiers.URL, requestSm3Hash)) {
+            result.hasOrderInjection = true;
+        }
+        if (testBooleanInjection(sourceHttpRequest, sourceBody, html_flag, parameters, ParameterModifiers.URL, requestSm3Hash)) {
+            result.hasBooleanInjection = true;
+        }
+    }
+
+    /**
+     * 处理BODY参数的注入检测 (<30行)
+     */
+    private void processBodyParameters(HttpRequest sourceHttpRequest, String sourceBody, boolean html_flag, String requestSm3Hash, TestResult result) throws InterruptedException {
+        List<ParsedHttpParameter> parameters = sourceHttpRequest.parameters(HttpParameterType.BODY);
+        if (parameters.isEmpty()) return;
+
+        List<HttpParameter> httpParams = convertToHttpParameters(parameters, HttpParameterType.BODY);
+
+        if (testErrorInjection(httpParams, sourceHttpRequest, createBodyParameterModifier(httpParams), requestSm3Hash)) {
+            result.hasErrorInjection = true;
+        }
+        if (testDiyInjection(sourceHttpRequest, parameters, ParameterModifiers.BODY, requestSm3Hash)) {
+            result.hasDiyInjection = true;
+        }
+        if (testStringInjection(sourceHttpRequest, sourceBody, html_flag, parameters, ParameterModifiers.BODY, requestSm3Hash)) {
+            result.hasStringInjection = true;
+        }
+        if (testNumericInjection(sourceHttpRequest, sourceBody, html_flag, parameters, ParameterModifiers.BODY, requestSm3Hash)) {
+            result.hasNumericInjection = true;
+        }
+        if (testOrderInjection(sourceHttpRequest, sourceBody, html_flag, parameters, ParameterModifiers.BODY, requestSm3Hash)) {
+            result.hasOrderInjection = true;
+        }
+        if (testBooleanInjection(sourceHttpRequest, sourceBody, html_flag, parameters, ParameterModifiers.BODY, requestSm3Hash)) {
+            result.hasBooleanInjection = true;
+        }
+    }
+
+    /**
+     * 处理JSON参数的注入检测 (<80行)
+     */
+    private void processJsonParameters(HttpRequest sourceHttpRequest, String sourceBody, boolean html_flag, String sourceRequestStr, int bodyStartIndex, String requestSm3Hash, TestResult result) throws InterruptedException {
+        List<ParsedHttpParameter> parameters = sourceHttpRequest.parameters(HttpParameterType.JSON);
+        if (parameters.isEmpty()) return;
+
+        // Error injection (JSON需要引号检查)
+        if (testErrorInjectionStringBased(parameters, sourceHttpRequest, sourceRequestStr, bodyStartIndex, config.getErrorPayloadsJson(), true, requestSm3Hash)) {
+            result.hasErrorInjection = true;
+        }
+
+        // DIY injection
+        if (shouldRunDiyInjection()) {
+            if (processDiyJsonParameters(sourceHttpRequest, parameters, sourceRequestStr, bodyStartIndex, requestSm3Hash)) {
+                result.hasDiyInjection = true;
+            }
+        }
+
+        // String injection - 预过滤：只测试被双引号包裹的参数
+        List<ParsedHttpParameter> jsonStringParams = filterQuotedJsonParameters(parameters, sourceRequestStr);
+        if (testStringInjection(sourceHttpRequest, sourceBody, html_flag, jsonStringParams, ParameterModifiers.JSON, requestSm3Hash)) {
+            result.hasStringInjection = true;
+        }
+
+        // Order injection - 预过滤
+        List<ParsedHttpParameter> jsonOrderParams = filterJsonOrderParameters(parameters, sourceRequestStr);
+        if (testOrderInjection(sourceHttpRequest, sourceBody, html_flag, jsonOrderParams, ParameterModifiers.JSON, requestSm3Hash)) {
+            result.hasOrderInjection = true;
+        }
+
+        // Boolean injection - 预过滤
+        List<ParsedHttpParameter> jsonBoolParams = filterJsonBoolParameters(parameters, sourceRequestStr);
+        if (testBooleanInjection(sourceHttpRequest, sourceBody, html_flag, jsonBoolParams, ParameterModifiers.JSON, requestSm3Hash)) {
+            result.hasBooleanInjection = true;
+        }
+    }
+
+    /**
+     * 处理XML参数的注入检测 (<80行)
+     */
+    private void processXmlParameters(HttpRequest sourceHttpRequest, String sourceBody, boolean html_flag, String sourceRequestStr, int bodyStartIndex, String requestSm3Hash, TestResult result) throws InterruptedException {
+        List<ParsedHttpParameter> parameters = sourceHttpRequest.parameters(HttpParameterType.XML);
+        if (parameters.isEmpty()) return;
+
+        // Error injection (XML不需要引号检查)
+        if (testErrorInjectionStringBased(parameters, sourceHttpRequest, sourceRequestStr, bodyStartIndex, config.getErrorPayloadsJson(), false, requestSm3Hash)) {
+            result.hasErrorInjection = true;
+        }
+
+        // DIY injection
+        if (shouldRunDiyInjection()) {
+            if (processDiyXmlParameters(sourceHttpRequest, parameters, sourceRequestStr, bodyStartIndex, requestSm3Hash)) {
+                result.hasDiyInjection = true;
+            }
+        }
+
+        // Numeric injection
+        if (testNumericInjection(sourceHttpRequest, sourceBody, html_flag, parameters, ParameterModifiers.XML, requestSm3Hash)) {
+            result.hasNumericInjection = true;
+        }
+
+        // String injection
+        if (testStringInjection(sourceHttpRequest, sourceBody, html_flag, parameters, ParameterModifiers.XML, requestSm3Hash)) {
+            result.hasStringInjection = true;
+        }
+
+        // Order injection - 预过滤
+        List<ParsedHttpParameter> xmlOrderParams = filterXmlOrderParameters(parameters);
+        if (testOrderInjection(sourceHttpRequest, sourceBody, html_flag, xmlOrderParams, ParameterModifiers.XML, requestSm3Hash)) {
+            result.hasOrderInjection = true;
+        }
+
+        // Boolean injection
+        if (testBooleanInjection(sourceHttpRequest, sourceBody, html_flag, parameters, ParameterModifiers.XML, requestSm3Hash)) {
+            result.hasBooleanInjection = true;
+        }
+    }
+
+    /**
+     * 处理COOKIE参数的注入检测 (<30行)
+     */
+    private void processCookieParameters(HttpRequest sourceHttpRequest, String sourceBody, boolean html_flag, String requestSm3Hash, TestResult result) throws InterruptedException {
+        if (!DetSql.cookieCheck.isSelected()) return;
+
+        List<ParsedHttpParameter> parameters = sourceHttpRequest.parameters(HttpParameterType.COOKIE);
+        if (parameters.isEmpty()) return;
+
+        List<HttpParameter> httpParams = convertToHttpParameters(parameters, HttpParameterType.COOKIE);
+
+        if (testErrorInjection(httpParams, sourceHttpRequest, createCookieParameterModifier(httpParams), requestSm3Hash)) {
+            result.hasErrorInjection = true;
+        }
+        if (testDiyInjection(sourceHttpRequest, parameters, ParameterModifiers.COOKIE, requestSm3Hash)) {
+            result.hasDiyInjection = true;
+        }
+        if (testStringInjection(sourceHttpRequest, sourceBody, html_flag, parameters, ParameterModifiers.COOKIE, requestSm3Hash)) {
+            result.hasStringInjection = true;
+        }
+        if (testNumericInjection(sourceHttpRequest, sourceBody, html_flag, parameters, ParameterModifiers.COOKIE, requestSm3Hash)) {
+            result.hasNumericInjection = true;
+        }
+        if (testOrderInjection(sourceHttpRequest, sourceBody, html_flag, parameters, ParameterModifiers.COOKIE, requestSm3Hash)) {
+            result.hasOrderInjection = true;
+        }
+        if (testBooleanInjection(sourceHttpRequest, sourceBody, html_flag, parameters, ParameterModifiers.COOKIE, requestSm3Hash)) {
+            result.hasBooleanInjection = true;
+        }
     }
 
     /**
@@ -938,6 +716,262 @@ public class MyHttpHandler implements HttpHandler {
     private String buildResultString(boolean errFlag, boolean stringFlag, boolean numFlag,
                                      boolean orderFlag, boolean boolFlag, boolean diyFlag) {
         return buildResultStringExposed(errFlag, stringFlag, numFlag, orderFlag, boolFlag, diyFlag);
+    }
+
+    /**
+     * 辅助方法：检查是否为POST或PUT请求
+     */
+    private boolean isPostOrPutRequest(HttpRequest request) {
+        String method = request.method();
+        return METHOD_POST.equals(method) || METHOD_PUT.equals(method);
+    }
+
+    /**
+     * 辅助方法：将ParsedHttpParameter列表转换为HttpParameter列表
+     */
+    private List<HttpParameter> convertToHttpParameters(List<ParsedHttpParameter> parameters, HttpParameterType paramType) {
+        List<HttpParameter> result = new ArrayList<>();
+        for (ParsedHttpParameter param : parameters) {
+            switch (paramType) {
+                case URL:
+                    result.add(HttpParameter.urlParameter(param.name(), param.value()));
+                    break;
+                case BODY:
+                    result.add(HttpParameter.bodyParameter(param.name(), param.value()));
+                    break;
+                case COOKIE:
+                    result.add(HttpParameter.cookieParameter(param.name(), param.value()));
+                    break;
+                case JSON:
+                case XML:
+                default:
+                    // For JSON/XML we don't build HttpParameter here; handled via string-based routines.
+                    break;
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 辅助方法：创建URL参数修改器
+     */
+    private PocRequestBuilder createUrlParameterModifier(List<HttpParameter> httpParams) {
+        return (source, name, value, payload, jIndex) -> {
+            List<HttpParameter> pocParams = new ArrayList<>(httpParams);
+            int index = httpParams.indexOf(HttpParameter.urlParameter(name, value));
+            if (index >= 0) {
+                pocParams.set(index, HttpParameter.urlParameter(name, value.substring(0, jIndex) + payload + value.substring(jIndex)));
+            }
+            return source.withUpdatedParameters(pocParams);
+        };
+    }
+
+    /**
+     * 辅助方法：创建BODY参数修改器
+     */
+    private PocRequestBuilder createBodyParameterModifier(List<HttpParameter> httpParams) {
+        return (source, name, value, payload, jIndex) -> {
+            List<HttpParameter> pocParams = new ArrayList<>(httpParams);
+            int index = httpParams.indexOf(HttpParameter.bodyParameter(name, value));
+            if (index >= 0) {
+                pocParams.set(index, HttpParameter.bodyParameter(name, value.substring(0, jIndex) + payload + value.substring(jIndex)));
+            }
+            return source.withUpdatedParameters(pocParams);
+        };
+    }
+
+    /**
+     * 辅助方法：创建COOKIE参数修改器
+     */
+    private PocRequestBuilder createCookieParameterModifier(List<HttpParameter> httpParams) {
+        return (source, name, value, payload, jIndex) -> {
+            List<HttpParameter> pocParams = new ArrayList<>(httpParams);
+            int index = httpParams.indexOf(HttpParameter.cookieParameter(name, value));
+            if (index >= 0) {
+                pocParams.set(index, HttpParameter.cookieParameter(name, value.substring(0, jIndex) + payload + value.substring(jIndex)));
+            }
+            return source.withUpdatedParameters(pocParams);
+        };
+    }
+
+    /**
+     * 辅助方法：处理JSON参数的DIY注入 (<50行)
+     */
+    private boolean processDiyJsonParameters(HttpRequest sourceHttpRequest, List<ParsedHttpParameter> parameters, String sourceRequestStr, int bodyStartIndex, String requestSm3Hash) throws InterruptedException {
+        List<PocLogEntry> attackList = attackMap.get(requestSm3Hash);
+        boolean found = false;
+
+        for (ParsedHttpParameter parameter : parameters) {
+            int valueStart = parameter.valueOffsets().startIndexInclusive();
+            int valueEnd = parameter.valueOffsets().endIndexExclusive();
+            if (!SafeString.isSurroundedBy(sourceRequestStr, valueStart, valueEnd, '"', '"')) {
+                continue;
+            }
+
+            String paramName = parameter.name();
+            if (shouldSkipParameter(paramName)) {
+                continue;
+            }
+
+            found |= processDiyPayloadsForJsonParam(sourceHttpRequest, paramName, sourceRequestStr, bodyStartIndex, valueEnd, attackList, requestSm3Hash);
+        }
+
+        return found;
+    }
+
+    /**
+     * 辅助方法：处理单个JSON参数的DIY payload (<50行)
+     */
+    private boolean processDiyPayloadsForJsonParam(HttpRequest sourceHttpRequest, String paramName, String sourceRequestStr, int bodyStartIndex, int valueEnd, List<PocLogEntry> attackList, String requestSm3Hash) throws InterruptedException {
+        boolean found = false;
+        String prefix = sourceRequestStr.substring(bodyStartIndex, valueEnd);
+        String suffix = sourceRequestStr.substring(valueEnd);
+
+        for (String payload : config.getDiyPayloads()) {
+            String pocBody = prefix + payload + suffix;
+            HttpRequest pocRequest = sourceHttpRequest.withBody(pocBody);
+            HttpRequestResponse pocResponse = sendHttpRequest(pocRequest, DEFAULT_RETRY_COUNT);
+            String pocResponseBody = extractResponseBody(pocResponse);
+
+            if (!config.getDiyRegexs().isEmpty()) {
+                String regexMatch = diyRegexCheck(pocResponseBody);
+                if (regexMatch != null) {
+                    PocLogEntry logEntry = PocLogEntry.fromResponse(paramName, payload, null, VULN_TYPE_DIY + "(" + regexMatch + ")", pocResponse, requestSm3Hash);
+                    attackList.add(logEntry);
+                    found = true;
+                }
+            }
+
+            long responseTime = pocResponse.timingData()
+                    .map(timing -> timing.timeBetweenRequestSentAndEndOfResponse().toMillis())
+                    .orElse(0L);
+            if (!DetSql.timeTextField.getText().isEmpty() && responseTime > config.getDelayTimeMs()) {
+                PocLogEntry logEntry = PocLogEntry.fromResponse(paramName, payload, null, VULN_TYPE_DIY + "(time)", pocResponse, requestSm3Hash);
+                attackList.add(logEntry);
+                found = true;
+            }
+        }
+
+        return found;
+    }
+
+    /**
+     * 辅助方法：处理XML参数的DIY注入 (<50行)
+     */
+    private boolean processDiyXmlParameters(HttpRequest sourceHttpRequest, List<ParsedHttpParameter> parameters, String sourceRequestStr, int bodyStartIndex, String requestSm3Hash) throws InterruptedException {
+        List<PocLogEntry> attackList = attackMap.get(requestSm3Hash);
+        boolean found = false;
+
+        for (ParsedHttpParameter parameter : parameters) {
+            int valueEnd = parameter.valueOffsets().endIndexExclusive();
+            String paramName = parameter.name();
+            if (shouldSkipParameter(paramName)) {
+                continue;
+            }
+
+            found |= processDiyPayloadsForXmlParam(sourceHttpRequest, paramName, sourceRequestStr, bodyStartIndex, valueEnd, attackList, requestSm3Hash);
+        }
+
+        return found;
+    }
+
+    /**
+     * 辅助方法：处理单个XML参数的DIY payload (<50行)
+     */
+    private boolean processDiyPayloadsForXmlParam(HttpRequest sourceHttpRequest, String paramName, String sourceRequestStr, int bodyStartIndex, int valueEnd, List<PocLogEntry> attackList, String requestSm3Hash) throws InterruptedException {
+        boolean found = false;
+        String prefix = sourceRequestStr.substring(bodyStartIndex, valueEnd);
+        String suffix = sourceRequestStr.substring(valueEnd);
+
+        for (String payload : config.getDiyPayloads()) {
+            String pocBody = prefix + payload + suffix;
+            HttpRequest pocRequest = sourceHttpRequest.withBody(pocBody);
+            HttpRequestResponse pocResponse = sendHttpRequest(pocRequest, DEFAULT_RETRY_COUNT);
+            String pocResponseBody = extractResponseBody(pocResponse);
+
+            if (!config.getDiyRegexs().isEmpty()) {
+                String regexMatch = diyRegexCheck(pocResponseBody);
+                if (regexMatch != null) {
+                    PocLogEntry logEntry = PocLogEntry.fromResponse(paramName, payload, null, VULN_TYPE_DIY + "(" + regexMatch + ")", pocResponse, requestSm3Hash);
+                    attackList.add(logEntry);
+                    found = true;
+                }
+            }
+
+            long responseTime = pocResponse.timingData()
+                    .map(timing -> timing.timeBetweenRequestSentAndEndOfResponse().toMillis())
+                    .orElse(0L);
+            if (!DetSql.timeTextField.getText().isEmpty() && responseTime > config.getDelayTimeMs()) {
+                PocLogEntry logEntry = PocLogEntry.fromResponse(paramName, payload, null, VULN_TYPE_DIY + "(time)", pocResponse, requestSm3Hash);
+                attackList.add(logEntry);
+                found = true;
+            }
+        }
+
+        return found;
+    }
+
+    /**
+     * 辅助方法：过滤被双引号包裹的JSON参数
+     */
+    private List<ParsedHttpParameter> filterQuotedJsonParameters(List<ParsedHttpParameter> parameters, String requestStr) {
+        List<ParsedHttpParameter> result = new ArrayList<>();
+        for (ParsedHttpParameter param : parameters) {
+            int valueStart = param.valueOffsets().startIndexInclusive();
+            int valueEnd = param.valueOffsets().endIndexExclusive();
+            if (SafeString.isSurroundedBy(requestStr, valueStart, valueEnd, '"', '"')) {
+                result.add(param);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 辅助方法：过滤JSON Order注入参数
+     */
+    private List<ParsedHttpParameter> filterJsonOrderParameters(List<ParsedHttpParameter> parameters, String requestStr) {
+        List<ParsedHttpParameter> result = new ArrayList<>();
+        for (ParsedHttpParameter param : parameters) {
+            int valueStart = param.valueOffsets().startIndexInclusive();
+            int valueEnd = param.valueOffsets().endIndexExclusive();
+            if (SafeString.isCharAt(requestStr, valueStart - 1, '"')
+                    && SafeString.isCharAt(requestStr, valueEnd, '"')
+                    && valueStart != valueEnd) {
+                result.add(param);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 辅助方法：过滤JSON Boolean注入参数
+     */
+    private List<ParsedHttpParameter> filterJsonBoolParameters(List<ParsedHttpParameter> parameters, String requestStr) {
+        List<ParsedHttpParameter> result = new ArrayList<>();
+        for (ParsedHttpParameter param : parameters) {
+            int valueStart = param.valueOffsets().startIndexInclusive();
+            int valueEnd = param.valueOffsets().endIndexExclusive();
+            if (SafeString.isCharAt(requestStr, valueStart - 1, '"')
+                    && SafeString.isCharAt(requestStr, valueEnd, '"')) {
+                result.add(param);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 辅助方法：过滤XML Order注入参数
+     */
+    private List<ParsedHttpParameter> filterXmlOrderParameters(List<ParsedHttpParameter> parameters) {
+        List<ParsedHttpParameter> result = new ArrayList<>();
+        for (ParsedHttpParameter param : parameters) {
+            int valueStart = param.valueOffsets().startIndexInclusive();
+            int valueEnd = param.valueOffsets().endIndexExclusive();
+            if (valueStart != valueEnd) {
+                result.add(param);
+            }
+        }
+        return result;
     }
 
     /**
@@ -1000,82 +1034,77 @@ public class MyHttpHandler implements HttpHandler {
             // Collect all PoC results for this parameter
             List<PocLogEntry> pocEntries = new ArrayList<>();
 
-            String paramValue = param.value();
-            Set<Integer> jIndexs = getJSet(paramValue);
-            stringloop:
-            for (Integer jIndex : jIndexs) {
-                // Step 1: Single quote test - expect dissimilar (breaks SQL syntax)
-                HttpRequest req1 = modifier.modifyParameter(sourceRequest, param, "'",jIndex);
-                HttpRequestResponse resp1 = sendHttpRequest(req1, DEFAULT_RETRY_COUNT);
-                String body1 = extractResponseBody(resp1);
+            // Step 1: Single quote test - expect dissimilar (breaks SQL syntax)
+            HttpRequest req1 = modifier.modifyParameter(sourceRequest, param, "'", 0);
+            HttpRequestResponse resp1 = sendHttpRequest(req1, DEFAULT_RETRY_COUNT);
+            String body1 = extractResponseBody(resp1);
 
-                List<Double> sim1 = MyCompare.averageLevenshtein(sourceBody, body1, "", "", htmlFlag);
-                double minSim1 = Collections.min(sim1);
+            List<Double> sim1 = MyCompare.averageLevenshtein(sourceBody, body1, "", "", htmlFlag);
+            double minSim1 = Collections.min(sim1);
 
-                if (minSim1 > config.getSimilarityThreshold()) {
-                    // Failed: single quote didn't change response → not an injection point
-                    continue stringloop;
-                }
+            if (minSim1 > config.getSimilarityThreshold()) {
+                // Failed: single quote didn't change response → not an injection point
+                continue;
+            }
 
+            pocEntries.add(PocLogEntry.fromResponse(
+                    paramName, "'", MyCompare.formatPercent(minSim1),
+                    VULN_TYPE_STRING, resp1, requestHash
+            ));
+
+            // Step 2: Double quote test - expect dissimilar from step 1
+            HttpRequest req2 = modifier.modifyParameter(sourceRequest, param, "''", 0);
+            HttpRequestResponse resp2 = sendHttpRequest(req2, DEFAULT_RETRY_COUNT);
+            String body2 = extractResponseBody(resp2);
+
+            List<Double> sim2 = MyCompare.averageLevenshtein(body1, body2, "", "''", htmlFlag);
+            double minSim2 = Collections.min(sim2);
+
+            if (minSim2 > config.getSimilarityThreshold()) {
+                // Failed: double quote same as single quote → not SQL injection
+                continue;
+            }
+
+            pocEntries.add(PocLogEntry.fromResponse(
+                    paramName, "''", MyCompare.formatPercent(minSim2),
+                    VULN_TYPE_STRING, resp2, requestHash
+            ));
+
+            // Step 3: '+' test - expect similar to original response
+            String plusPayload = modifier.needsUrlEncoding() ? "'%2B'" : "'+'";
+            HttpRequest req3 = modifier.modifyParameter(sourceRequest, param, plusPayload, 0);
+            HttpRequestResponse resp3 = sendHttpRequest(req3, DEFAULT_RETRY_COUNT);
+            String body3 = extractResponseBody(resp3);
+
+            List<Double> sim3 = MyCompare.averageLevenshtein(sourceBody, body3, "", "['+]", htmlFlag);
+            double maxSim3 = Collections.max(sim3);
+            if (maxSim3 > config.getSimilarityThreshold()) {
+                // Success: '+' concatenation same as original → confirmed SQL injection
                 pocEntries.add(PocLogEntry.fromResponse(
-                        paramName, "'", MyCompare.formatPercent(minSim1),
-                        VULN_TYPE_STRING, resp1, requestHash
+                        paramName, "'+'", MyCompare.formatPercent(maxSim3),
+                        VULN_TYPE_STRING, resp3, requestHash
                 ));
+                attackList.addAll(pocEntries);
+                foundVulnerability = true;
+                continue; // Skip to next parameter
+            }
 
-                // Step 2: Double quote test - expect dissimilar from step 1
-                HttpRequest req2 = modifier.modifyParameter(sourceRequest, param, "''",jIndex);
-                HttpRequestResponse resp2 = sendHttpRequest(req2, DEFAULT_RETRY_COUNT);
-                String body2 = extractResponseBody(resp2);
+            // Step 4: '||' test - alternative concatenation (Oracle/PostgreSQL)
+            HttpRequest req4 = modifier.modifyParameter(sourceRequest, param, "'||'", 0);
+            HttpRequestResponse resp4 = sendHttpRequest(req4, DEFAULT_RETRY_COUNT);
+            String body4 = extractResponseBody(resp4);
 
-                List<Double> sim2 = MyCompare.averageLevenshtein(body1, body2, "", "''", htmlFlag);
-                double minSim2 = Collections.min(sim2);
+            List<Double> sim4 = MyCompare.averageLevenshtein(sourceBody, body4, "", "['|]", htmlFlag);
+            double maxSim4 = Collections.max(sim4);
 
-                if (minSim2 > config.getSimilarityThreshold()) {
-                    // Failed: double quote same as single quote → not SQL injection
-                    continue stringloop;
-                }
-
+            if (maxSim4 > config.getSimilarityThreshold()) {
+                // Success: '||' concatenation same as original → confirmed SQL injection
                 pocEntries.add(PocLogEntry.fromResponse(
-                        paramName, "''", MyCompare.formatPercent(minSim2),
-                        VULN_TYPE_STRING, resp2, requestHash
+                        paramName, "'||'", MyCompare.formatPercent(maxSim4),
+                        VULN_TYPE_STRING, resp4, requestHash
                 ));
-
-                // Step 3: '+' test - expect similar to original response
-                String plusPayload = modifier.needsUrlEncoding() ? "'%2B'" : "'+'";
-                HttpRequest req3 = modifier.modifyParameter(sourceRequest, param, plusPayload,jIndex);
-                HttpRequestResponse resp3 = sendHttpRequest(req3, DEFAULT_RETRY_COUNT);
-                String body3 = extractResponseBody(resp3);
-
-                List<Double> sim3 = MyCompare.averageLevenshtein(sourceBody, body3, "", "['+]", htmlFlag);
-                double maxSim3 = Collections.max(sim3);
-                if (maxSim3 > config.getSimilarityThreshold()) {
-                    // Success: '+' concatenation same as original → confirmed SQL injection
-                    pocEntries.add(PocLogEntry.fromResponse(
-                            paramName, "'+'", MyCompare.formatPercent(maxSim3),
-                            VULN_TYPE_STRING, resp3, requestHash
-                    ));
-                    attackList.addAll(pocEntries);
-                    foundVulnerability = true;
-                    continue stringloop; // Skip to next parameter
-                }
-
-                // Step 4: '||' test - alternative concatenation (Oracle/PostgreSQL)
-                HttpRequest req4 = modifier.modifyParameter(sourceRequest, param, "'||'",jIndex);
-                HttpRequestResponse resp4 = sendHttpRequest(req4, DEFAULT_RETRY_COUNT);
-                String body4 = extractResponseBody(resp4);
-
-                List<Double> sim4 = MyCompare.averageLevenshtein(sourceBody, body4, "", "['|]", htmlFlag);
-                double maxSim4 = Collections.max(sim4);
-
-                if (maxSim4 > config.getSimilarityThreshold()) {
-                    // Success: '||' concatenation same as original → confirmed SQL injection
-                    pocEntries.add(PocLogEntry.fromResponse(
-                            paramName, "'||'", MyCompare.formatPercent(maxSim4),
-                            VULN_TYPE_STRING, resp4, requestHash
-                    ));
-                    attackList.addAll(pocEntries);
-                    foundVulnerability = true;
-                }
+                attackList.addAll(pocEntries);
+                foundVulnerability = true;
             }
 
         }
@@ -1141,56 +1170,52 @@ public class MyHttpHandler implements HttpHandler {
             if (!isNumeric(paramValue)) {
                 continue;
             }
-            Set<Integer> jIndexs = getJSet(paramValue);
-            numloop:
-            for (Integer jIndex : jIndexs) {
-                List<PocLogEntry> pocEntries = new ArrayList<>();
+            List<PocLogEntry> pocEntries = new ArrayList<>();
 
-                // 测试1: value-0-0-0 - 期望与原始响应相似
-                String payload1 = "-0-0-0";
-                HttpRequest req1 = modifier.modifyParameter(sourceRequest, param, payload1,jIndex);
-                HttpRequestResponse resp1 = sendHttpRequest(req1, DEFAULT_RETRY_COUNT);
-                String body1 = extractResponseBody(resp1);
+            // 测试1: value-0-0-0 - 期望与原始响应相似
+            String payload1 = "-0-0-0";
+            HttpRequest req1 = modifier.modifyParameter(sourceRequest, param, payload1, 0);
+            HttpRequestResponse resp1 = sendHttpRequest(req1, DEFAULT_RETRY_COUNT);
+            String body1 = extractResponseBody(resp1);
 
-                List<Double> sim1 = MyCompare.averageLevenshtein(sourceBody, body1, "", payload1, htmlFlag);
-                double maxSim1 = Collections.max(sim1);
+            List<Double> sim1 = MyCompare.averageLevenshtein(sourceBody, body1, "", payload1, htmlFlag);
+            double maxSim1 = Collections.max(sim1);
 
-                if (maxSim1 <= config.getSimilarityThreshold()) {
-                    continue numloop; // 测试失败，跳过此参数
-                }
+            if (maxSim1 <= config.getSimilarityThreshold()) {
+                continue; // 测试失败,跳过此参数
+            }
 
-                pocEntries.add(PocLogEntry.fromResponse(
-                        paramName, payload1, MyCompare.formatPercent(maxSim1),
-                        VULN_TYPE_NUMERIC, resp1, requestHash
-                ));
+            pocEntries.add(PocLogEntry.fromResponse(
+                    paramName, payload1, MyCompare.formatPercent(maxSim1),
+                    VULN_TYPE_NUMERIC, resp1, requestHash
+            ));
 
-                // 测试2: value-abc - 期望与原始响应和测试1响应都不相似
-                String payload2 = "-abc";
-                HttpRequest req2 = modifier.modifyParameter(sourceRequest, param, payload2,jIndex);
-                HttpRequestResponse resp2 = sendHttpRequest(req2, DEFAULT_RETRY_COUNT);
-                String body2 = extractResponseBody(resp2);
+            // 测试2: value-abc - 期望与原始响应和测试1响应都不相似
+            String payload2 = "-abc";
+            HttpRequest req2 = modifier.modifyParameter(sourceRequest, param, payload2, 0);
+            HttpRequestResponse resp2 = sendHttpRequest(req2, DEFAULT_RETRY_COUNT);
+            String body2 = extractResponseBody(resp2);
 
-                // 检查与原始响应的相似度
-                List<Double> sim2Source = MyCompare.averageLevenshtein(sourceBody, body2, "", "-abc", htmlFlag);
-                double minSim2Source = Collections.min(sim2Source);
+            // 检查与原始响应的相似度
+            List<Double> sim2Source = MyCompare.averageLevenshtein(sourceBody, body2, "", "-abc", htmlFlag);
+            double minSim2Source = Collections.min(sim2Source);
 
-                if (minSim2Source > config.getSimilarityThreshold()) {
-                    continue numloop; // 测试失败，跳过此参数
-                }
+            if (minSim2Source > config.getSimilarityThreshold()) {
+                continue; // 测试失败,跳过此参数
+            }
 
-                pocEntries.add(PocLogEntry.fromResponse(
-                        paramName, payload2, MyCompare.formatPercent(minSim2Source),
-                        VULN_TYPE_NUMERIC, resp2, requestHash
-                ));
+            pocEntries.add(PocLogEntry.fromResponse(
+                    paramName, payload2, MyCompare.formatPercent(minSim2Source),
+                    VULN_TYPE_NUMERIC, resp2, requestHash
+            ));
 
-                // 检查与测试1响应的相似度
-                List<Double> sim2First = MyCompare.averageLevenshtein(body1, body2, "0-0-0", "abc", htmlFlag);
-                double minSim2First = Collections.min(sim2First);
+            // 检查与测试1响应的相似度
+            List<Double> sim2First = MyCompare.averageLevenshtein(body1, body2, "0-0-0", "abc", htmlFlag);
+            double minSim2First = Collections.min(sim2First);
 
-                if (minSim2First <= config.getSimilarityThreshold()) {
-                    attackList.addAll(pocEntries);
-                    foundVuln = true;
-                }
+            if (minSim2First <= config.getSimilarityThreshold()) {
+                attackList.addAll(pocEntries);
+                foundVuln = true;
             }
 
         }
@@ -1286,97 +1311,93 @@ public class MyHttpHandler implements HttpHandler {
             if (paramValue.isBlank()) {
                 continue;
             }
-            Set<Integer> jIndexs = getJSet(paramValue);
-            orderloop:
-            for (Integer jIndex : jIndexs) {
-                List<PocLogEntry> pocEntries = new ArrayList<>();
+            List<PocLogEntry> pocEntries = new ArrayList<>();
 
-                // 测试1: value,0 - 期望与原始响应不相似 (无效列索引)
-                HttpRequest req1 = modifier.modifyParameter(sourceRequest, param, ",0",jIndex);
-                HttpRequestResponse resp1 = sendHttpRequest(req1, DEFAULT_RETRY_COUNT);
-                String body1 = extractResponseBody(resp1);
+            // 测试1: value,0 - 期望与原始响应不相似 (无效列索引)
+            HttpRequest req1 = modifier.modifyParameter(sourceRequest, param, ",0", 0);
+            HttpRequestResponse resp1 = sendHttpRequest(req1, DEFAULT_RETRY_COUNT);
+            String body1 = extractResponseBody(resp1);
 
-                List<Double> sim1 = MyCompare.averageJaccard(sourceBody, body1, "", "", htmlFlag);
-                double minSim1 = Collections.min(sim1);
+            List<Double> sim1 = MyCompare.averageJaccard(sourceBody, body1, "", "", htmlFlag);
+            double minSim1 = Collections.min(sim1);
 
-                if (minSim1 > config.getSimilarityThreshold()) {
-                    continue orderloop; // 测试失败,跳过此参数
-                }
+            if (minSim1 > config.getSimilarityThreshold()) {
+                continue; // 测试失败,跳过此参数
+            }
 
+            pocEntries.add(PocLogEntry.fromResponse(
+                    paramName, ",0", MyCompare.formatPercent(minSim1),
+                    VULN_TYPE_ORDER, resp1, requestHash
+            ));
+
+            // 测试2: value,xxxxxx - 期望与原始响应不相似 (无效列名)
+            HttpRequest req2 = modifier.modifyParameter(sourceRequest, param, ",XXXXXX", 0);
+            HttpRequestResponse resp2 = sendHttpRequest(req2, DEFAULT_RETRY_COUNT);
+            String body2 = extractResponseBody(resp2);
+
+            List<Double> sim2 = MyCompare.averageJaccard(sourceBody, body2, "", "", htmlFlag);
+            double minSim2 = Collections.min(sim2);
+
+            if (minSim2 > config.getSimilarityThreshold()) {
+                continue; // 测试失败,跳过此参数
+            }
+
+            pocEntries.add(PocLogEntry.fromResponse(
+                    paramName, ",XXXXXX", MyCompare.formatPercent(minSim2),
+                    VULN_TYPE_ORDER, resp2, requestHash
+            ));
+
+            // 测试3: 验证两个无效输入响应相似 (都是错误响应)
+            List<Double> sim3 = MyCompare.averageJaccard(body1, body2, "", "", htmlFlag);
+            double maxSim3 = Collections.max(sim3);
+
+            if (maxSim3 <= config.getSimilarityThreshold()) {
+                continue; // 测试失败,两个错误响应应该相似
+            }
+
+            // 测试4a: value,1 - 期望与原始响应相似 (有效列索引)
+            HttpRequest req4a = modifier.modifyParameter(sourceRequest, param, ",1", 0);
+            HttpRequestResponse resp4a = sendHttpRequest(req4a, DEFAULT_RETRY_COUNT);
+            String body4a = extractResponseBody(resp4a);
+
+            List<Double> sim4a = MyCompare.averageJaccard(sourceBody, body4a, "", "", htmlFlag);
+            double maxSim4a = Collections.max(sim4a);
+
+            // 同时检查 ,1 与 ,0 不相似 (避免所有响应都相同的情况)
+            List<Double> sim4aVs1 = MyCompare.averageJaccard(body1, body4a, "", "", htmlFlag);
+            double minSim4aVs1 = Collections.min(sim4aVs1);
+
+            if (maxSim4a > config.getSimilarityThreshold() && minSim4aVs1 <= config.getSimilarityThreshold()) {
+                // 成功: ,1 与原始相似,且与 ,0 不相似
                 pocEntries.add(PocLogEntry.fromResponse(
-                        paramName, ",0", MyCompare.formatPercent(minSim1),
-                        VULN_TYPE_ORDER, resp1, requestHash
+                        paramName, ",1", MyCompare.formatPercent(maxSim4a),
+                        VULN_TYPE_ORDER, resp4a, requestHash
                 ));
+                attackList.addAll(pocEntries);
+                foundVuln = true;
+                continue;
+            }
 
-                // 测试2: value,xxxxxx - 期望与原始响应不相似 (无效列名)
-                HttpRequest req2 = modifier.modifyParameter(sourceRequest, param, ",XXXXXX",jIndex);
-                HttpRequestResponse resp2 = sendHttpRequest(req2, DEFAULT_RETRY_COUNT);
-                String body2 = extractResponseBody(resp2);
+            // 测试4b: value,2 - 备选测试 (另一个有效列索引)
+            HttpRequest req4b = modifier.modifyParameter(sourceRequest, param, ",2", 0);
+            HttpRequestResponse resp4b = sendHttpRequest(req4b, DEFAULT_RETRY_COUNT);
+            String body4b = extractResponseBody(resp4b);
 
-                List<Double> sim2 = MyCompare.averageJaccard(sourceBody, body2, "", "", htmlFlag);
-                double minSim2 = Collections.min(sim2);
+            List<Double> sim4b = MyCompare.averageJaccard(sourceBody, body4b, "", "", htmlFlag);
+            double maxSim4b = Collections.max(sim4b);
 
-                if (minSim2 > config.getSimilarityThreshold()) {
-                    continue orderloop; // 测试失败,跳过此参数
-                }
+            // 同时检查 ,2 与 ,0 不相似
+            List<Double> sim4bVs1 = MyCompare.averageJaccard(body1, body4b, "", "", htmlFlag);
+            double minSim4bVs1 = Collections.min(sim4bVs1);
 
+            if (maxSim4b > config.getSimilarityThreshold() && minSim4bVs1 <= config.getSimilarityThreshold()) {
+                // 成功: ,2 与原始相似,且与 ,0 不相似
                 pocEntries.add(PocLogEntry.fromResponse(
-                        paramName, ",XXXXXX", MyCompare.formatPercent(minSim2),
-                        VULN_TYPE_ORDER, resp2, requestHash
+                        paramName, ",2", MyCompare.formatPercent(maxSim4b),
+                        VULN_TYPE_ORDER, resp4b, requestHash
                 ));
-
-                // 测试3: 验证两个无效输入响应相似 (都是错误响应)
-                List<Double> sim3 = MyCompare.averageJaccard(body1, body2, "", "", htmlFlag);
-                double maxSim3 = Collections.max(sim3);
-
-                if (maxSim3 <= config.getSimilarityThreshold()) {
-                    continue orderloop; // 测试失败,两个错误响应应该相似
-                }
-
-                // 测试4a: value,1 - 期望与原始响应相似 (有效列索引)
-                HttpRequest req4a = modifier.modifyParameter(sourceRequest, param, ",1",jIndex);
-                HttpRequestResponse resp4a = sendHttpRequest(req4a, DEFAULT_RETRY_COUNT);
-                String body4a = extractResponseBody(resp4a);
-
-                List<Double> sim4a = MyCompare.averageJaccard(sourceBody, body4a, "", "", htmlFlag);
-                double maxSim4a = Collections.max(sim4a);
-
-                // 同时检查 ,1 与 ,0 不相似 (避免所有响应都相同的情况)
-                List<Double> sim4aVs1 = MyCompare.averageJaccard(body1, body4a, "", "", htmlFlag);
-                double minSim4aVs1 = Collections.min(sim4aVs1);
-
-                if (maxSim4a > config.getSimilarityThreshold() && minSim4aVs1 <= config.getSimilarityThreshold()) {
-                    // 成功: ,1 与原始相似,且与 ,0 不相似
-                    pocEntries.add(PocLogEntry.fromResponse(
-                            paramName, ",1", MyCompare.formatPercent(maxSim4a),
-                            VULN_TYPE_ORDER, resp4a, requestHash
-                    ));
-                    attackList.addAll(pocEntries);
-                    foundVuln = true;
-                    continue orderloop;
-                }
-
-                // 测试4b: value,2 - 备选测试 (另一个有效列索引)
-                HttpRequest req4b = modifier.modifyParameter(sourceRequest, param, ",2",jIndex);
-                HttpRequestResponse resp4b = sendHttpRequest(req4b, DEFAULT_RETRY_COUNT);
-                String body4b = extractResponseBody(resp4b);
-
-                List<Double> sim4b = MyCompare.averageJaccard(sourceBody, body4b, "", "", htmlFlag);
-                double maxSim4b = Collections.max(sim4b);
-
-                // 同时检查 ,2 与 ,0 不相似
-                List<Double> sim4bVs1 = MyCompare.averageJaccard(body1, body4b, "", "", htmlFlag);
-                double minSim4bVs1 = Collections.min(sim4bVs1);
-
-                if (maxSim4b > config.getSimilarityThreshold() && minSim4bVs1 <= config.getSimilarityThreshold()) {
-                    // 成功: ,2 与原始相似,且与 ,0 不相似
-                    pocEntries.add(PocLogEntry.fromResponse(
-                            paramName, ",2", MyCompare.formatPercent(maxSim4b),
-                            VULN_TYPE_ORDER, resp4b, requestHash
-                    ));
-                    attackList.addAll(pocEntries);
-                    foundVuln = true;
-                }
+                attackList.addAll(pocEntries);
+                foundVuln = true;
             }
 
         }
@@ -1441,115 +1462,110 @@ public class MyHttpHandler implements HttpHandler {
             if (shouldSkipParameter(paramName)) {
                 continue;
             }
-            String paramValue = param.value();
-            Set<Integer> jIndexs = getJSet(paramValue);
-            boolloop:
-            for (Integer jIndex : jIndexs) {
-                List<PocLogEntry> pocEntries = new ArrayList<>();
-                String referenceBody;  // 用于最后一步比较的参考响应
+            List<PocLogEntry> pocEntries = new ArrayList<>();
+            String referenceBody;  // 用于最后一步比较的参考响应
 
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            // 步骤1: '||EXP(710)||' - 触发溢出
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            HttpRequest req1 = modifier.modifyParameter(
+                    sourceRequest, param, "'||EXP(710)||'", 0
+            );
+            HttpRequestResponse resp1 = sendHttpRequest(req1, DEFAULT_RETRY_COUNT);
+            String body1 = extractResponseBody(resp1);
+
+            List<Double> sim1 = MyCompare.averageLevenshtein(
+                    sourceBody, body1, "", "", htmlFlag
+            );
+            double minSim1 = Collections.min(sim1);
+
+            if (minSim1 > config.getSimilarityThreshold()) {
+                // 失败: EXP(710)没有改变响应 → 不可能是注入点
+                continue;
+            }
+
+            pocEntries.add(PocLogEntry.fromResponse(
+                    paramName, "'||EXP(710)||'", MyCompare.formatPercent(minSim1),
+                    VULN_TYPE_BOOLEAN, resp1, requestHash
+            ));
+
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            // 步骤2a: '||EXP(290)||' - 正常值 (主要路径)
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            HttpRequest req2 = modifier.modifyParameter(
+                    sourceRequest, param, "'||EXP(290)||'", 0
+            );
+            HttpRequestResponse resp2 = sendHttpRequest(req2, DEFAULT_RETRY_COUNT);
+            String body2 = extractResponseBody(resp2);
+
+            List<Double> sim2 = MyCompare.averageLevenshtein(
+                    body1, body2, "", "", htmlFlag
+            );
+            double minSim2 = Collections.min(sim2);
+
+            if (minSim2 <= config.getSimilarityThreshold()) {
+                // 成功: EXP(290)与EXP(710)响应不同
+                pocEntries.add(PocLogEntry.fromResponse(
+                        paramName, "'||EXP(290)||'", MyCompare.formatPercent(minSim2),
+                        VULN_TYPE_BOOLEAN, resp2, requestHash
+                ));
+                referenceBody = body2;
+            } else {
                 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                // 步骤1: '||EXP(710)||' - 触发溢出
+                // 步骤2b: '||1/0||' - 备选路径 (Division by zero)
                 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                HttpRequest req1 = modifier.modifyParameter(
-                        sourceRequest, param, "'||EXP(710)||'",jIndex
-                );
-                HttpRequestResponse resp1 = sendHttpRequest(req1, DEFAULT_RETRY_COUNT);
-                String body1 = extractResponseBody(resp1);
+                // URL参数需要URL编码: / → %2F
+                String divZeroPayload = modifier.needsUrlEncoding()
+                        ? "'||1%2F0||'" : "'||1/0||'";
 
-                List<Double> sim1 = MyCompare.averageLevenshtein(
-                        sourceBody, body1, "", "", htmlFlag
+                HttpRequest req2b = modifier.modifyParameter(
+                        sourceRequest, param, divZeroPayload, 0
                 );
-                double minSim1 = Collections.min(sim1);
+                HttpRequestResponse resp2b = sendHttpRequest(req2b, DEFAULT_RETRY_COUNT);
+                String body2b = extractResponseBody(resp2b);
 
-                if (minSim1 > config.getSimilarityThreshold()) {
-                    // 失败: EXP(710)没有改变响应 → 不可能是注入点
-                    continue boolloop;
+                List<Double> sim2b = MyCompare.averageLevenshtein(
+                        sourceBody, body2b, "", "'||1/0||'", htmlFlag
+                );
+                double maxSim2b = Collections.max(sim2b);
+
+                if (maxSim2b <= config.getSimilarityThreshold()) {
+                    // 失败: 备选路径也失败
+                    continue;
                 }
 
                 pocEntries.add(PocLogEntry.fromResponse(
-                        paramName, "'||EXP(710)||'", MyCompare.formatPercent(minSim1),
-                        VULN_TYPE_BOOLEAN, resp1, requestHash
+                        paramName, divZeroPayload, MyCompare.formatPercent(maxSim2b),
+                        VULN_TYPE_BOOLEAN, resp2b, requestHash
                 ));
+                referenceBody = body2b;
+            }
 
-                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                // 步骤2a: '||EXP(290)||' - 正常值 (主要路径)
-                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                HttpRequest req2 = modifier.modifyParameter(
-                        sourceRequest, param, "'||EXP(290)||'",jIndex
-                );
-                HttpRequestResponse resp2 = sendHttpRequest(req2, DEFAULT_RETRY_COUNT);
-                String body2 = extractResponseBody(resp2);
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            // 步骤3: '||1/1||' - 应该与步骤2相似
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            String divOnePayload = modifier.needsUrlEncoding()
+                    ? "'||1%2F1||'" : "'||1/1||'";
 
-                List<Double> sim2 = MyCompare.averageLevenshtein(
-                        body1, body2, "", "", htmlFlag
-                );
-                double minSim2 = Collections.min(sim2);
+            HttpRequest req3 = modifier.modifyParameter(
+                    sourceRequest, param, divOnePayload, 0
+            );
+            HttpRequestResponse resp3 = sendHttpRequest(req3, DEFAULT_RETRY_COUNT);
+            String body3 = extractResponseBody(resp3);
 
-                if (minSim2 <= config.getSimilarityThreshold()) {
-                    // 成功: EXP(290)与EXP(710)响应不同
-                    pocEntries.add(PocLogEntry.fromResponse(
-                            paramName, "'||EXP(290)||'", MyCompare.formatPercent(minSim2),
-                            VULN_TYPE_BOOLEAN, resp2, requestHash
-                    ));
-                    referenceBody = body2;
-                } else {
-                    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                    // 步骤2b: '||1/0||' - 备选路径 (Division by zero)
-                    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                    // URL参数需要URL编码: / → %2F
-                    String divZeroPayload = modifier.needsUrlEncoding()
-                            ? "'||1%2F0||'" : "'||1/0||'";
+            List<Double> sim3 = MyCompare.averageLevenshtein(
+                    referenceBody, body3, "EXP\\(290\\)", "1/1", htmlFlag
+            );
+            double maxSim3 = Collections.max(sim3);
 
-                    HttpRequest req2b = modifier.modifyParameter(
-                            sourceRequest, param, divZeroPayload,jIndex
-                    );
-                    HttpRequestResponse resp2b = sendHttpRequest(req2b, DEFAULT_RETRY_COUNT);
-                    String body2b = extractResponseBody(resp2b);
-
-                    List<Double> sim2b = MyCompare.averageLevenshtein(
-                            sourceBody, body2b, "", "'||1/0||'", htmlFlag
-                    );
-                    double maxSim2b = Collections.max(sim2b);
-
-                    if (maxSim2b <= config.getSimilarityThreshold()) {
-                        // 失败: 备选路径也失败
-                        continue boolloop;
-                    }
-
-                    pocEntries.add(PocLogEntry.fromResponse(
-                            paramName, divZeroPayload, MyCompare.formatPercent(maxSim2b),
-                            VULN_TYPE_BOOLEAN, resp2b, requestHash
-                    ));
-                    referenceBody = body2b;
-                }
-
-                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                // 步骤3: '||1/1||' - 应该与步骤2相似
-                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                String divOnePayload = modifier.needsUrlEncoding()
-                        ? "'||1%2F1||'" : "'||1/1||'";
-
-                HttpRequest req3 = modifier.modifyParameter(
-                        sourceRequest, param, divOnePayload,jIndex
-                );
-                HttpRequestResponse resp3 = sendHttpRequest(req3, DEFAULT_RETRY_COUNT);
-                String body3 = extractResponseBody(resp3);
-
-                List<Double> sim3 = MyCompare.averageLevenshtein(
-                        referenceBody, body3, "EXP\\(290\\)", "1/1", htmlFlag
-                );
-                double maxSim3 = Collections.max(sim3);
-
-                if (maxSim3 > config.getSimilarityThreshold()) {
-                    // 成功: 1/1 与参考响应相似 → 确认Boolean注入
-                    pocEntries.add(PocLogEntry.fromResponse(
-                            paramName, divOnePayload, MyCompare.formatPercent(maxSim3),
-                            VULN_TYPE_BOOLEAN, resp3, requestHash
-                    ));
-                    attackList.addAll(pocEntries);
-                    foundVuln = true;
-                }
+            if (maxSim3 > config.getSimilarityThreshold()) {
+                // 成功: 1/1 与参考响应相似 → 确认Boolean注入
+                pocEntries.add(PocLogEntry.fromResponse(
+                        paramName, divOnePayload, MyCompare.formatPercent(maxSim3),
+                        VULN_TYPE_BOOLEAN, resp3, requestHash
+                ));
+                attackList.addAll(pocEntries);
+                foundVuln = true;
             }
 
         }
@@ -1596,52 +1612,47 @@ public class MyHttpHandler implements HttpHandler {
             if (shouldSkipParameter(paramName)) {
                 continue;
             }
-            String paramValue = param.value();
-            Set<Integer> jIndexs = getJSet(paramValue);
-            for (Integer jIndex : jIndexs) {
-                // 测试所有DIY Payload
-                for (String payload : diyPayloads) {
-                    HttpRequest pocRequest = modifier.modifyParameter(
-                            sourceRequest, param, payload,jIndex
-                    );
-                    HttpRequestResponse pocResponse = sendHttpRequest(pocRequest, DEFAULT_RETRY_COUNT);
-                    String responseBody = extractResponseBody(pocResponse);
+            // 测试所有DIY Payload
+            for (String payload : config.getDiyPayloads()) {
+                HttpRequest pocRequest = modifier.modifyParameter(
+                        sourceRequest, param, payload, 0
+                );
+                HttpRequestResponse pocResponse = sendHttpRequest(pocRequest, DEFAULT_RETRY_COUNT);
+                String responseBody = extractResponseBody(pocResponse);
 
-                    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                    // 检测方式1: Regex匹配
-                    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                    if (!diyRegexs.isEmpty()) {
-                        String matchedRegex = diyRegexCheck(responseBody);
-                        if (matchedRegex != null) {
-                            attackList.add(PocLogEntry.fromResponse(
-                                    paramName, payload, null,
-                                    VULN_TYPE_DIY + "(" + matchedRegex + ")",
-                                    pocResponse, requestHash
-                            ));
-                            foundVuln = true;
-                        }
+                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                // 检测方式1: Regex匹配
+                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                if (!config.getDiyRegexs().isEmpty()) {
+                    String matchedRegex = diyRegexCheck(responseBody);
+                    if (matchedRegex != null) {
+                        attackList.add(PocLogEntry.fromResponse(
+                                paramName, payload, null,
+                                VULN_TYPE_DIY + "(" + matchedRegex + ")",
+                                pocResponse, requestHash
+                        ));
+                        foundVuln = true;
                     }
+                }
 
-                    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                    // 检测方式2: Time延迟
-                    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                    if (!DetSql.timeTextField.getText().isEmpty()) {
-                        long responseTime = pocResponse.timingData()
-                                .map(timing -> timing.timeBetweenRequestSentAndEndOfResponse().toMillis())
-                                .orElse(0L);
-                        if (responseTime > intTime) {
-                            attackList.add(PocLogEntry.fromResponse(
-                                    paramName, payload, null,
-                                    VULN_TYPE_DIY + "(time)",
-                                    pocResponse, requestHash
+                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                // 检测方式2: Time延迟
+                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                if (!DetSql.timeTextField.getText().isEmpty()) {
+                    long responseTime = pocResponse.timingData()
+                            .map(timing -> timing.timeBetweenRequestSentAndEndOfResponse().toMillis())
+                            .orElse(0L);
+                    if (responseTime > config.getDelayTimeMs()) {
+                        attackList.add(PocLogEntry.fromResponse(
+                                paramName, payload, null,
+                                VULN_TYPE_DIY + "(time)",
+                                pocResponse, requestHash
                             ));
                             foundVuln = true;
                         }
                     }
                 }
             }
-
-        }
 
         return foundVuln;
     }
@@ -1657,14 +1668,15 @@ public class MyHttpHandler implements HttpHandler {
      * Checks if DIY injection testing should run based on configuration
      * @return true if DIY checkbox is selected AND payloads exist AND (time threshold OR regex patterns exist)
      */
-    private static boolean shouldRunDiyInjection() {
+    private boolean shouldRunDiyInjection() {
         return DetSql.diyCheck.isSelected()
-            && !diyPayloads.isEmpty()
-            && (!DetSql.timeTextField.getText().isEmpty() || !diyRegexs.isEmpty());
+            && !config.getDiyPayloads().isEmpty()
+            && (!DetSql.timeTextField.getText().isEmpty() || !config.getDiyRegexs().isEmpty());
     }
 
     /**
      * Checks if text matches any regex pattern from a collection
+     * Now with ReDoS protection using timeout
      * @param text the text to check
      * @param patterns collection of regex patterns to match against
      * @return the first matching pattern, or null if no match
@@ -1672,8 +1684,8 @@ public class MyHttpHandler implements HttpHandler {
     private static String checkRegexMatch(String text, Iterable<String> patterns) {
         String cleanedText = text.replaceAll("\\n|\\r|\\r\\n", "");
         for (String pattern : patterns) {
-            Pattern compiled = Pattern.compile(pattern, Pattern.CASE_INSENSITIVE);
-            if (compiled.matcher(cleanedText).find()) {
+            // Use safe matching with timeout to prevent ReDoS
+            if (RegexUtils.safeMatch(pattern, cleanedText)) {
                 return pattern;
             }
         }
@@ -1681,8 +1693,8 @@ public class MyHttpHandler implements HttpHandler {
     }
 
     /**
-     * Optimized regex matching using precompiled patterns (50x faster)
-     * Uses precompiled Pattern objects to avoid repeated Pattern.compile() calls
+     * Optimized regex matching using precompiled patterns
+     * Now with ReDoS protection using timeout
      *
      * @param text the text to check
      * @param patterns precompiled Pattern objects
@@ -1691,7 +1703,8 @@ public class MyHttpHandler implements HttpHandler {
     private static String checkRegexMatch(String text, List<Pattern> patterns) {
         String cleanedText = NEWLINE_PATTERN.matcher(text).replaceAll("");
         for (Pattern pattern : patterns) {
-            if (pattern.matcher(cleanedText).find()) {
+            // Use safe matching with timeout for precompiled patterns
+            if (RegexUtils.safeMatchPrecompiled(pattern, cleanedText)) {
                 return pattern.pattern();  // Return original regex string
             }
         }
@@ -1702,8 +1715,8 @@ public class MyHttpHandler implements HttpHandler {
         return checkRegexMatch(text, COMPILED_ERROR_PATTERNS);
     }
 
-    public static String diyRegexCheck(String text) {
-        return checkRegexMatch(text, diyRegexs);
+    public String diyRegexCheck(String text) {
+        return checkRegexMatch(text, config.getDiyRegexs());
     }
     public static String byteToHex(byte[] bytes) {
         StringBuilder sb = new StringBuilder();
@@ -1718,8 +1731,8 @@ public class MyHttpHandler implements HttpHandler {
      * @param paramName the parameter name to check
      * @return true if the parameter should be skipped, false otherwise
      */
-    private static boolean shouldSkipParameter(String paramName) {
-        return !blackParamsSet.isEmpty() && blackParamsSet.contains(paramName);
+    private boolean shouldSkipParameter(String paramName) {
+        return !config.getBlackListParams().isEmpty() && config.getBlackListParams().contains(paramName);
     }
 
     /**
@@ -1770,22 +1783,19 @@ public class MyHttpHandler implements HttpHandler {
             }
 
             String paramValue = params.get(i).value();
-            Set<Integer> jIndexs=getJSet(paramValue);
-            for (Integer jIndex : jIndexs) {
-                for (String poc : errPocs) {
-                    HttpRequest pocRequest = requestBuilder.buildRequest(sourceRequest, paramName, paramValue, poc,jIndex);
-                    HttpRequestResponse pocResponse = sendHttpRequest(pocRequest, DEFAULT_RETRY_COUNT);
-                    String responseBody = extractResponseBody(pocResponse);
-                    String matchedRule = ErrSqlCheck(responseBody);
+            for (String poc : config.getErrorPayloads()) {
+                HttpRequest pocRequest = requestBuilder.buildRequest(sourceRequest, paramName, paramValue, poc, 0);
+                HttpRequestResponse pocResponse = sendHttpRequest(pocRequest, DEFAULT_RETRY_COUNT);
+                String responseBody = extractResponseBody(pocResponse);
+                String matchedRule = ErrSqlCheck(responseBody);
 
-                    if (matchedRule != null) {
-                        PocLogEntry logEntry = PocLogEntry.fromResponse(
-                                paramName, poc, null, VULN_TYPE_ERROR + "(" + matchedRule + ")",
-                                pocResponse, requestHash
-                        );
-                        getAttackList.add(logEntry);
-                        foundVuln = true;
-                    }
+                if (matchedRule != null) {
+                    PocLogEntry logEntry = PocLogEntry.fromResponse(
+                            paramName, poc, null, VULN_TYPE_ERROR + "(" + matchedRule + ")",
+                            pocResponse, requestHash
+                    );
+                    getAttackList.add(logEntry);
+                    foundVuln = true;
                 }
             }
         }
@@ -1827,7 +1837,7 @@ public class MyHttpHandler implements HttpHandler {
 
             // JSON requires quotes around values, XML does not
             if (quotesRequired) {
-                if (sourceRequestStr.charAt(valueStart - 1) != '"' || sourceRequestStr.charAt(valueEnd) != '"') {
+                if (!SafeString.isCharAt(sourceRequestStr, valueStart - 1, '"') || !SafeString.isCharAt(sourceRequestStr, valueEnd, '"')) {
                     continue;
                 }
             }
@@ -1861,141 +1871,147 @@ public class MyHttpHandler implements HttpHandler {
     }
 
     public HttpRequestResponse sendHttpRequest(HttpRequest pocHttpRequest, int retryCount) throws InterruptedException {
-        HttpRequestResponse resHttpRequestResponse;
-        try {
-            resHttpRequestResponse = api.http().sendRequest(pocHttpRequest).copyToTempFile();
-            Thread.sleep(Math.max(staticTime, MIN_SLEEP_TIME_MS));
-            if (resHttpRequestResponse.response().body() != null) {
-                return resHttpRequestResponse;
+        Exception lastException = null;
+
+        for (int attempt = 0; attempt < retryCount; attempt++) {
+            try {
+                HttpRequestResponse resHttpRequestResponse = api.http().sendRequest(pocHttpRequest).copyToTempFile();
+                Thread.sleep(Math.max(config.getStaticTimeMs(), MIN_SLEEP_TIME_MS));
+
+                if (resHttpRequestResponse.response().body() != null) {
+                    return resHttpRequestResponse;
+                }
+
+                // 响应体为 null，继续重试
+                if (attempt < retryCount - 1) {
+                    logger.debug("Response body is null, retrying... (attempt " + (attempt + 1) + "/" + retryCount + ")");
+                    Thread.sleep(ThreadLocalRandom.current().nextInt(config.getStartTimeMs(), config.getEndTimeMs() + 1));
+                }
+
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new InterruptedException();
+            } catch (Exception e) {
+                lastException = e;
+
+                // 如果不是最后一次尝试，记录错误并继续
+                if (attempt < retryCount - 1) {
+                    logger.debug("Request failed, retrying... (attempt " + (attempt + 1) + "/" + retryCount + "): " + e.getMessage());
+                    try {
+                        Thread.sleep(ThreadLocalRandom.current().nextInt(config.getStartTimeMs(), config.getEndTimeMs() + 1));
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new InterruptedException();
+                    }
+                }
             }
-        } catch (InterruptedException e) {
-            throw new InterruptedException();
-        } catch (Exception e) {
-            HttpResponse aHttpResponse = HttpResponse.httpResponse();
-            HttpResponse emptyHttpResponse = aHttpResponse.withBody("");
-            resHttpRequestResponse = HttpRequestResponse.httpRequestResponse(pocHttpRequest, emptyHttpResponse);
         }
-        if (retryCount <= 0) {
-            return resHttpRequestResponse;
+
+        // 所有重试都已完成，返回默认的空响应
+        HttpResponse aHttpResponse = HttpResponse.httpResponse();
+        HttpResponse emptyHttpResponse = aHttpResponse.withBody("");
+        HttpRequestResponse defaultResponse = HttpRequestResponse.httpRequestResponse(pocHttpRequest, emptyHttpResponse);
+
+        if (lastException != null) {
+            logger.debug("All retry attempts failed for request after " + retryCount + " attempts: " + lastException.getMessage());
+        } else {
+            logger.debug("All retry attempts completed with null response body");
         }
-        Thread.sleep(ThreadLocalRandom.current().nextInt(startTime, endTime + 1));
-        return sendHttpRequest(pocHttpRequest, retryCount - 1);
+
+        return defaultResponse;
     }
 
     /**
-     * Process request with specified semaphore for concurrency control
-     * Extracted from createProcessThread to eliminate duplicate code blocks
+     * Process manual request from Repeater/Send-to
+     * Thread-safe: uses AtomicInteger and no semaphore needed (ThreadPool controls concurrency)
      *
      * @param httpRequestResponse the HTTP request/response to process
-     * @param sem the semaphore to use for concurrency control
      * @throws InterruptedException if thread is interrupted
      */
-    private void processRequestWithSemaphore(
-        HttpRequestResponse httpRequestResponse,
-        Semaphore sem
-    ) throws InterruptedException {
+    private void processManualRequest(HttpRequestResponse httpRequestResponse) throws InterruptedException {
         String requestSm3Hash = String.valueOf(System.currentTimeMillis());
         Thread.currentThread().setName(requestSm3Hash);
-        int oneLogSize = 0;
 
-        // Step 1: Create log entry and initialize tracking
-        lk.lock();
+        // Atomically get and increment ID
+        int logIndex = countId.getAndIncrement();
+
+        // Thread-safe map initialization
+        attackMap.putIfAbsent(requestSm3Hash, new ArrayList<>());
+
+        // Step 1: Create log entry
+        final int finalLogIndex = logIndex;
+        SwingUtilities.invokeLater(() -> {
+            sourceTableModel.add(new SourceLogEntry(
+                finalLogIndex,
+                "Send",
+                requestSm3Hash,
+                "run",
+                httpRequestResponse.response().bodyToString().length(),
+                HttpRequestResponse.httpRequestResponse(
+                    httpRequestResponse.request(),
+                    HttpResponse.httpResponse()
+                ),
+                httpRequestResponse.request().httpService().toString(),
+                httpRequestResponse.request().method(),
+                httpRequestResponse.request().pathWithoutQuery()
+            ));
+        });
+
+        // Step 2: Process request (no semaphore - ThreadPool controls concurrency)
         try {
-            oneLogSize = countId;
-            final int finalOneLogSize = oneLogSize;
-            SwingUtilities.invokeLater(() -> {
-                sourceTableModel.add(new SourceLogEntry(
-                    finalOneLogSize,
-                    "Send",
-                    requestSm3Hash,
-                    "run",
-                    httpRequestResponse.response().bodyToString().length(),
-                    HttpRequestResponse.httpRequestResponse(
-                        httpRequestResponse.request(),
-                        HttpResponse.httpResponse()
-                    ),
-                    httpRequestResponse.request().httpService().toString(),
-                    httpRequestResponse.request().method(),
-                    httpRequestResponse.request().pathWithoutQuery()
-                ));
-            });
-        } finally {
-            lk.unlock();
-            attackMap.putIfAbsent(requestSm3Hash, new ArrayList<>());
-            countId += 1;
-        }
+            String vulnType = "";
+            if (!Thread.currentThread().isInterrupted()) {
+                vulnType = processManualResponse(requestSm3Hash, httpRequestResponse);
+            }
 
-        // Step 2: Process request with semaphore control
-        try {
-            String oneVuln = "";
-            sem.acquire();
-            try {
-                if (!Thread.currentThread().isInterrupted()) {
-                    oneVuln = processManualResponse(requestSm3Hash, httpRequestResponse);
-                }
-            } catch (Exception e) {
-                logger.error("Manual response processing failed: " + requestSm3Hash, e);
-                statistics.incrementDetectionErrors();
-            } finally {
-                sem.release();
-                final int finalOneLogSize = oneLogSize;
-                final String finalOneVuln = oneVuln;
-
-                // Update log entry based on detection result
-                if (oneVuln.isBlank()) {
-                    // memory clean: no vuln found for this request
-                    try { attackMap.remove(requestSm3Hash); } catch (Exception ignore) {}
-                    SwingUtilities.invokeLater(() -> {
-                        sourceTableModel.updateVulnState(
-                            new SourceLogEntry(
-                                finalOneLogSize,
-                                "Send",
-                                requestSm3Hash,
-                                "",
-                                httpRequestResponse.response().bodyToString().length(),
-                                null,
-                                httpRequestResponse.request().httpService().toString(),
-                                httpRequestResponse.request().method(),
-                                httpRequestResponse.request().pathWithoutQuery()
-                            ),
-                            sourceTableModel.log.indexOf(
-                                new SourceLogEntry(finalOneLogSize, null, null, null, 0, null, null, null, null)
-                            ),
-                            sourceTableModel.log.indexOf(
-                                new SourceLogEntry(finalOneLogSize, null, null, null, 0, null, null, null, null)
-                            )
-                        );
-                    });
-                } else {
-                    SwingUtilities.invokeLater(() -> {
-                        sourceTableModel.updateVulnState(
-                            new SourceLogEntry(
-                                finalOneLogSize,
-                                "Send",
-                                requestSm3Hash,
-                                finalOneVuln,
-                                httpRequestResponse.response().bodyToString().length(),
-                                httpRequestResponse,
-                                httpRequestResponse.request().httpService().toString(),
-                                httpRequestResponse.request().method(),
-                                httpRequestResponse.request().pathWithoutQuery()
-                            ),
-                            sourceTableModel.log.indexOf(
-                                new SourceLogEntry(finalOneLogSize, null, null, null, 0, null, null, null, null)
-                            ),
-                            sourceTableModel.log.indexOf(
-                                new SourceLogEntry(finalOneLogSize, null, null, null, 0, null, null, null, null)
-                            )
-                        );
-                    });
-                }
+            // Update log entry based on detection result
+            final String finalVulnType = vulnType;
+            if (vulnType.isBlank()) {
+                // memory clean: no vuln found for this request
+                try { attackMap.remove(requestSm3Hash); } catch (Exception ignore) {}
+                SwingUtilities.invokeLater(() -> {
+                    sourceTableModel.updateVulnState(
+                        new SourceLogEntry(
+                            finalLogIndex,
+                            "Send",
+                            requestSm3Hash,
+                            "",
+                            httpRequestResponse.response().bodyToString().length(),
+                            null,
+                            httpRequestResponse.request().httpService().toString(),
+                            httpRequestResponse.request().method(),
+                            httpRequestResponse.request().pathWithoutQuery()
+                        ),
+                        sourceTableModel.indexOf(
+                            new SourceLogEntry(finalLogIndex, null, null, null, 0, null, null, null, null)
+                        )
+                    );
+                });
+            } else {
+                SwingUtilities.invokeLater(() -> {
+                    sourceTableModel.updateVulnState(
+                        new SourceLogEntry(
+                            finalLogIndex,
+                            "Send",
+                            requestSm3Hash,
+                            finalVulnType,
+                            httpRequestResponse.response().bodyToString().length(),
+                            httpRequestResponse,
+                            httpRequestResponse.request().httpService().toString(),
+                            httpRequestResponse.request().method(),
+                            httpRequestResponse.request().pathWithoutQuery()
+                        ),
+                        sourceTableModel.indexOf(
+                            new SourceLogEntry(finalLogIndex, null, null, null, 0, null, null, null, null)
+                        )
+                    );
+                });
             }
         } catch (InterruptedException e) {
-            final int finalOneLogSize = oneLogSize;
             SwingUtilities.invokeLater(() -> {
                 sourceTableModel.updateVulnState(
                     new SourceLogEntry(
-                        finalOneLogSize,
+                        finalLogIndex,
                         "Send",
                         requestSm3Hash,
                         "手动停止",
@@ -2005,45 +2021,37 @@ public class MyHttpHandler implements HttpHandler {
                         httpRequestResponse.request().method(),
                         httpRequestResponse.request().pathWithoutQuery()
                     ),
-                    sourceTableModel.log.indexOf(
-                        new SourceLogEntry(finalOneLogSize, null, null, null, 0, null, null, null, null)
-                    ),
-                    sourceTableModel.log.indexOf(
-                        new SourceLogEntry(finalOneLogSize, null, null, null, 0, null, null, null, null)
+                    sourceTableModel.indexOf(
+                        new SourceLogEntry(finalLogIndex, null, null, null, 0, null, null, null, null)
                     )
                 );
             });
             throw e; // Re-throw to caller
+        } catch (Exception e) {
+            logger.error("Manual response processing failed: " + requestSm3Hash, e);
+            statistics.incrementDetectionErrors();
         }
     }
 
     public void createProcessThread(HttpRequestResponse httpRequestResponse) {
-        new Thread(() -> {
+        SCAN_EXECUTOR.execute(() -> {
             try {
                 int bodyLength = httpRequestResponse.response().bodyToString().length();
 
-                // Skip empty responses
-                if (bodyLength == 0) {
+                // Skip empty or oversized responses
+                if (bodyLength == 0 || bodyLength >= MEDIUM_RESPONSE_MAX) {
                     return;
                 }
-                // Choose semaphore based on response size
-                Semaphore sem;
-                if (bodyLength < SMALL_RESPONSE_THRESHOLD) {
-                    sem = semaphore;
-                } else if (bodyLength < MEDIUM_RESPONSE_MAX) {
-                    sem = semaphore2;
-                } else {
-                    // Skip oversized responses
-                    return;
-                }
-                // Process with selected semaphore
-                processRequestWithSemaphore(httpRequestResponse, sem);
+
+                // Process request (ThreadPool controls concurrency, no semaphore needed)
+                processManualRequest(httpRequestResponse);
             } catch (Exception e) {
                 logger.error("Thread processing failed", e);
                 statistics.incrementDetectionErrors();
             }
-        }).start();
+        });
     }
+
     /**
      * 判断参数值是否是json字符串
      *
@@ -2061,81 +2069,5 @@ public class MyHttpHandler implements HttpHandler {
             return false;
         }
         return jsonElement.isJsonObject();
-    }
-    /**
-     * 判断参数值url解码后是否是json字符串
-     *
-     * @param jsonUrlStr 参数值
-     * @return 参数值url解码后为json字符串为真
-     */
-    private boolean isUrlJsonStr(String jsonUrlStr){
-        return isJsonStr(urlUtils.decode(jsonUrlStr));
-    }
-
-    /**
-     * 得到url编码的json字符串值的索引集合
-     * {"a":{"b":"2"},"c":10,"d":["e","f"],"g":"h"}
-     * set为值2,e,f,h后一位的索引，[12,29,33,42]
-     * @param jsonstr 输入url编码的json字符串
-     * @return set集合
-     */
-    private Set<Integer> reJson(String jsonstr) {
-        Set<Integer> set = new HashSet<>();
-        String[] splitJson = jsonstr.split("\"");
-        int splen=splitJson.length;
-        int[] lenarr = new int[splen];
-        int length=0;
-        for (int n=0;n<splen;n++) {
-            length+=splitJson[n].length();
-            lenarr[n]=length;
-        }
-        for (int i = 1; i < splen; i+=2) {
-            if (!splitJson[i+1].startsWith(":")){
-               set.add(lenarr[i]+i);
-            }
-
-        }
-        return set;
-    }
-    /**
-     * 得到url编码的json字符串值的索引集合
-     * %7B%22a%22%3A%7B%22b%22%3A%222%22%7D%2C%22c%22%3A10%2C%22d%22%3A%5B%22e%22%2C%22f%22%5D%2C%22g%22%3A%22h%22%7D
-     * set为值2,e,f,h后一位的索引，[30, 71, 81, 104]
-     * @param jsonstr 输入url编码的json字符串
-     * @return set集合
-     */
-    private Set<Integer> reUrlJson(String jsonstr) {
-        Set<Integer> set = new HashSet<>();
-        String[] splitJson = jsonstr.split("%22");
-        int splen=splitJson.length;
-        int[] lenarr = new int[splen];
-        int length=0;
-        for (int n=0;n<splen;n++) {
-            length+=splitJson[n].length();
-            lenarr[n]=length;
-        }
-
-        for (int i = 1; i < splen; i+=2) {
-            if (!(splitJson[i+1].startsWith("%3A")||splitJson[i+1].startsWith("%3a"))){
-                set.add(lenarr[i]+i*3);
-            }
-
-        }
-        return set;
-    }
-
-    /**
-     * 当参数值为json字符串，将参数值转化为set索引集合，当参数值不为json字符串时返回值长度的Set，用于构造新的payloads
-     * @param paramValue 参数值
-     * @return 返回json索引集合，
-     */
-    private Set<Integer> getJSet(String paramValue){
-        if(isJsonStr(paramValue)){
-            return reJson(paramValue);
-        }else if(isUrlJsonStr(paramValue)){
-            return reUrlJson(paramValue);
-        }else{
-            return new HashSet<>(List.of(paramValue.length()));
-        }
     }
 }

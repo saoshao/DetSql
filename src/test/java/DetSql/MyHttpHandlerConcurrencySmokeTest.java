@@ -4,7 +4,6 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Set;
 import java.util.concurrent.*;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -13,8 +12,7 @@ public class MyHttpHandlerConcurrencySmokeTest {
 
     @Test
     public void allocateIdAndInitMapShouldBeThreadSafe() throws InterruptedException {
-        final ReentrantLock lock = new ReentrantLock();
-        final int[] countIdRef = new int[]{1};
+        final AtomicInteger countIdRef = new AtomicInteger(1);
         final ConcurrentHashMap<String, java.util.List<PocLogEntry>> map = new ConcurrentHashMap<>();
 
         int threads = 64;
@@ -29,7 +27,7 @@ public class MyHttpHandlerConcurrencySmokeTest {
             pool.submit(() -> {
                 try {
                     start.await();
-                    int id = MyHttpHandler.allocateIdAndInitMapForTest(lock, countIdRef, map, hash);
+                    int id = MyHttpHandler.allocateIdAndInitMapForTest(countIdRef, map, hash);
                     ids.add(id);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();

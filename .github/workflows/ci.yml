@@ -3,8 +3,16 @@ name: CI
 on:
   push:
     branches: [ main, master, develop ]
+    paths:
+      - 'src/**'
+      - 'pom.xml'
+      - '.github/workflows/ci.yml'
   pull_request:
     branches: [ main, master, develop ]
+    paths:
+      - 'src/**'
+      - 'pom.xml'
+      - '.github/workflows/ci.yml'
   workflow_dispatch:
 
 # 确保同一分支只运行最新的 workflow

@@ -8,6 +8,10 @@ import burp.api.montoya.http.message.HttpRequestResponse;
 import DetSql.ResponseExtractor;
 
 public class PocLogEntry {
+    // Convenience constructor for tests/backward compatibility
+    public PocLogEntry(String name, String poc, String similarity) {
+        this(name, poc, similarity, "UNKNOWN", "0", "200", "0", null, "");
+    }
     private String name;
     private String poc;
     private String similarity;

@@ -62,6 +62,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
     private DetSqlConfig config; // 统一配置管理对象
     private DetSqlLogger logger; // 日志系统
     private Statistics statistics; // 统计系统
+    private BindingContext bindingContext; // UI绑定上下文
     public static JCheckBox switchCheck;
     public static JCheckBox cookieCheck;
     public static JCheckBox errorCheck;//
@@ -193,9 +194,28 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
      */
     private Set<String> parseSetProperty(Properties prop, String key, Set<String> defaultValue) {
         String value = prop.getProperty(key, "");
-        return value.isBlank()
-                ? defaultValue
-                : new HashSet<>(Arrays.asList(value.split("\\|")));
+        if (value.isBlank()) {
+            return defaultValue;
+        }
+        return parseDelimitedString(value);
+    }
+
+    /**
+     * Parse delimited string into Set (with trim and empty filter)
+     * SECURITY: This method ensures no trailing/leading spaces in parsed tokens
+     * to prevent filter bypass vulnerabilities.
+     *
+     * @param input Input string with pipe-delimited tokens (e.g., "jpg | png | gif")
+     * @return Set of trimmed, non-empty tokens
+     */
+    private static Set<String> parseDelimitedString(String input) {
+        if (input == null || input.isBlank()) {
+            return new HashSet<>();
+        }
+        return Arrays.stream(input.split("\\|"))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(java.util.stream.Collectors.toSet());
     }
 
     /**
@@ -310,82 +330,82 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         MyFilterRequest.whiteListSet = parseSetProperty(prop, "whitelist", new HashSet<>());
         MyFilterRequest.blackListSet = parseSetProperty(prop, "blacklist", new HashSet<>());
-        MyHttpHandler.blackParamsSet = parseSetProperty(prop, "paramslist", new HashSet<>());
+        MyFilterRequest.blackParamsSet = parseSetProperty(prop, "paramslist", new HashSet<>());
 
         String suffixProp = prop.getProperty("suffixlist", "").trim();
         if (suffixProp.isBlank()) {
             MyFilterRequest.unLegalExtensionSet = new HashSet<>(DefaultConfig.DEFAULT_SUFFIX_SET);
         } else {
-            MyFilterRequest.unLegalExtensionSet = new HashSet<>(Arrays.asList(suffixProp.split("\\|")));
+            MyFilterRequest.unLegalExtensionSet = parseDelimitedString(suffixProp);
         }
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // 2. UI text field configuration
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         javax.swing.SwingUtilities.invokeLater(() -> {
-            textField.setText(prop.getProperty("whitelist", ""));
-            blackTextField.setText(prop.getProperty("blacklist", ""));
-            suffixTextField.setText(prop.getProperty("suffixlist", DefaultConfig.DEFAULT_SUFFIX_LIST));
-            errorPocTextField.setText(prop.getProperty("errpoclist", ""));
-            blackParamsField.setText(prop.getProperty("paramslist", ""));
-            timeTextField.setText(prop.getProperty("delaytime", ""));
-            staticTimeTextField.setText(prop.getProperty("statictime", "100"));
-            startTimeTextField.setText(prop.getProperty("starttime", "0"));
-            endTimeTextField.setText(prop.getProperty("endtime", "0"));
-            diyTextArea.setText(prop.getProperty("diypayloads", ""));
-            regexTextArea.setText(prop.getProperty("diyregex", ""));
-            blackPathTextArea.setText(prop.getProperty("blackpath", ""));
+            if (textField != null) textField.setText(prop.getProperty("whitelist", ""));
+            if (blackTextField != null) blackTextField.setText(prop.getProperty("blacklist", ""));
+            if (suffixTextField != null) suffixTextField.setText(prop.getProperty("suffixlist", DefaultConfig.DEFAULT_SUFFIX_LIST));
+            if (errorPocTextField != null) errorPocTextField.setText(prop.getProperty("errpoclist", ""));
+            if (blackParamsField != null) blackParamsField.setText(prop.getProperty("paramslist", ""));
+            if (timeTextField != null) timeTextField.setText(prop.getProperty("delaytime", ""));
+            if (staticTimeTextField != null) staticTimeTextField.setText(prop.getProperty("statictime", "100"));
+            if (startTimeTextField != null) startTimeTextField.setText(prop.getProperty("starttime", "0"));
+            if (endTimeTextField != null) endTimeTextField.setText(prop.getProperty("endtime", "0"));
+            if (diyTextArea != null) diyTextArea.setText(prop.getProperty("diypayloads", ""));
+            if (regexTextArea != null) regexTextArea.setText(prop.getProperty("diyregex", ""));
+            if (blackPathTextArea != null) blackPathTextArea.setText(prop.getProperty("blackpath", ""));
         });
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // 3. Integer configuration
+        // 3. Integer configuration - 迁移到 DetSqlConfig
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        MyHttpHandler.intTime = parseIntWithDefault(prop.getProperty("delaytime", ""), DefaultConfig.DEFAULT_DELAY_TIME_MS);
-        MyHttpHandler.staticTime = parseIntWithDefault(prop.getProperty("statictime", ""), DefaultConfig.DEFAULT_STATIC_TIME_MS);
-        MyHttpHandler.startTime = parseIntWithDefault(prop.getProperty("starttime", ""), DefaultConfig.DEFAULT_START_TIME_MS);
-        MyHttpHandler.endTime = parseIntWithDefault(prop.getProperty("endtime", ""), DefaultConfig.DEFAULT_END_TIME_MS);
+        config.setDelayTimeMs(parseIntWithDefault(prop.getProperty("delaytime", ""), DefaultConfig.DEFAULT_DELAY_TIME_MS));
+        config.setStaticTimeMs(parseIntWithDefault(prop.getProperty("statictime", ""), DefaultConfig.DEFAULT_STATIC_TIME_MS));
+        config.setStartTimeMs(parseIntWithDefault(prop.getProperty("starttime", ""), DefaultConfig.DEFAULT_START_TIME_MS));
+        config.setEndTimeMs(parseIntWithDefault(prop.getProperty("endtime", ""), DefaultConfig.DEFAULT_END_TIME_MS));
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // 4. Checkbox configuration
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         javax.swing.SwingUtilities.invokeLater(() -> {
-            switchCheck.setSelected(Boolean.parseBoolean(prop.getProperty("switch")));
-            cookieCheck.setSelected(Boolean.parseBoolean(prop.getProperty("cookiecheck")));
-            errorCheck.setSelected(Boolean.parseBoolean(prop.getProperty("errorcheck")));
-            vulnCheck.setSelected(Boolean.parseBoolean(prop.getProperty("repeatercheck")));
-            numCheck.setSelected(Boolean.parseBoolean(prop.getProperty("numcheck")));
-            stringCheck.setSelected(Boolean.parseBoolean(prop.getProperty("stringcheck")));
-            orderCheck.setSelected(Boolean.parseBoolean(prop.getProperty("ordercheck")));
-            boolCheck.setSelected(Boolean.parseBoolean(prop.getProperty("boolcheck")));
-            diyCheck.setSelected(Boolean.parseBoolean(prop.getProperty("diycheck")));
+            if (switchCheck != null) switchCheck.setSelected(Boolean.parseBoolean(prop.getProperty("switch")));
+            if (cookieCheck != null) cookieCheck.setSelected(Boolean.parseBoolean(prop.getProperty("cookiecheck")));
+            if (errorCheck != null) errorCheck.setSelected(Boolean.parseBoolean(prop.getProperty("errorcheck")));
+            if (vulnCheck != null) vulnCheck.setSelected(Boolean.parseBoolean(prop.getProperty("repeatercheck")));
+            if (numCheck != null) numCheck.setSelected(Boolean.parseBoolean(prop.getProperty("numcheck")));
+            if (stringCheck != null) stringCheck.setSelected(Boolean.parseBoolean(prop.getProperty("stringcheck")));
+            if (orderCheck != null) orderCheck.setSelected(Boolean.parseBoolean(prop.getProperty("ordercheck")));
+            if (boolCheck != null) boolCheck.setSelected(Boolean.parseBoolean(prop.getProperty("boolcheck")));
+            if (diyCheck != null) diyCheck.setSelected(Boolean.parseBoolean(prop.getProperty("diycheck")));
         });
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // 5. Error Payload configuration
+        // 5. Error Payload configuration - 迁移到 DetSqlConfig
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         String errPocList = prop.getProperty("errpoclist", "");
         if (errPocList.isBlank()) {
-            MyHttpHandler.errPocs = DefaultConfig.DEFAULT_ERR_POCS.clone();
-            MyHttpHandler.errPocsj = DefaultConfig.DEFAULT_ERR_POCS_JSON.clone();
+            config.setErrorPayloads(DefaultConfig.DEFAULT_ERR_POCS.clone());
+            config.setErrorPayloadsJson(DefaultConfig.DEFAULT_ERR_POCS_JSON.clone());
         } else {
-            MyHttpHandler.errPocs = errPocList.split("\\|");
+            config.setErrorPayloads(errPocList.split("\\|"));
             // 对 JSON/XML 使用安全变体
-            MyHttpHandler.errPocsj = deriveJsonErrPocs(MyHttpHandler.errPocs);
+            config.setErrorPayloadsJson(deriveJsonErrPocs(config.getErrorPayloads()));
         }
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // 6. TextArea configuration (requires special handling)
+        // 6. TextArea configuration (requires special handling) - 迁移到 DetSqlConfig
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         if (!prop.getProperty("diypayloads", "").isBlank()) {
-            MyHttpHandler.diyPayloads = readLinesFromTextArea(diyTextArea);
+            config.setDiyPayloads(readLinesFromTextArea(diyTextArea));
         } else {
-            MyHttpHandler.diyPayloads.clear();
+            config.setDiyPayloads(new HashSet<>());
         }
 
         if (!prop.getProperty("diyregex", "").isBlank()) {
-            MyHttpHandler.diyRegexs = readLinesFromTextArea(regexTextArea);
+            config.setDiyRegexs(readLinesFromTextArea(regexTextArea));
         } else {
-            MyHttpHandler.diyRegexs.clear();
+            config.setDiyRegexs(new HashSet<>());
         }
 
         if (!prop.getProperty("blackpath", "").isBlank()) {
@@ -415,7 +435,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
 
         try {
             config.load(configPath);
-        } catch (IOException ex) {
+        } catch (Exception ex) {
             api.logging().logToError("Configuration loading failed: " + ex.getMessage());
         }
 
@@ -454,7 +474,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
 
         // 使用新的日志系统 - 启动信息始终输出
         logger.always("################################################");
-        logger.always("[#]  DetSql v3.2.0 loaded successfully");
+        logger.always("[#]  DetSql v3.3.0 loaded successfully");
         logger.always("[#]  Author: saoshao");
         logger.always("[#]  Email: 1224165231@qq.com");
         logger.always("[#]  Github: https://github.com/saoshao/DetSql");
@@ -542,7 +562,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
                     super.changeSelection(rowIndex, columnIndex, toggle, extend);
                     String sm3Hash = logEntry.getMyHash();
                     List<PocLogEntry> pocLogEntries = myHttpHandler.attackMap.get(sm3Hash);
-                    pocTableModel.add(pocLogEntries);
+                    pocTableModel.replaceAll(pocLogEntries);
                 }else{
                     requestViewer.setRequest(HttpRequest.httpRequest());
                     super.changeSelection(rowIndex, columnIndex, toggle, extend);
@@ -583,11 +603,28 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
         table1.setRowSorter(sorter);
         table1.setEnabled(true);
         table1.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
+        
+        // 设置列宽自适应 - 为不同列设置合理的首选宽度
+        table1.getColumnModel().getColumn(0).setPreferredWidth(50);   // # (ID)
+        table1.getColumnModel().getColumn(1).setPreferredWidth(80);   // Tool
+        table1.getColumnModel().getColumn(2).setPreferredWidth(80);   // Method
+        table1.getColumnModel().getColumn(3).setPreferredWidth(150);  // Host
+        table1.getColumnModel().getColumn(4).setPreferredWidth(300);  // URL
+        table1.getColumnModel().getColumn(5).setPreferredWidth(100);  // BodyLength
+        table1.getColumnModel().getColumn(6).setPreferredWidth(120);  // VulnState
+        
         final JPopupMenu popupMenu = new JPopupMenu();
         JMenuItem menuItem1 = new JMenuItem("delete selected rows");
         JMenuItem menuItem2 = new JMenuItem("delete novuln history");
+        JMenuItem exportBurpLog = new JMenuItem("Export selected original requests (Burp log)");
+        JMenuItem copyParams = new JMenuItem("Copy vulnerable parameters from selected");
         popupMenu.add(menuItem1);
         popupMenu.add(menuItem2);
+        popupMenu.addSeparator();
+        popupMenu.add(exportBurpLog);
+        popupMenu.add(copyParams);
+        
+        // delete selected rows
         menuItem1.addActionListener(e -> {
             int[] selectedRows = table1.getSelectedRows();
             for (int i = selectedRows.length - 1; i >= 0; i--) {
@@ -597,38 +634,124 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
                 if (!"run".equals(state)){
                     // remove attackMap entry for this row if present
                     try {
-                        SourceLogEntry entry = sourceTableModel.log.get(modelIndex);
+                        SourceLogEntry entry = sourceTableModel.get(modelIndex);
                         if (entry != null && entry.getMyHash() != null && myHttpHandler != null && myHttpHandler.attackMap != null) {
                             myHttpHandler.attackMap.remove(entry.getMyHash());
                         }
                     } catch (Exception ignore) {}
-                    // remove row from model
-                    sourceTableModel.log.remove(new SourceLogEntry((int)sourceTableModel.getValueAt(modelIndex,0),null,null,null,0,null,null,null,null));
-                    tableModel.fireTableRowsDeleted(viewIndex, viewIndex);
+                    // remove row from model using indexed removal
+                    sourceTableModel.remove(modelIndex);
                 }
             }
         });
+        // delete novuln history
         menuItem2.addActionListener(e -> {
-            for (int i = sourceTableModel.log.size() - 1; i >= 0; i--) {
+            for (int i = sourceTableModel.getRowCount() - 1; i >= 0; i--) {
                 int modelIndex = table1.convertRowIndexToModel(i);
                 Object state = sourceTableModel.getValueAt(modelIndex,6);
                 if (state != null && (state.toString().isEmpty() || "手动停止".equals(state))){
                     try {
-                        SourceLogEntry entry = sourceTableModel.log.get(modelIndex);
+                        SourceLogEntry entry = sourceTableModel.get(modelIndex);
                         if (entry != null && entry.getMyHash() != null && myHttpHandler != null && myHttpHandler.attackMap != null) {
                             myHttpHandler.attackMap.remove(entry.getMyHash());
                         }
                     } catch (Exception ignore) {}
-                    sourceTableModel.log.remove(new SourceLogEntry((int)sourceTableModel.getValueAt(modelIndex,0),null,null,null,0,null,null,null,null));
-                    tableModel.fireTableRowsDeleted(i,i);
+                    sourceTableModel.remove(modelIndex);
                 }
             }
         });
+
+// export selected source requests as Burp log (from table1 selection)
+exportBurpLog.addActionListener(e -> {
+    int[] selectedRows = table1.getSelectedRows();
+    if (selectedRows == null || selectedRows.length == 0) return;
+
+    javax.swing.JFileChooser fileChooser = new javax.swing.JFileChooser();
+    fileChooser.setSelectedFile(new java.io.File("burp_log.txt"));
+    if (fileChooser.showSaveDialog(null) != javax.swing.JFileChooser.APPROVE_OPTION) {
+        return;
+    }
+    java.io.File file = fileChooser.getSelectedFile();
+
+    java.util.Set<String> processedHashes = new java.util.HashSet<>();
+    java.util.List<burp.api.montoya.http.message.HttpRequestResponse> originalRequests = new java.util.ArrayList<>();
+
+    for (int viewIndex : selectedRows) {
+        int modelIndex = table1.convertRowIndexToModel(viewIndex);
+        SourceLogEntry sourceEntry = sourceTableModel.get(modelIndex);
+        if (sourceEntry == null) continue;
+        String myHash = sourceEntry.getMyHash();
+        if (myHash == null || !processedHashes.add(myHash)) continue;
+        if (sourceEntry.getHttpRequestResponse() != null) {
+            originalRequests.add(sourceEntry.getHttpRequestResponse());
+        }
+    }
+
+    if (originalRequests.isEmpty()) {
+        javax.swing.JOptionPane.showMessageDialog(null, "选中记录未包含可导出的原始请求", "提示", javax.swing.JOptionPane.WARNING_MESSAGE);
+        return;
+    }
+
+    String separator = "======================================================";
+    try (java.io.FileOutputStream out = new java.io.FileOutputStream(file)) {
+        byte[] sepBytes = (separator + "\n").getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        for (burp.api.montoya.http.message.HttpRequestResponse req : originalRequests) {
+            out.write(sepBytes);
+            // 直接写入原始HTTP请求字节，保留CRLF等原始格式，兼容sqlmap
+            out.write(req.request().toByteArray().getBytes());
+            out.write('\n');
+        }
+        out.write(sepBytes);
+
+        String message = String.format(
+                "已导出 %d 个原始请求\n文件：%s\n\n使用方法：sqlmap -l %s --batch",
+                originalRequests.size(), file.getAbsolutePath(), file.getName());
+        javax.swing.JOptionPane.showMessageDialog(null, message, "导出成功", javax.swing.JOptionPane.INFORMATION_MESSAGE);
+    } catch (java.io.IOException ex) {
+        javax.swing.JOptionPane.showMessageDialog(null, "导出失败：" + ex.getMessage(), "错误", javax.swing.JOptionPane.ERROR_MESSAGE);
+    }
+});
+
+// copy vulnerable parameters from selected (table1 selection aggregates attackMap)
+copyParams.addActionListener(e -> {
+    int[] selectedRows = table1.getSelectedRows();
+    if (selectedRows == null || selectedRows.length == 0) return;
+    java.util.Set<String> params = new java.util.TreeSet<>();
+    for (int viewIndex : selectedRows) {
+        int modelIndex = table1.convertRowIndexToModel(viewIndex);
+        SourceLogEntry sourceEntry = sourceTableModel.get(modelIndex);
+        if (sourceEntry == null) continue;
+        String myHash = sourceEntry.getMyHash();
+        if (myHash == null) continue;
+        java.util.List<PocLogEntry> entries = myHttpHandler.attackMap.get(myHash);
+        if (entries == null) continue;
+        for (PocLogEntry pe : entries) {
+            String name = pe.getName();
+            if (name != null && !name.isEmpty()) params.add(name);
+        }
+    }
+    if (params.isEmpty()) {
+        javax.swing.JOptionPane.showMessageDialog(null, "选中的记录中未找到参数", "提示", javax.swing.JOptionPane.WARNING_MESSAGE);
+        return;
+    }
+    String result = String.join(",", params);
+    java.awt.datatransfer.StringSelection selection = new java.awt.datatransfer.StringSelection(result);
+    java.awt.datatransfer.Clipboard clipboard = java.awt.Toolkit.getDefaultToolkit().getSystemClipboard();
+    clipboard.setContents(selection, selection);
+    String message = String.format("已复制 %d 个参数到剪贴板：\n%s", params.size(), result);
+    javax.swing.JOptionPane.showMessageDialog(null, message, "复制成功", javax.swing.JOptionPane.INFORMATION_MESSAGE);
+});
+
 // 为弹出菜单添加事件监听器
+        // Enable/disable menu items by selection
         popupMenu.addPopupMenuListener(new PopupMenuListener() {
             @Override
             public void popupMenuWillBecomeVisible(PopupMenuEvent e) {
-                // 当菜单即将可见时的处理逻辑
+                int selectedCount = table1.getSelectedRowCount();
+                boolean hasSelection = selectedCount > 0;
+                // enable/disable new actions based on selection
+                exportBurpLog.setEnabled(hasSelection);
+                copyParams.setEnabled(hasSelection);
             }
 
             @Override
@@ -689,6 +812,103 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
         });
 //
         table2.setRowSorter(sorter1);
+
+        // ========= table2 (POC) context menu ========= (removed per new design)
+        // no context menu for table2
+
+        // removed: no context menu for table2
+
+        // removed: table2 context menu mouse listener
+
+        // removed: table2 export/copy actions now provided on table1 popup
+        /*
+        exportBurpLog.addActionListener(e -> {
+            int[] selectedRows = table2.getSelectedRows();
+            if (selectedRows == null || selectedRows.length == 0) return;
+
+            javax.swing.JFileChooser fileChooser = new javax.swing.JFileChooser();
+            fileChooser.setSelectedFile(new java.io.File("burp_log.txt"));
+            if (fileChooser.showSaveDialog(null) != javax.swing.JFileChooser.APPROVE_OPTION) {
+                return;
+            }
+            java.io.File file = fileChooser.getSelectedFile();
+
+            java.util.Set<String> processedHashes = new java.util.HashSet<>();
+            java.util.List<burp.api.montoya.http.message.HttpRequestResponse> originalRequests = new java.util.ArrayList<>();
+
+            for (int viewIndex : selectedRows) {
+                int modelIndex = table2.convertRowIndexToModel(viewIndex);
+                PocLogEntry pocEntry = pocTableModel.get(modelIndex);
+                String myHash = pocEntry.getMyHash();
+                if (myHash == null) continue;
+                if (!processedHashes.add(myHash)) continue; // dedup
+                SourceLogEntry sourceEntry = sourceTableModel.findByHash(myHash);
+                if (sourceEntry != null && sourceEntry.getHttpRequestResponse() != null) {
+                    originalRequests.add(sourceEntry.getHttpRequestResponse());
+                }
+            }
+
+            if (originalRequests.isEmpty()) {
+                javax.swing.JOptionPane.showMessageDialog(null, "选中记录未包含可导出的原始请求", "提示", javax.swing.JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            String separator = "======================================================";
+            try (java.io.FileOutputStream out = new java.io.FileOutputStream(file)) {
+                byte[] sepBytes = (separator + "\n").getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                for (burp.api.montoya.http.message.HttpRequestResponse req : originalRequests) {
+                    out.write(sepBytes);
+                    // 直接写入原始HTTP请求字节，保留CRLF等原始格式，兼容sqlmap
+                    out.write(req.request().toByteArray().getBytes());
+                    out.write('\n');
+                }
+                out.write(sepBytes);
+
+                String message = String.format(
+                        "已导出 %d 个原始请求\n文件：%s\n\n使用方法：sqlmap -l %s --batch",
+                        originalRequests.size(), file.getAbsolutePath(), file.getName());
+                javax.swing.JOptionPane.showMessageDialog(null, message, "导出成功", javax.swing.JOptionPane.INFORMATION_MESSAGE);
+            } catch (java.io.IOException ex) {
+                javax.swing.JOptionPane.showMessageDialog(null, "导出失败：" + ex.getMessage(), "错误", javax.swing.JOptionPane.ERROR_MESSAGE);
+            }
+        });
+
+        // Action: copy vulnerable parameter names (sorted & deduplicated)
+        copyParams.addActionListener(e -> {
+            int[] selectedRows = table2.getSelectedRows();
+            if (selectedRows == null || selectedRows.length == 0) return;
+            java.util.Set<String> params = new java.util.TreeSet<>();
+            for (int viewIndex : selectedRows) {
+                int modelIndex = table2.convertRowIndexToModel(viewIndex);
+                PocLogEntry entry = pocTableModel.get(modelIndex);
+                String paramName = entry.getName();
+                if (paramName != null && !paramName.isEmpty()) params.add(paramName);
+            }
+            if (params.isEmpty()) {
+                javax.swing.JOptionPane.showMessageDialog(null, "选中的记录中未找到参数", "提示", javax.swing.JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            String result = String.join(",", params);
+            java.awt.datatransfer.StringSelection selection = new java.awt.datatransfer.StringSelection(result);
+            java.awt.datatransfer.Clipboard clipboard = java.awt.Toolkit.getDefaultToolkit().getSystemClipboard();
+            clipboard.setContents(selection, selection);
+            String message = String.format("已复制 %d 个参数到剪贴板：\n%s", params.size(), result);
+            javax.swing.JOptionPane.showMessageDialog(null, message, "复制成功", javax.swing.JOptionPane.INFORMATION_MESSAGE);
+        });
+
+        // Action: delete selected POC rows from table2 view
+        /* deleteSelectedPoc.addActionListener(e -> {
+            int[] selected = table2.getSelectedRows();
+            if (selected == null || selected.length == 0) return;
+            int[] modelIdx = new int[selected.length];
+            for (int i = 0; i < selected.length; i++) {
+                modelIdx[i] = table2.convertRowIndexToModel(selected[i]);
+            }
+            java.util.Arrays.sort(modelIdx);
+            for (int i = modelIdx.length - 1; i >= 0; i--) {
+                pocTableModel.remove(modelIdx[i]);
+            }
+        });*/
 
         //======== root ========
         {
@@ -861,10 +1081,10 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
         // Setup UI sections
         setupDomainFilters(container, springLayout, topicLabel, blackLabel, suffixLabel, errorPocLabel, blackParamsLabel, st, st2);
         setupCheckboxes(container, springLayout, conBt, st, st2);
-        setupConfigPath(container, springLayout, configLabel, loadBt, saveBt, blackLabel, st, st2, st3, st4);
-        JScrollPane blackPathScrollPane = setupBlackPath(container, springLayout, blackPathLabel, configLabel, st, st2);
-        JScrollPane diyScrollPane = setupPayloadsAndSettings(container, springLayout, diyLabel, resRegexLabel, timeLabel, staticTimeLabel, startTimeLabel, blackParamsLabel, blackPathScrollPane, st, st2);
-        setupLanguage(container, springLayout, languageLabel, blackParamsLabel, diyScrollPane, st, st2);
+        setupConfigPath(container, springLayout, configLabel, loadBt, saveBt, blackLabel, st, st3, st4);
+        JScrollPane blackPathScrollPane = setupBlackPath(container, springLayout, blackPathLabel, configLabel, st);
+        JScrollPane diyScrollPane = setupPayloadsAndSettings(container, springLayout, diyLabel, resRegexLabel, timeLabel, staticTimeLabel, startTimeLabel, blackParamsLabel, blackPathScrollPane, st);
+        setupLanguage(container, springLayout, languageLabel, blackParamsLabel, diyScrollPane, st);
 
         // Setup button event handlers
         conBt.addActionListener(e -> handleConfirmButton());
@@ -880,6 +1100,27 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
                 blackParamsLabel, diyLabel, resRegexLabel, timeLabel,
                 staticTimeLabel, startTimeLabel, blackPathLabel,
                 conBt, loadBt, saveBt, languageLabel, configLabel);
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // 初始化UI双向绑定 (消除手动同步代码)
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        if (config != null) {
+            bindingContext = new BindingContext(config);
+
+            // 绑定TextField (使用类型安全的新API)
+            bindingContext.bindSetField(textField, "whiteListDomains");
+            bindingContext.bindSetField(blackTextField, "blackListDomains");
+            bindingContext.bindSetField(suffixTextField, "unLegalExtensions");
+            bindingContext.bindSetField(blackParamsField, "blackListParams");
+
+            // 绑定TextArea (使用类型安全的新API)
+            bindingContext.bindSetArea(diyTextArea, "diyPayloads");
+            bindingContext.bindSetArea(regexTextArea, "diyRegexs");
+            bindingContext.bindSetArea(blackPathTextArea, "blackListPaths");
+
+            // TODO: 时间字段绑定需要特殊处理(int类型)
+            // TODO: errorPocTextField需要特殊处理(String[]类型)
+        }
 
         return container;
     }
@@ -1004,7 +1245,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
 
     private void setupConfigPath(Container container, SpringLayout layout, JLabel configLabel,
                                  JButton loadBt, JButton saveBt, JLabel blackLabel,
-                                 Spring st, Spring st2, Spring st3, Spring st4) {
+                                 Spring st, Spring st3, Spring st4) {
         // Create config path text field
         configTextField = new JTextField(TEXTFIELD_COLUMNS);
         configTextField.setEditable(false);
@@ -1028,7 +1269,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
     }
 
     private JScrollPane setupBlackPath(Container container, SpringLayout layout, JLabel blackPathLabel,
-                                       JLabel configLabel, Spring st, Spring st2) {
+                                       JLabel configLabel, Spring st) {
         // Create black path text area
         blackPathTextArea = new JTextArea(TEXTAREA_ROWS_SMALL, TEXTAREA_ROWS_MEDIUM);
         JScrollPane blackPathScrollPane = new JScrollPane();
@@ -1051,7 +1292,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
                                                  JLabel diyLabel, JLabel resRegexLabel,
                                                  JLabel timeLabel, JLabel staticTimeLabel, JLabel startTimeLabel,
                                                  JLabel blackParamsLabel, Component blackPathScrollPane,
-                                                 Spring st, Spring st2) {
+                                                 Spring st) {
         // Create DIY payloads text area
         diyTextArea = new JTextArea(TEXTAREA_ROWS_XLARGE, TEXTAREA_ROWS_MEDIUM);
         JScrollPane diyScrollPane = new JScrollPane();
@@ -1131,7 +1372,7 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
     }
 
     private void setupLanguage(Container container, SpringLayout layout, JLabel languageLabel,
-                               JLabel blackParamsLabel, JScrollPane diyScrollPane, Spring st, Spring st2) {
+                               JLabel blackParamsLabel, JScrollPane diyScrollPane, Spring st) {
         // Create language combo box
         languageComboBox = new JComboBox<>(LANGUAGES);
         languageComboBox.setSelectedIndex(index);
@@ -1148,59 +1389,59 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
     private void handleConfirmButton() {
         String whiteList = textField.getText();
         if (!whiteList.isBlank()) {
-            MyFilterRequest.whiteListSet = new HashSet<>(Arrays.asList(whiteList.trim().split("\\|")));
+            MyFilterRequest.whiteListSet = parseDelimitedString(whiteList);
         } else {
             MyFilterRequest.whiteListSet.clear();
         }
 
         String blackList = blackTextField.getText();
         if (!blackList.isBlank()) {
-            MyFilterRequest.blackListSet = new HashSet<>(Arrays.asList(blackList.trim().split("\\|")));
+            MyFilterRequest.blackListSet = parseDelimitedString(blackList);
         } else {
             MyFilterRequest.blackListSet.clear();
         }
 
         String blackParamsList = blackParamsField.getText();
         if (!blackParamsList.isBlank()) {
-            MyHttpHandler.blackParamsSet = new HashSet<>(Arrays.asList(blackParamsList.trim().split("\\|")));
+            MyFilterRequest.blackParamsSet = parseDelimitedString(blackParamsList);
         } else {
-            MyHttpHandler.blackParamsSet.clear();
+            MyFilterRequest.blackParamsSet.clear();
         }
 
         String unLegalExtension = suffixTextField.getText();
         if (!unLegalExtension.isBlank()) {
-            MyFilterRequest.unLegalExtensionSet = new HashSet<>(Arrays.asList(unLegalExtension.trim().split("\\|")));
+            MyFilterRequest.unLegalExtensionSet = parseDelimitedString(unLegalExtension);
         } else {
             MyFilterRequest.unLegalExtensionSet = new HashSet<>(DefaultConfig.DEFAULT_SUFFIX_SET);
         }
 
         String errorPocList = errorPocTextField.getText();
         if (!errorPocList.isBlank()) {
-            MyHttpHandler.errPocs = errorPocList.trim().split("\\|");
-            MyHttpHandler.errPocsj = deriveJsonErrPocs(MyHttpHandler.errPocs);
+            config.setErrorPayloads(errorPocList.trim().split("\\|"));
+            config.setErrorPayloadsJson(deriveJsonErrPocs(config.getErrorPayloads()));
         } else {
-            MyHttpHandler.errPocs = DefaultConfig.DEFAULT_ERR_POCS.clone();
-            MyHttpHandler.errPocsj = DefaultConfig.DEFAULT_ERR_POCS_JSON.clone();
+            config.setErrorPayloads(DefaultConfig.DEFAULT_ERR_POCS.clone());
+            config.setErrorPayloadsJson(DefaultConfig.DEFAULT_ERR_POCS_JSON.clone());
         }
 
         String diyPayloadsStr = diyTextArea.getText();
         if (!diyPayloadsStr.isBlank()) {
-            MyHttpHandler.diyPayloads = readLinesFromTextArea(diyTextArea);
+            config.setDiyPayloads(readLinesFromTextArea(diyTextArea));
         } else {
-            MyHttpHandler.diyPayloads.clear();
+            config.getDiyPayloads().clear();
         }
 
         String diyRegexsStr = regexTextArea.getText();
         if (!diyRegexsStr.isBlank()) {
-            MyHttpHandler.diyRegexs = readLinesFromTextArea(regexTextArea);
+            config.setDiyRegexs(readLinesFromTextArea(regexTextArea));
         } else {
-            MyHttpHandler.diyRegexs.clear();
+            config.getDiyRegexs().clear();
         }
 
-        MyHttpHandler.intTime = parseIntWithDefault(timeTextField.getText(), DefaultConfig.DEFAULT_DELAY_TIME_MS);
-        MyHttpHandler.staticTime = parseIntWithDefault(staticTimeTextField.getText(), DefaultConfig.DEFAULT_STATIC_TIME_MS);
-        MyHttpHandler.startTime = parseIntWithDefault(startTimeTextField.getText(), DefaultConfig.DEFAULT_START_TIME_MS);
-        MyHttpHandler.endTime = parseIntWithDefault(endTimeTextField.getText(), DefaultConfig.DEFAULT_END_TIME_MS);
+        config.setDelayTimeMs(parseIntWithDefault(timeTextField.getText(), DefaultConfig.DEFAULT_DELAY_TIME_MS));
+        config.setStaticTimeMs(parseIntWithDefault(staticTimeTextField.getText(), DefaultConfig.DEFAULT_STATIC_TIME_MS));
+        config.setStartTimeMs(parseIntWithDefault(startTimeTextField.getText(), DefaultConfig.DEFAULT_START_TIME_MS));
+        config.setEndTimeMs(parseIntWithDefault(endTimeTextField.getText(), DefaultConfig.DEFAULT_END_TIME_MS));
 
         String blackPathStr = blackPathTextArea.getText();
         if (!blackPathStr.isBlank()) {
@@ -1357,8 +1598,6 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
         JLabel topicLabel = new JLabel("base64编码值:");
         JLabel contentLabel = new JLabel("base64解码值:");
         JLabel unicodeLabel = new JLabel("unicode编解码:");
-        JLabel unicodexLabel = new JLabel("unicode解码值:");
-
         JLabel urlLabel = new JLabel("url中文编解码:");
 
         JTextArea textArea = new JTextArea(14, 6);
@@ -1375,11 +1614,6 @@ public class DetSql implements BurpExtension, ContextMenuItemsProvider{
         JScrollPane scrollPane3 = new JScrollPane();
         scrollPane3.setViewportView(textArea3);
         textArea3.setLineWrap(true);
-
-        JTextArea textArea4 = new JTextArea(6, 6);
-        JScrollPane scrollPane4 = new JScrollPane();
-        scrollPane4.setViewportView(textArea4);
-        textArea4.setLineWrap(true);
 
         JTextArea textArea5 = new JTextArea(6, 6);
         JScrollPane scrollPane5 = new JScrollPane();

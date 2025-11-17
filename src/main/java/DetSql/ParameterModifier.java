@@ -14,7 +14,7 @@ import java.util.Optional;
  * - 无状态 (线程安全)
  * - 直接传递 ParsedHttpParameter，从根本上消除索引错位问题
  *
- * @author DetSql Team
+ * @author kenyon
  * @version 3.0
  */
 @FunctionalInterface

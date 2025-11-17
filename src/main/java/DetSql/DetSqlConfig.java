@@ -3,8 +3,12 @@
  */
 package DetSql;
 
+import java.beans.PropertyChangeListener;
+import java.beans.PropertyChangeSupport;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 
 /**
@@ -15,8 +19,26 @@ import java.util.*;
  * - 默认值在字段初始化时定义,无需空值检查
  * - 提供 load/save 方法持久化配置到文件
  * - 通过 Getter/Setter 访问配置项
+ * - 支持PropertyChangeListener实现UI双向绑定
  */
 public class DetSqlConfig {
+
+    // PropertyChange支持 - 用于UI绑定
+    private final PropertyChangeSupport pcs = new PropertyChangeSupport(this);
+
+    /**
+     * 辅助方法: 设置属性并触发PropertyChange事件
+     *
+     * 用途: 消除setter中的重复代码
+     * 优化: 从3行代码减少到1行方法调用
+     *
+     * @param propertyName 属性名
+     * @param oldValue 旧值
+     * @param newValue 新值
+     */
+    protected <T> void fireChange(String propertyName, T oldValue, T newValue) {
+        pcs.firePropertyChange(propertyName, oldValue, newValue);
+    }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // 检测阈值配置
@@ -323,7 +345,9 @@ public class DetSqlConfig {
     }
 
     public void setSimilarityThreshold(double similarityThreshold) {
+        var old = this.similarityThreshold;
         this.similarityThreshold = similarityThreshold;
+        fireChange("similarityThreshold", old, similarityThreshold);
     }
 
     public int getMaxResponseSize() {
@@ -331,7 +355,9 @@ public class DetSqlConfig {
     }
 
     public void setMaxResponseSize(int maxResponseSize) {
+        var old = this.maxResponseSize;
         this.maxResponseSize = maxResponseSize;
+        fireChange("maxResponseSize", old, maxResponseSize);
     }
 
     public int getLengthDiffThreshold() {
@@ -339,7 +365,9 @@ public class DetSqlConfig {
     }
 
     public void setLengthDiffThreshold(int lengthDiffThreshold) {
+        var old = this.lengthDiffThreshold;
         this.lengthDiffThreshold = lengthDiffThreshold;
+        fireChange("lengthDiffThreshold", old, lengthDiffThreshold);
     }
 
     public int getThreadPoolSize() {
@@ -347,7 +375,9 @@ public class DetSqlConfig {
     }
 
     public void setThreadPoolSize(int threadPoolSize) {
+        var old = this.threadPoolSize;
         this.threadPoolSize = threadPoolSize;
+        fireChange("threadPoolSize", old, threadPoolSize);
     }
 
     public int getThreadPoolSize2() {
@@ -355,7 +385,9 @@ public class DetSqlConfig {
     }
 
     public void setThreadPoolSize2(int threadPoolSize2) {
+        var old = this.threadPoolSize2;
         this.threadPoolSize2 = threadPoolSize2;
+        fireChange("threadPoolSize2", old, threadPoolSize2);
     }
 
     public int getDelayTimeMs() {
@@ -363,7 +395,9 @@ public class DetSqlConfig {
     }
 
     public void setDelayTimeMs(int delayTimeMs) {
+        var old = this.delayTimeMs;
         this.delayTimeMs = delayTimeMs;
+        fireChange("delayTimeMs", old, delayTimeMs);
     }
 
     public int getStaticTimeMs() {
@@ -371,7 +405,9 @@ public class DetSqlConfig {
     }
 
     public void setStaticTimeMs(int staticTimeMs) {
+        var old = this.staticTimeMs;
         this.staticTimeMs = staticTimeMs;
+        fireChange("staticTimeMs", old, staticTimeMs);
     }
 
     public int getStartTimeMs() {
@@ -379,7 +415,9 @@ public class DetSqlConfig {
     }
 
     public void setStartTimeMs(int startTimeMs) {
+        var old = this.startTimeMs;
         this.startTimeMs = startTimeMs;
+        fireChange("startTimeMs", old, startTimeMs);
     }
 
     public int getEndTimeMs() {
@@ -387,7 +425,9 @@ public class DetSqlConfig {
     }
 
     public void setEndTimeMs(int endTimeMs) {
+        var old = this.endTimeMs;
         this.endTimeMs = endTimeMs;
+        fireChange("endTimeMs", old, endTimeMs);
     }
 
     public Set<String> getWhiteListDomains() {
@@ -395,7 +435,9 @@ public class DetSqlConfig {
     }
 
     public void setWhiteListDomains(Set<String> whiteListDomains) {
+        var old = this.whiteListDomains;
         this.whiteListDomains = whiteListDomains;
+        fireChange("whiteListDomains", old, whiteListDomains);
     }
 
     public Set<String> getBlackListDomains() {
@@ -403,7 +445,9 @@ public class DetSqlConfig {
     }
 
     public void setBlackListDomains(Set<String> blackListDomains) {
+        var old = this.blackListDomains;
         this.blackListDomains = blackListDomains;
+        fireChange("blackListDomains", old, blackListDomains);
     }
 
     public Set<String> getBlackListParams() {
@@ -411,7 +455,9 @@ public class DetSqlConfig {
     }
 
     public void setBlackListParams(Set<String> blackListParams) {
+        var old = this.blackListParams;
         this.blackListParams = blackListParams;
+        fireChange("blackListParams", old, blackListParams);
     }
 
     public Set<String> getBlackListPaths() {
@@ -419,7 +465,9 @@ public class DetSqlConfig {
     }
 
     public void setBlackListPaths(Set<String> blackListPaths) {
+        var old = this.blackListPaths;
         this.blackListPaths = blackListPaths;
+        fireChange("blackListPaths", old, blackListPaths);
     }
 
     public Set<String> getUnLegalExtensions() {
@@ -427,7 +475,9 @@ public class DetSqlConfig {
     }
 
     public void setUnLegalExtensions(Set<String> unLegalExtensions) {
+        var old = this.unLegalExtensions;
         this.unLegalExtensions = unLegalExtensions;
+        fireChange("unLegalExtensions", old, unLegalExtensions);
     }
 
     public String[] getErrorPayloads() {
@@ -435,7 +485,9 @@ public class DetSqlConfig {
     }
 
     public void setErrorPayloads(String[] errorPayloads) {
+        var old = this.errorPayloads;
         this.errorPayloads = errorPayloads;
+        fireChange("errorPayloads", old, errorPayloads);
     }
 
     public String[] getErrorPayloadsJson() {
@@ -443,22 +495,67 @@ public class DetSqlConfig {
     }
 
     public void setErrorPayloadsJson(String[] errorPayloadsJson) {
+        var old = this.errorPayloadsJson;
         this.errorPayloadsJson = errorPayloadsJson;
+        fireChange("errorPayloadsJson", old, errorPayloadsJson);
     }
 
     public Set<String> getDiyPayloads() {
-        return diyPayloads;
+        return Collections.unmodifiableSet(diyPayloads);
     }
 
     public void setDiyPayloads(Set<String> diyPayloads) {
+        var old = this.diyPayloads;
         this.diyPayloads = diyPayloads;
+        fireChange("diyPayloads", old, diyPayloads);
     }
 
     public Set<String> getDiyRegexs() {
-        return diyRegexs;
+        return Collections.unmodifiableSet(diyRegexs);
     }
 
     public void setDiyRegexs(Set<String> diyRegexs) {
+        var old = this.diyRegexs;
         this.diyRegexs = diyRegexs;
+        fireChange("diyRegexs", old, diyRegexs);
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 属性变化监听器管理（Java Beans标准）
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    /**
+     * 添加属性变化监听器（底层PropertyChangeListener）
+     *
+     * 直接使用Java Beans标准PropertyChangeListener，适用于与Swing/JavaFX绑定。
+     *
+     * @param listener PropertyChangeListener
+     */
+    public void addPropertyChangeListener(PropertyChangeListener listener) {
+        pcs.addPropertyChangeListener(listener);
+    }
+
+    /**
+     * 添加特定属性的PropertyChangeListener
+     *
+     * @param propertyName 属性名称
+     * @param listener PropertyChangeListener
+     */
+    public void addPropertyChangeListener(String propertyName, PropertyChangeListener listener) {
+        pcs.addPropertyChangeListener(propertyName, listener);
+    }
+
+    /**
+     * 移除属性变化监听器
+     */
+    public void removePropertyChangeListener(PropertyChangeListener listener) {
+        pcs.removePropertyChangeListener(listener);
+    }
+
+    /**
+     * 移除特定属性的监听器
+     */
+    public void removePropertyChangeListener(String propertyName, PropertyChangeListener listener) {
+        pcs.removePropertyChangeListener(propertyName, listener);
     }
 }

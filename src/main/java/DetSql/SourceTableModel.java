@@ -7,13 +7,19 @@ package DetSql;
 import javax.swing.table.AbstractTableModel;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
 
 //原始请求表格
 public class SourceTableModel extends AbstractTableModel {
-    public final List<SourceLogEntry> log;
+    private final List<SourceLogEntry> log;
+    // 新增：myHash -> SourceLogEntry 索引
+    private final Map<String, SourceLogEntry> hashIndex;
 
     public SourceTableModel() {
         this.log = new ArrayList<>();
+        this.hashIndex = new HashMap<>();
     }
 
 //    @Override
@@ -68,12 +74,24 @@ public class SourceTableModel extends AbstractTableModel {
     public synchronized void add(SourceLogEntry logEntry) {
         int index = log.size();
         log.add(logEntry);
+        // 维护索引
+        if (logEntry != null && logEntry.getMyHash() != null) {
+            hashIndex.put(logEntry.getMyHash(), logEntry);
+        }
         fireTableRowsInserted(index, index);
     }
 
     public synchronized void addx(SourceLogEntry logEntry, int index) {
+        if (index < log.size()) {
+            SourceLogEntry oldEntry = log.get(index);
+            if (oldEntry != null && oldEntry.getMyHash() != null) {
+                hashIndex.remove(oldEntry.getMyHash());
+            }
+        }
         log.set(index, logEntry);
-
+        if (logEntry != null && logEntry.getMyHash() != null) {
+            hashIndex.put(logEntry.getMyHash(), logEntry);
+        }
         fireTableRowsUpdated(index, index);
     }
     /**
@@ -82,14 +100,54 @@ public class SourceTableModel extends AbstractTableModel {
      *
      * @param entry      包含更新数据的日志条目
      * @param modelIndex 模型中的行索引
-     * @param viewIndex  视图中的行索引（用于UI更新）
      */
-    public synchronized void updateVulnState(SourceLogEntry entry, int modelIndex, int viewIndex) {
+    public synchronized void updateVulnState(SourceLogEntry entry, int modelIndex) {
+        if (modelIndex < log.size()) {
+            SourceLogEntry oldEntry = log.get(modelIndex);
+            if (oldEntry != null && oldEntry.getMyHash() != null) {
+                hashIndex.remove(oldEntry.getMyHash());
+            }
+        }
         log.set(modelIndex, entry);
-        fireTableCellUpdated(viewIndex, 6); // 只更新VulnState列（第6列）
+        if (entry != null && entry.getMyHash() != null) {
+            hashIndex.put(entry.getMyHash(), entry);
+        }
+        fireTableCellUpdated(modelIndex, 6);
     }
+
     public synchronized SourceLogEntry get(int rowIndex) {
         return log.get(rowIndex);
     }
 
+    // 新增：通过 myHash 查询原始请求
+    public synchronized SourceLogEntry findByHash(String hash) {
+        return hashIndex.get(hash);
+    }
+
+    // 新增：提供受控 indexOf，基于 equals(id)
+    public synchronized int indexOf(SourceLogEntry e) {
+        return log.indexOf(e);
+    }
+
+    // 新增：根据模型索引删除，并维护索引
+    public synchronized void remove(int modelIndex) {
+        if (modelIndex >= 0 && modelIndex < log.size()) {
+            SourceLogEntry entry = log.remove(modelIndex);
+            if (entry != null && entry.getMyHash() != null) {
+                // 仅当映射指向当前 entry 时移除，避免误删
+                SourceLogEntry mapped = hashIndex.get(entry.getMyHash());
+                if (mapped == entry) {
+                    hashIndex.remove(entry.getMyHash());
+                }
+            }
+            fireTableRowsDeleted(modelIndex, modelIndex);
+        }
+    }
+
+    // 新增：清空并重置索引
+    public synchronized void clear() {
+        log.clear();
+        hashIndex.clear();
+        fireTableDataChanged();
+    }
 }
