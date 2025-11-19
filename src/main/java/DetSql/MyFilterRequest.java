@@ -161,13 +161,16 @@ public class MyFilterRequest {
 
     /**
      * Collects parameter names from a list and concatenates them into a single string
+     * Parameters are sorted to ensure consistent hash regardless of parameter order
+     * Uses pipe separator to prevent parameter name collision (e.g., "id|name" vs "idn|ame")
      * @param params list of HTTP parameters
-     * @return concatenated parameter names
+     * @return concatenated parameter names with separator
      */
     private static String collectParamNames(List<ParsedHttpParameter> params) {
         return params.stream()
                 .map(ParsedHttpParameter::name)
-                .collect(java.util.stream.Collectors.joining());
+                .sorted()
+                .collect(java.util.stream.Collectors.joining("|"));
     }
 
     private static String getUniqueInternal(
