@@ -33,17 +33,19 @@ public class DualQueueArchitectureTest {
         
         assertNotNull(receiveExecutor, "RECEIVE_EXECUTOR 应该被初始化");
         
-        // 验证核心线程数
-        assertEquals(2, receiveExecutor.getCorePoolSize(), 
-            "RECEIVE_EXECUTOR 核心线程数应该是 2");
+        int processors = Runtime.getRuntime().availableProcessors();
         
-        // 验证最大线程数
-        assertEquals(4, receiveExecutor.getMaximumPoolSize(), 
-            "RECEIVE_EXECUTOR 最大线程数应该是 4");
+        // 验证核心线程数（根据 CPU 性能动态调整）
+        assertEquals(processors, receiveExecutor.getCorePoolSize(), 
+            "RECEIVE_EXECUTOR 核心线程数应该等于 CPU 核心数");
         
-        // 验证队列容量
-        assertTrue(receiveExecutor.getQueue().remainingCapacity() >= 5000, 
-            "RECEIVE_EXECUTOR 队列容量应该至少是 5000");
+        // 验证最大线程数（根据 CPU 性能动态调整）
+        assertEquals(processors * 2, receiveExecutor.getMaximumPoolSize(), 
+            "RECEIVE_EXECUTOR 最大线程数应该是 CPU 核心数的 2 倍");
+        
+        // 验证队列容量（基准：5000）
+        assertEquals(5000, receiveExecutor.getQueue().remainingCapacity(), 
+            "RECEIVE_EXECUTOR 队列容量应该是 5000（基准）");
         
         // 验证线程名称前缀
         Thread testThread = receiveExecutor.getThreadFactory().newThread(() -> {});
@@ -153,9 +155,11 @@ public class DualQueueArchitectureTest {
         int receiveCapacity = receiveExecutor.getQueue().remainingCapacity();
         int scanCapacity = scanExecutor.getQueue().remainingCapacity();
         
-        // RECEIVE_EXECUTOR 的队列应该比 SCAN_EXECUTOR 大
+        // RECEIVE_EXECUTOR 的队列应该比 SCAN_EXECUTOR 大（5000 vs 1000）
         assertTrue(receiveCapacity > scanCapacity, 
-            "RECEIVE_EXECUTOR 的队列容量应该大于 SCAN_EXECUTOR");
+            "RECEIVE_EXECUTOR 的队列容量（5000）应该大于 SCAN_EXECUTOR（1000）");
+        assertEquals(5000, receiveCapacity, "RECEIVE_EXECUTOR 队列容量应该是 5000");
+        assertEquals(1000, scanCapacity, "SCAN_EXECUTOR 队列容量应该是 1000");
     }
 
     @Test
@@ -163,14 +167,18 @@ public class DualQueueArchitectureTest {
         ThreadPoolExecutor receiveExecutor = getExecutor("RECEIVE_EXECUTOR");
         ThreadPoolExecutor scanExecutor = getExecutor("SCAN_EXECUTOR");
         
-        // RECEIVE_EXECUTOR 应该是小线程池
-        assertTrue(receiveExecutor.getMaximumPoolSize() <= 4, 
-            "RECEIVE_EXECUTOR 应该是小线程池（最大 4 线程）");
+        int processors = Runtime.getRuntime().availableProcessors();
         
-        // SCAN_EXECUTOR 应该是大线程池
-        assertTrue(scanExecutor.getMaximumPoolSize() >= 
-            Runtime.getRuntime().availableProcessors(), 
-            "SCAN_EXECUTOR 应该是大线程池（至少等于 CPU 核心数）");
+        // RECEIVE_EXECUTOR 和 SCAN_EXECUTOR 现在使用相同的线程池大小
+        assertEquals(processors, receiveExecutor.getCorePoolSize(), 
+            "RECEIVE_EXECUTOR 核心线程数应该等于 CPU 核心数");
+        assertEquals(processors * 2, receiveExecutor.getMaximumPoolSize(), 
+            "RECEIVE_EXECUTOR 最大线程数应该是 CPU 核心数的 2 倍");
+        
+        assertEquals(processors, scanExecutor.getCorePoolSize(), 
+            "SCAN_EXECUTOR 核心线程数应该等于 CPU 核心数");
+        assertEquals(processors * 2, scanExecutor.getMaximumPoolSize(), 
+            "SCAN_EXECUTOR 最大线程数应该是 CPU 核心数的 2 倍");
     }
 
     @Test
@@ -197,19 +205,25 @@ public class DualQueueArchitectureTest {
         ThreadPoolExecutor receiveExecutor = getExecutor("RECEIVE_EXECUTOR");
         ThreadPoolExecutor scanExecutor = getExecutor("SCAN_EXECUTOR");
         
-        // 验证设计原则：
-        // 1. RECEIVE_EXECUTOR：小线程池 + 大队列 = 快速接收，避免丢失
-        assertTrue(receiveExecutor.getMaximumPoolSize() < 10, 
-            "接收队列应该是小线程池");
-        assertTrue(receiveExecutor.getQueue().remainingCapacity() > 1000, 
-            "接收队列应该有大容量");
+        int processors = Runtime.getRuntime().availableProcessors();
         
-        // 2. SCAN_EXECUTOR：大线程池 + 中等队列 = 并发测试
-        assertTrue(scanExecutor.getMaximumPoolSize() >= 
-            Runtime.getRuntime().availableProcessors(), 
-            "扫描队列应该是大线程池");
-        assertTrue(scanExecutor.getQueue().remainingCapacity() >= 1000, 
-            "扫描队列应该有足够容量");
+        // 验证设计原则：
+        // 1. RECEIVE_EXECUTOR：动态线程池 + 大队列（5000）= 快速接收，避免丢失
+        assertEquals(processors, receiveExecutor.getCorePoolSize(), 
+            "接收队列核心线程数应该等于 CPU 核心数");
+        assertEquals(5000, receiveExecutor.getQueue().remainingCapacity(), 
+            "接收队列容量应该是 5000（基准）");
+        
+        // 2. SCAN_EXECUTOR：动态线程池 + 中等队列（1000）= 并发测试
+        assertEquals(processors, scanExecutor.getCorePoolSize(), 
+            "扫描队列核心线程数应该等于 CPU 核心数");
+        assertEquals(1000, scanExecutor.getQueue().remainingCapacity(), 
+            "扫描队列容量应该是 1000");
+        
+        // 3. 队列容量差异：RECEIVE > SCAN（避免丢失请求）
+        assertTrue(receiveExecutor.getQueue().remainingCapacity() > 
+            scanExecutor.getQueue().remainingCapacity(), 
+            "接收队列容量应该大于扫描队列容量");
     }
 
     @Test

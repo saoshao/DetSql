@@ -85,11 +85,12 @@ public class MyHttpHandler implements HttpHandler {
     public final ConcurrentHashMap<String, List<PocLogEntry>> attackMap;
 
     // 队列 1：接收队列（快速处理：过滤、去重、创建记录）
+    // 基准队列：5000 个数据包，根据 CPU 性能动态调整线程数
     private static final ThreadPoolExecutor RECEIVE_EXECUTOR = new ThreadPoolExecutor(
-        2,  // 核心线程数：2 个足够处理快速任务
-        4,  // 最大线程数：4 个
+        Runtime.getRuntime().availableProcessors(),  // 核心线程数：等于 CPU 核心数
+        Runtime.getRuntime().availableProcessors() * 2,  // 最大线程数：CPU 核心数的 2 倍
         60L, TimeUnit.SECONDS,
-        new LinkedBlockingQueue<>(5000),  // 大队列，避免丢失请求
+        new LinkedBlockingQueue<>(5000),  // 基准队列：5000 个数据包
         new ThreadFactory() {
             private int counter = 0;
             @Override
