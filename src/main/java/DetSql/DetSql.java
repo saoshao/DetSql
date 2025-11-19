@@ -673,15 +673,12 @@ exportBurpLog.addActionListener(e -> {
     }
     java.io.File file = fileChooser.getSelectedFile();
 
-    java.util.Set<String> processedHashes = new java.util.HashSet<>();
     java.util.List<burp.api.montoya.http.message.HttpRequestResponse> originalRequests = new java.util.ArrayList<>();
 
     for (int viewIndex : selectedRows) {
         int modelIndex = table1.convertRowIndexToModel(viewIndex);
         SourceLogEntry sourceEntry = sourceTableModel.get(modelIndex);
         if (sourceEntry == null) continue;
-        String myHash = sourceEntry.getMyHash();
-        if (myHash == null || !processedHashes.add(myHash)) continue;
         if (sourceEntry.getHttpRequestResponse() != null) {
             originalRequests.add(sourceEntry.getHttpRequestResponse());
         }
