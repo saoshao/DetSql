@@ -54,7 +54,7 @@ jobs:
         env:
           MAVEN_OPTS: -Xmx1024m
       
-      - name: Run tests (default log level: OFF)
+      - name: 'Run tests (default log level: OFF)'
         run: mvn -B test --file pom.xml
       
       - name: Run tests with DEBUG logging
