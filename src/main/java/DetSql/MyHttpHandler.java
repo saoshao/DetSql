@@ -266,6 +266,19 @@ public class MyHttpHandler implements HttpHandler {
         this.attackMap = attackMap;
         this.cryptoUtils = api.utilities().cryptoUtils();
         this.urlUtils = api.utilities().urlUtils();
+        
+        // 输出双队列配置信息
+        int processors = Runtime.getRuntime().availableProcessors();
+        int receiveCore = Math.max(2, processors);
+        int receiveMax = Math.max(4, processors * 2);
+        int receiveQueue = Math.min(5000, Math.max(1000, processors * 1000));
+        
+        logger.always("================================================");
+        logger.always("[#] 双队列架构配置:");
+        logger.always("[#]   CPU 核心数: " + processors);
+        logger.always("[#]   RECEIVE_EXECUTOR: 核心=" + receiveCore + ", 最大=" + receiveMax + ", 队列=" + receiveQueue);
+        logger.always("[#]   SCAN_EXECUTOR: 核心=" + processors + ", 最大=" + (processors * 2) + ", 队列=1000");
+        logger.always("================================================");
     }
 
     @Override
@@ -447,23 +460,28 @@ public class MyHttpHandler implements HttpHandler {
         // 提交到接收队列（队列 1）：快速处理
         RECEIVE_EXECUTOR.execute(() -> {
             try {
+                String url = httpResponseReceived.initiatingRequest().url();
+                logger.debug("→ Received request: " + url);
+                
                 int bodyLength = httpResponseReceived.bodyToString().length();
 
                 // Early return: empty or oversized response
                 if (bodyLength == 0 || bodyLength >= config.getMaxResponseSize()) {
                     statistics.incrementRequestsFiltered();
-                    logger.info("Request filtered: body size " + bodyLength + " bytes");
+                    logger.debug("✗ Filtered (body size): " + url + " (" + bodyLength + " bytes)");
                     return;
                 }
 
                 // Early return: not enabled or filtered out
                 if (!DetSql.switchCheck.isSelected() && !DetSql.vulnCheck.isSelected()) {
+                    logger.debug("✗ Filtered (switch disabled): " + url);
                     return;
                 }
 
                 // Early return: doesn't pass filter check
                 if (!shouldProcess(httpResponseReceived)) {
                     statistics.incrementRequestsFiltered();
+                    logger.debug("✗ Filtered (shouldProcess): " + url);
                     return;
                 }
 
@@ -475,13 +493,15 @@ public class MyHttpHandler implements HttpHandler {
 
                 // Skip if Proxy source and already processed
                 if (ctx.isFromProxy && attackMap.containsKey(ctx.hash)) {
-                    logger.debug("Request already processed (duplicate): " + ctx.hash);
+                    logger.debug("✗ Skipped (duplicate): " + url + " [" + ctx.hash + "]");
                     return;
                 }
 
                 // 快速创建 table1 记录（立即显示给用户）
+                long startTime = System.currentTimeMillis();
                 int logIndex = createLogEntry(httpResponseReceived, ctx.hash);
-                logger.info("Request received: " + ctx.hash + " (ID: " + logIndex + ")");
+                long createTime = System.currentTimeMillis() - startTime;
+                logger.info("✓ Request accepted: " + url + " (ID: " + logIndex + ", create: " + createTime + "ms)");
 
                 // 提交到扫描队列（队列 2）：执行 SQL 注入测试
                 SCAN_EXECUTOR.execute(() -> {
