@@ -58,7 +58,7 @@ jobs:
         run: mvn -B test --file pom.xml
       
       - name: Run tests with DEBUG logging
-        if: matrix.java == '17'
+        if: ${{ matrix.java == '17' }}
         run: mvn -B test -Ddetsql.log.level=DEBUG --file pom.xml
         continue-on-error: true
       
@@ -72,7 +72,7 @@ jobs:
           fail-on-error: false
       
       - name: Upload build artifacts
-        if: matrix.java == '17'
+        if: ${{ matrix.java == '17' }}
         uses: actions/upload-artifact@v4
         with:
           name: det-sql-jar
@@ -112,7 +112,7 @@ jobs:
   performance-test:
     name: Performance Tests
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
     
     steps:
       - name: Checkout code
