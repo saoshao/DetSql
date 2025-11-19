@@ -84,12 +84,30 @@ public class MyHttpHandler implements HttpHandler {
     public final PocTableModel pocTableModel;
     public final ConcurrentHashMap<String, List<PocLogEntry>> attackMap;
 
-    // 安全的线程池，防止线程爆炸
+    // 队列 1：接收队列（快速处理：过滤、去重、创建记录）
+    private static final ThreadPoolExecutor RECEIVE_EXECUTOR = new ThreadPoolExecutor(
+        2,  // 核心线程数：2 个足够处理快速任务
+        4,  // 最大线程数：4 个
+        60L, TimeUnit.SECONDS,
+        new LinkedBlockingQueue<>(5000),  // 大队列，避免丢失请求
+        new ThreadFactory() {
+            private int counter = 0;
+            @Override
+            public Thread newThread(Runnable r) {
+                Thread t = new Thread(r, "DetSql-Receive-" + counter++);
+                t.setDaemon(true);
+                return t;
+            }
+        },
+        new ThreadPoolExecutor.CallerRunsPolicy()
+    );
+
+    // 队列 2：扫描队列（慢速处理：执行 SQL 注入测试）
     private static final ThreadPoolExecutor SCAN_EXECUTOR = new ThreadPoolExecutor(
         Runtime.getRuntime().availableProcessors(),
         Runtime.getRuntime().availableProcessors() * 2,
         60L, TimeUnit.SECONDS,
-        new ArrayBlockingQueue<>(1000),
+        new LinkedBlockingQueue<>(1000),  // 使用 LinkedBlockingQueue 支持更大容量
         new ThreadFactory() {
             private int counter = 0;
             @Override
@@ -371,19 +389,14 @@ public class MyHttpHandler implements HttpHandler {
     }
 
     /**
-     * Unified request processing - replaces 4 duplicate code blocks
-     * Concurrency is controlled by SCAN_EXECUTOR's thread pool, no additional semaphore needed
+     * 执行 SQL 注入测试（在扫描队列中运行）
+     * @param response HTTP 响应
+     * @param ctx 请求上下文
+     * @param logIndex 日志索引
      */
-    private void processRequest(HttpResponseReceived response, RequestContext ctx) {
+    private void performSqlInjectionTest(HttpResponseReceived response, RequestContext ctx, int logIndex) {
         Thread.currentThread().setName(ctx.hash);
-
-        // Skip if Proxy source and already processed
-        if (ctx.isFromProxy && attackMap.containsKey(ctx.hash)) {
-            return;
-        }
-
-        int logIndex = createLogEntry(response, ctx.hash);
-        logger.info("Processing request: " + ctx.hash + " (ID: " + logIndex + ")");
+        logger.info("Starting SQL injection test: " + ctx.hash + " (ID: " + logIndex + ")");
         statistics.incrementRequestsProcessed();
 
         try {
@@ -415,16 +428,18 @@ public class MyHttpHandler implements HttpHandler {
             updateLogEntry(response, ctx.hash, logIndex, vulnType);
         } catch (InterruptedException e) {
             updateLogEntry(response, ctx.hash, logIndex, "手动停止");
-            logger.warn("Request processing interrupted: " + ctx.hash);
+            logger.warn("SQL injection test interrupted: " + ctx.hash);
         } catch (Exception e) {
-            logger.error("Request processing failed: " + ctx.hash, e);
+            logger.error("SQL injection test failed: " + ctx.hash, e);
             statistics.incrementDetectionErrors();
+            updateLogEntry(response, ctx.hash, logIndex, "");
         }
     }
 
     @Override
     public ResponseReceivedAction handleHttpResponseReceived(HttpResponseReceived httpResponseReceived) {
-        SCAN_EXECUTOR.execute(() -> {
+        // 提交到接收队列（队列 1）：快速处理
+        RECEIVE_EXECUTOR.execute(() -> {
             try {
                 int bodyLength = httpResponseReceived.bodyToString().length();
 
@@ -446,13 +461,32 @@ public class MyHttpHandler implements HttpHandler {
                     return;
                 }
 
-                // Unified processing with context
+                // Create context for processing
                 RequestContext ctx = new RequestContext(
                     httpResponseReceived,
                     cryptoUtils
                 );
 
-                processRequest(httpResponseReceived, ctx);
+                // Skip if Proxy source and already processed
+                if (ctx.isFromProxy && attackMap.containsKey(ctx.hash)) {
+                    logger.debug("Request already processed (duplicate): " + ctx.hash);
+                    return;
+                }
+
+                // 快速创建 table1 记录（立即显示给用户）
+                int logIndex = createLogEntry(httpResponseReceived, ctx.hash);
+                logger.info("Request received: " + ctx.hash + " (ID: " + logIndex + ")");
+
+                // 提交到扫描队列（队列 2）：执行 SQL 注入测试
+                SCAN_EXECUTOR.execute(() -> {
+                    try {
+                        performSqlInjectionTest(httpResponseReceived, ctx, logIndex);
+                    } catch (Exception e) {
+                        logger.error("SQL injection test failed: " + ctx.hash, e);
+                        statistics.incrementDetectionErrors();
+                        updateLogEntry(httpResponseReceived, ctx.hash, logIndex, "");
+                    }
+                });
 
             } catch (Exception e) {
                 logger.error("HTTP response handling failed", e);
@@ -1928,44 +1962,35 @@ public class MyHttpHandler implements HttpHandler {
      * @param httpRequestResponse the HTTP request/response to process
      * @throws InterruptedException if thread is interrupted
      */
-    private void processManualRequest(HttpRequestResponse httpRequestResponse) throws InterruptedException {
-        String requestSm3Hash = String.valueOf(System.currentTimeMillis());
+    /**
+     * 执行手动请求的 SQL 注入测试（Repeater 模式）
+     * @param httpRequestResponse HTTP 请求响应
+     * @param requestSm3Hash 请求哈希
+     * @param logIndex 日志索引
+     */
+    private void performManualSqlInjectionTest(HttpRequestResponse httpRequestResponse, String requestSm3Hash, int logIndex) {
         Thread.currentThread().setName(requestSm3Hash);
+        logger.info("Starting manual SQL injection test: " + requestSm3Hash + " (ID: " + logIndex + ")");
+        statistics.incrementRequestsProcessed();
 
-        // Atomically get and increment ID
-        int logIndex = countId.getAndIncrement();
-
-        // Thread-safe map initialization
-        attackMap.putIfAbsent(requestSm3Hash, new ArrayList<>());
-
-        // Step 1: Create log entry
-        final int finalLogIndex = logIndex;
-        SwingUtilities.invokeLater(() -> {
-            sourceTableModel.add(new SourceLogEntry(
-                finalLogIndex,
-                "Send",
-                requestSm3Hash,
-                "run",
-                httpRequestResponse.response().bodyToString().length(),
-                HttpRequestResponse.httpRequestResponse(
-                    httpRequestResponse.request(),
-                    HttpResponse.httpResponse()
-                ),
-                httpRequestResponse.request().httpService().toString(),
-                httpRequestResponse.request().method(),
-                httpRequestResponse.request().pathWithoutQuery()
-            ));
-        });
-
-        // Step 2: Process request (no semaphore - ThreadPool controls concurrency)
         try {
             String vulnType = "";
             if (!Thread.currentThread().isInterrupted()) {
+                long startTime = System.currentTimeMillis();
                 vulnType = processManualResponse(requestSm3Hash, httpRequestResponse);
+                long duration = System.currentTimeMillis() - startTime;
+                statistics.recordTestTime(duration);
+
+                if (vulnType != null && !vulnType.isEmpty()) {
+                    logger.info("✓ Vulnerability found in manual request: " + vulnType + " in " + requestSm3Hash);
+                } else {
+                    logger.debug("No vulnerability found in manual request: " + requestSm3Hash + " (took " + duration + "ms)");
+                }
             }
 
             // Update log entry based on detection result
             final String finalVulnType = vulnType;
+            final int finalLogIndex = logIndex;
             if (vulnType.isBlank()) {
                 // memory clean: no vuln found for this request
                 try { attackMap.remove(requestSm3Hash); } catch (Exception ignore) {}
@@ -2008,6 +2033,7 @@ public class MyHttpHandler implements HttpHandler {
                 });
             }
         } catch (InterruptedException e) {
+            final int finalLogIndex = logIndex;
             SwingUtilities.invokeLater(() -> {
                 sourceTableModel.updateVulnState(
                     new SourceLogEntry(
@@ -2026,15 +2052,16 @@ public class MyHttpHandler implements HttpHandler {
                     )
                 );
             });
-            throw e; // Re-throw to caller
+            logger.warn("Manual SQL injection test interrupted: " + requestSm3Hash);
         } catch (Exception e) {
-            logger.error("Manual response processing failed: " + requestSm3Hash, e);
+            logger.error("Manual SQL injection test failed: " + requestSm3Hash, e);
             statistics.incrementDetectionErrors();
         }
     }
 
     public void createProcessThread(HttpRequestResponse httpRequestResponse) {
-        SCAN_EXECUTOR.execute(() -> {
+        // Repeater 模式也使用双队列架构
+        RECEIVE_EXECUTOR.execute(() -> {
             try {
                 int bodyLength = httpRequestResponse.response().bodyToString().length();
 
@@ -2043,8 +2070,41 @@ public class MyHttpHandler implements HttpHandler {
                     return;
                 }
 
-                // Process request (ThreadPool controls concurrency, no semaphore needed)
-                processManualRequest(httpRequestResponse);
+                // 快速创建记录
+                String requestSm3Hash = String.valueOf(System.currentTimeMillis());
+                int logIndex = countId.getAndIncrement();
+                attackMap.putIfAbsent(requestSm3Hash, new ArrayList<>());
+
+                final int finalLogIndex = logIndex;
+                SwingUtilities.invokeLater(() -> {
+                    sourceTableModel.add(new SourceLogEntry(
+                        finalLogIndex,
+                        "Send",
+                        requestSm3Hash,
+                        "run",
+                        httpRequestResponse.response().bodyToString().length(),
+                        HttpRequestResponse.httpRequestResponse(
+                            httpRequestResponse.request(),
+                            HttpResponse.httpResponse()
+                        ),
+                        httpRequestResponse.request().httpService().toString(),
+                        httpRequestResponse.request().method(),
+                        httpRequestResponse.request().pathWithoutQuery()
+                    ));
+                });
+
+                logger.info("Manual request received: " + requestSm3Hash + " (ID: " + logIndex + ")");
+
+                // 提交到扫描队列执行测试
+                SCAN_EXECUTOR.execute(() -> {
+                    try {
+                        performManualSqlInjectionTest(httpRequestResponse, requestSm3Hash, logIndex);
+                    } catch (Exception e) {
+                        logger.error("Manual SQL injection test failed: " + requestSm3Hash, e);
+                        statistics.incrementDetectionErrors();
+                    }
+                });
+
             } catch (Exception e) {
                 logger.error("Thread processing failed", e);
                 statistics.incrementDetectionErrors();
