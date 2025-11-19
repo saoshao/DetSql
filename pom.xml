@@ -229,6 +229,12 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <systemPropertyVariables>
+                        <!-- Pass log level to tests -->
+                        <detsql.log.level>${detsql.log.level}</detsql.log.level>
+                    </systemPropertyVariables>
+                </configuration>
             </plugin>
 
             <!-- Shade Plugin - Package all dependencies into single JAR -->
