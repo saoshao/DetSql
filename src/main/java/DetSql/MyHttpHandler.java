@@ -425,6 +425,10 @@ public class MyHttpHandler implements HttpHandler {
                     logger.debug("No vulnerability found in " + ctx.hash + " (took " + duration + "ms)");
                 }
             }
+            // Ensure vulnType is never null before passing to updateLogEntry
+            if (vulnType == null) {
+                vulnType = "";
+            }
             updateLogEntry(response, ctx.hash, logIndex, vulnType);
         } catch (InterruptedException e) {
             updateLogEntry(response, ctx.hash, logIndex, "手动停止");
@@ -1989,6 +1993,10 @@ public class MyHttpHandler implements HttpHandler {
             }
 
             // Update log entry based on detection result
+            // Ensure vulnType is never null
+            if (vulnType == null) {
+                vulnType = "";
+            }
             final String finalVulnType = vulnType;
             final int finalLogIndex = logIndex;
             if (vulnType.isBlank()) {
