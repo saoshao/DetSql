@@ -35,17 +35,20 @@ public class DualQueueArchitectureTest {
         
         int processors = Runtime.getRuntime().availableProcessors();
         
-        // 验证核心线程数（根据 CPU 性能动态调整）
-        assertEquals(processors, receiveExecutor.getCorePoolSize(), 
-            "RECEIVE_EXECUTOR 核心线程数应该等于 CPU 核心数");
+        // 验证核心线程数（至少 2 个）
+        int expectedCorePoolSize = Math.max(2, processors);
+        assertEquals(expectedCorePoolSize, receiveExecutor.getCorePoolSize(), 
+            "RECEIVE_EXECUTOR 核心线程数应该至少是 2");
         
-        // 验证最大线程数（根据 CPU 性能动态调整）
-        assertEquals(processors * 2, receiveExecutor.getMaximumPoolSize(), 
-            "RECEIVE_EXECUTOR 最大线程数应该是 CPU 核心数的 2 倍");
+        // 验证最大线程数（至少 4 个）
+        int expectedMaxPoolSize = Math.max(4, processors * 2);
+        assertEquals(expectedMaxPoolSize, receiveExecutor.getMaximumPoolSize(), 
+            "RECEIVE_EXECUTOR 最大线程数应该至少是 4");
         
-        // 验证队列容量（基准：5000）
-        assertEquals(5000, receiveExecutor.getQueue().remainingCapacity(), 
-            "RECEIVE_EXECUTOR 队列容量应该是 5000（基准）");
+        // 验证队列容量（动态调整：1000-5000）
+        int expectedQueueSize = Math.min(5000, Math.max(1000, processors * 1000));
+        assertEquals(expectedQueueSize, receiveExecutor.getQueue().remainingCapacity(), 
+            "RECEIVE_EXECUTOR 队列容量应该根据 CPU 核心数动态调整（1000-5000）");
         
         // 验证线程名称前缀
         Thread testThread = receiveExecutor.getThreadFactory().newThread(() -> {});
@@ -152,13 +155,18 @@ public class DualQueueArchitectureTest {
         ThreadPoolExecutor receiveExecutor = getExecutor("RECEIVE_EXECUTOR");
         ThreadPoolExecutor scanExecutor = getExecutor("SCAN_EXECUTOR");
         
+        int processors = Runtime.getRuntime().availableProcessors();
         int receiveCapacity = receiveExecutor.getQueue().remainingCapacity();
         int scanCapacity = scanExecutor.getQueue().remainingCapacity();
         
-        // RECEIVE_EXECUTOR 的队列应该比 SCAN_EXECUTOR 大（5000 vs 1000）
-        assertTrue(receiveCapacity > scanCapacity, 
-            "RECEIVE_EXECUTOR 的队列容量（5000）应该大于 SCAN_EXECUTOR（1000）");
-        assertEquals(5000, receiveCapacity, "RECEIVE_EXECUTOR 队列容量应该是 5000");
+        // RECEIVE_EXECUTOR 的队列应该 >= SCAN_EXECUTOR
+        assertTrue(receiveCapacity >= scanCapacity, 
+            "RECEIVE_EXECUTOR 的队列容量应该大于等于 SCAN_EXECUTOR");
+        
+        // 验证动态队列大小
+        int expectedReceiveCapacity = Math.min(5000, Math.max(1000, processors * 1000));
+        assertEquals(expectedReceiveCapacity, receiveCapacity, 
+            "RECEIVE_EXECUTOR 队列容量应该根据 CPU 动态调整");
         assertEquals(1000, scanCapacity, "SCAN_EXECUTOR 队列容量应该是 1000");
     }
 
@@ -208,22 +216,78 @@ public class DualQueueArchitectureTest {
         int processors = Runtime.getRuntime().availableProcessors();
         
         // 验证设计原则：
-        // 1. RECEIVE_EXECUTOR：动态线程池 + 大队列（5000）= 快速接收，避免丢失
-        assertEquals(processors, receiveExecutor.getCorePoolSize(), 
-            "接收队列核心线程数应该等于 CPU 核心数");
-        assertEquals(5000, receiveExecutor.getQueue().remainingCapacity(), 
-            "接收队列容量应该是 5000（基准）");
+        // 1. RECEIVE_EXECUTOR：动态线程池 + 动态队列（1000-5000）= 快速接收，适配低配置
+        assertTrue(receiveExecutor.getCorePoolSize() >= 2, 
+            "接收队列核心线程数应该至少是 2");
+        assertTrue(receiveExecutor.getQueue().remainingCapacity() >= 1000, 
+            "接收队列容量应该至少是 1000");
+        assertTrue(receiveExecutor.getQueue().remainingCapacity() <= 5000, 
+            "接收队列容量应该最多是 5000");
         
-        // 2. SCAN_EXECUTOR：动态线程池 + 中等队列（1000）= 并发测试
+        // 2. SCAN_EXECUTOR：动态线程池 + 固定队列（1000）= 并发测试
         assertEquals(processors, scanExecutor.getCorePoolSize(), 
             "扫描队列核心线程数应该等于 CPU 核心数");
         assertEquals(1000, scanExecutor.getQueue().remainingCapacity(), 
             "扫描队列容量应该是 1000");
         
-        // 3. 队列容量差异：RECEIVE > SCAN（避免丢失请求）
-        assertTrue(receiveExecutor.getQueue().remainingCapacity() > 
+        // 3. 队列容量差异：RECEIVE >= SCAN（避免丢失请求）
+        assertTrue(receiveExecutor.getQueue().remainingCapacity() >= 
             scanExecutor.getQueue().remainingCapacity(), 
-            "接收队列容量应该大于扫描队列容量");
+            "接收队列容量应该大于等于扫描队列容量");
+        
+        // 4. 低配置环境保护：至少 2 核心线程，4 最大线程
+        assertTrue(receiveExecutor.getCorePoolSize() >= 2, 
+            "即使在 1 核环境下，也应该有至少 2 个核心线程");
+        assertTrue(receiveExecutor.getMaximumPoolSize() >= 4, 
+            "即使在 1 核环境下，也应该有至少 4 个最大线程");
+    }
+
+    @Test
+    void testLowResourceEnvironmentSupport() throws Exception {
+        ThreadPoolExecutor receiveExecutor = getExecutor("RECEIVE_EXECUTOR");
+        
+        int processors = Runtime.getRuntime().availableProcessors();
+        
+        // 模拟低配置环境的配置验证
+        // 1c512M 环境：1 核 CPU
+        if (processors == 1) {
+            assertEquals(2, receiveExecutor.getCorePoolSize(), 
+                "1 核环境下应该有 2 个核心线程");
+            assertEquals(4, receiveExecutor.getMaximumPoolSize(), 
+                "1 核环境下应该有 4 个最大线程");
+            assertEquals(1000, receiveExecutor.getQueue().remainingCapacity(), 
+                "1 核环境下队列容量应该是 1000");
+        }
+        
+        // 2c2G 环境：2 核 CPU
+        if (processors == 2) {
+            assertEquals(2, receiveExecutor.getCorePoolSize(), 
+                "2 核环境下应该有 2 个核心线程");
+            assertEquals(4, receiveExecutor.getMaximumPoolSize(), 
+                "2 核环境下应该有 4 个最大线程");
+            assertEquals(2000, receiveExecutor.getQueue().remainingCapacity(), 
+                "2 核环境下队列容量应该是 2000");
+        }
+        
+        // 4c8G 环境：4 核 CPU
+        if (processors == 4) {
+            assertEquals(4, receiveExecutor.getCorePoolSize(), 
+                "4 核环境下应该有 4 个核心线程");
+            assertEquals(8, receiveExecutor.getMaximumPoolSize(), 
+                "4 核环境下应该有 8 个最大线程");
+            assertEquals(4000, receiveExecutor.getQueue().remainingCapacity(), 
+                "4 核环境下队列容量应该是 4000");
+        }
+        
+        // 8c16G+ 环境：8 核及以上 CPU
+        if (processors >= 8) {
+            assertTrue(receiveExecutor.getCorePoolSize() >= 8, 
+                "8 核及以上环境下应该有至少 8 个核心线程");
+            assertTrue(receiveExecutor.getMaximumPoolSize() >= 16, 
+                "8 核及以上环境下应该有至少 16 个最大线程");
+            assertEquals(5000, receiveExecutor.getQueue().remainingCapacity(), 
+                "8 核及以上环境下队列容量应该是 5000（上限）");
+        }
     }
 
     @Test
