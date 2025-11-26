@@ -3,8 +3,16 @@ name: CI
 on:
   push:
     branches: [ main, master, develop ]
+    paths:
+      - 'src/**'
+      - 'pom.xml'
+      - '.github/workflows/ci.yml'
   pull_request:
     branches: [ main, master, develop ]
+    paths:
+      - 'src/**'
+      - 'pom.xml'
+      - '.github/workflows/ci.yml'
   workflow_dispatch:
 
 # 确保同一分支只运行最新的 workflow
@@ -46,8 +54,13 @@ jobs:
         env:
           MAVEN_OPTS: -Xmx1024m
       
-      - name: Run tests
+      - name: 'Run tests (default log level: OFF)'
         run: mvn -B test --file pom.xml
+      
+      - name: Run tests with DEBUG logging
+        if: ${{ matrix.java == '17' }}
+        run: mvn -B test -Ddetsql.log.level=DEBUG --file pom.xml
+        continue-on-error: true
       
       - name: Generate test report
         if: always()
@@ -59,7 +72,7 @@ jobs:
           fail-on-error: false
       
       - name: Upload build artifacts
-        if: matrix.java == '17'
+        if: ${{ matrix.java == '17' }}
         uses: actions/upload-artifact@v4
         with:
           name: det-sql-jar
@@ -95,3 +108,39 @@ jobs:
       - name: Check dependencies
         run: mvn -B dependency:analyze --file pom.xml
         continue-on-error: true
+
+  performance-test:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'maven'
+      
+      - name: Run performance tests
+        run: |
+          echo "=== 系统信息 ==="
+          echo "CPU 核心数: $(nproc)"
+          echo "内存: $(free -h | grep Mem | awk '{print $2}')"
+          echo ""
+          echo "=== 双队列架构测试 ==="
+          mvn -B test -Dtest=DualQueueArchitectureTest -Ddetsql.log.level=INFO --file pom.xml
+          echo ""
+          echo "=== 并发性能测试 ==="
+          mvn -B test -Dtest=MyHttpHandlerConcurrencySmokeTest -Ddetsql.log.level=INFO --file pom.xml
+      
+      - name: Upload performance results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-test-results
+          path: target/surefire-reports/
+          retention-days: 7
