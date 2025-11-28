@@ -13,6 +13,9 @@
 # 介绍
 
 **DetSql**是基于 BurpSuite Java 插件 API 开发的 SQL 注入探测插件，主要作用为快速从 http 流量中筛选出可能存在 SQL 注入的请求，在尽可能减少拦截的情况下提高 SQL 注入测试效率。
+
+> **最新更新**: 查看完整的版本变更记录请访问 [CHANGELOG.md](CHANGELOG.md)
+
 <br/>
 
 ## 注意
@@ -239,15 +242,16 @@ mvn clean package "-Ddetsql.log.level=ERROR"
 ## 建议
 
 **DetSql**目的用于辅助手动测试，由于设置线程较小不利于大量请求时的被动扫描，建议使用时在白名单处设置测试域名或IP，如www.baidu.com，以此减少不必要的无效扫描，填baidu.com即代表baidu.com及其所有子域，多个可表示为baidu.com|qq.com，若出现卡顿建议按此配置，如下
+
 ![](https://files.mdnice.com/user/72769/61e3e046-856a-4795-aa7f-7b10f014629e.png)
+
 正常很少会出现卡顿情况，同时建议使用最新版进行测试，经本人测试，未设置白名单将请求扫描数量快速加到170个左右未发现卡顿、闪退等异常，可正常运行，如下
 
 ![](https://files.mdnice.com/user/72769/5add1ecb-e685-4992-b39c-5fed5a5917bd.png)
-最近发生的更新，新增的功能或变化可在Release中查看。
 
+最近发生的更新，新增的功能或变化可在 [CHANGELOG.md](CHANGELOG.md) 和 Release 中查看。
 
-
-
+---
 
 # 问题沟通
 

@@ -7,12 +7,13 @@ import java.util.Arrays;
 import java.util.HashSet;
 
 import static org.junit.jupiter.api.Assertions.*;
+import DetSql.ui.DetSqlUI;
 
 public class DetSqlDeriveJsonErrPocsTest {
 
     @Test
     void testDeriveJsonErrPocsVariantsAndDedup() throws Exception {
-        Method m = DetSql.class.getDeclaredMethod("deriveJsonErrPocs", String[].class);
+        Method m = DetSqlUI.class.getDeclaredMethod("deriveJsonErrPocs", String[].class);
         m.setAccessible(true);
         String[] base = new String[] {"\"", "'"};
         String[] derived = (String[]) m.invoke(null, new Object[]{ base });

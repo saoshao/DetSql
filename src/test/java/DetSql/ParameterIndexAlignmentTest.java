@@ -6,6 +6,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import DetSql.util.ParameterModifiers;
 
 /**
  * 回归测试：验证参数索引对齐问题的修复

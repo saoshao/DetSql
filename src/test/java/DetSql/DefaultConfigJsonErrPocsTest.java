@@ -3,6 +3,7 @@ package DetSql;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 import java.util.Arrays;
+import DetSql.config.DefaultConfig;
 
 public class DefaultConfigJsonErrPocsTest {
 

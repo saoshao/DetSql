@@ -1,0 +1,38 @@
+name: Benchmarks
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 3 * * 1'
+
+jobs:
+  benchmark:
+    name: Run Performance Benchmarks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Build project
+        run: mvn -B -q clean compile --file pom.xml -DskipTests
+
+      - name: Run targeted performance tests
+        run: |
+          mvn -B -q test --file pom.xml -Dtest=QuickPerformanceCheck,ConcurrencyPerformanceTest,PerformanceBenchmark || true
+
+      - name: Upload performance reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-reports
+          path: |
+            target/performance-reports/**/*
+            target/surefire-reports/**/*
+          retention-days: 7
