@@ -1,0 +1,120 @@
+name: Bug Report / Bug 报告
+description: Create a bug report to help us improve DetSql / 创建 Bug 报告帮助我们改进 DetSql
+title: "[BUG] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+        感谢您花时间填写此 Bug 报告！
+
+        :warning: **Issues missing important information may be closed without investigation.**
+        :warning: **缺少重要信息的 Issue 可能会被直接关闭。**
+
+  - type: checkboxes
+    attributes:
+      label: Is there an existing issue for this? / 是否已存在相关 Issue？
+      description: Please search to see if an issue already exists for the bug you encountered. / 请先搜索是否已存在相同的 Bug 报告。
+      options:
+      - label: I have searched the existing issues / 我已经搜索过现有的 Issues
+        required: true
+
+  - type: textarea
+    attributes:
+      label: Current Behavior / 当前行为
+      description: A clear description of what's happening. / 清晰描述当前发生了什么。
+      placeholder: |
+        例如：在扫描 JSON 参数时插件崩溃
+        Example: Plugin crashes when scanning JSON parameters
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Expected Behavior / 期望行为
+      description: A clear description of what you expected to happen. / 清晰描述您期望发生什么。
+      placeholder: |
+        例如：应该正常扫描 JSON 参数并显示结果
+        Example: Should scan JSON parameters normally and display results
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Steps To Reproduce / 重现步骤
+      description: |
+        Steps to reproduce the behavior. / 重现该问题的步骤。
+
+        💡 Prefer copying text output over screenshots. / 优先复制文本而非截图。
+
+        :warning: **Please redact sensitive information (URLs, credentials, etc.)** / **请删除敏感信息（URL、凭据等）**
+      placeholder: |
+        1. 加载 DetSql 插件
+        2. 配置白名单为 example.com
+        3. 发送包含 JSON body 的 POST 请求
+        4. 观察到插件报错
+
+        ---
+        1. Load DetSql plugin
+        2. Set whitelist to example.com
+        3. Send POST request with JSON body
+        4. Observe plugin error
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Relevant Log Output / 相关日志输出
+      description: |
+        Please copy and paste any relevant log output from BurpSuite **Output** or **Errors** tab.
+        请从 BurpSuite 的 **Output** 或 **Errors** 标签页复制相关日志输出。
+
+        💡 This will be automatically formatted, no need for backticks. / 会自动格式化，无需添加代码块符号。
+
+        📝 If you compiled DetSql with log level (see README), include those logs. / 如果您使用日志级别编译了 DetSql（见 README），请包含这些日志。
+
+        :warning: **Please redact sensitive information.** / **请删除敏感信息。**
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Environment / 环境信息
+      description: |
+        Please provide your environment details. / 请提供您的环境信息。
+      value: |
+          - OS / 操作系统:
+          - BurpSuite Version / 版本:
+          - Java Version / Java 版本:
+          - DetSql Version / DetSql 版本:
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: DetSql Configuration / DetSql 配置
+      description: |
+        If relevant, please share your DetSql configuration (whitelist, blacklist, error payloads, etc.)
+        如果相关，请分享您的 DetSql 配置（白名单、黑名单、报错 payload 等）
+
+        You can also attach screenshots or configuration files. / 您也可以附加截图或配置文件。
+      placeholder: |
+        白名单 / Whitelist: example.com
+        黑名单 / Blacklist:
+        报错 POC / Error POC: (使用默认 / using default)
+        其他配置 / Other settings: 测试 Cookie 已启用 / Test Cookie enabled
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Anything Else? / 其他信息
+      description: |
+        Screenshots, HTTP requests/responses, or any other context. / 截图、HTTP 请求/响应或其他上下文信息。
+
+        💡 Tip: You can attach files by dragging them into this area. / 提示：您可以通过拖拽文件到此区域来附加文件。
+    validations:
+      required: false

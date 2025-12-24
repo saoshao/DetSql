@@ -1,0 +1,15 @@
+blank_issues_enabled: false
+
+contact_links:
+
+  - name: 📧 Contact Author / 联系作者
+    url: mailto:1224165231@qq.com
+    about: Email the author directly for support or questions / 直接通过邮件联系作者获取支持或提问
+
+  - name: 🔍 Browse Existing Issues / 浏览现有 Issues
+    url: https://github.com/saoshao/DetSql/issues
+    about: Check existing issues to see if your problem has already been reported / 查看现有 Issues，确认问题是否已被报告
+
+  - name: 📖 Read Documentation / 阅读文档
+    url: https://github.com/saoshao/DetSql/blob/master/README.md
+    about: Check the README and CHANGELOG for usage instructions and recent updates / 查看 README 和 CHANGELOG 了解使用说明和最新更新
