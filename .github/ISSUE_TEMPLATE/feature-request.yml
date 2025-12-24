@@ -1,0 +1,90 @@
+name: Feature Request / 功能请求
+description: Suggest a new feature or enhancement for DetSql / 为 DetSql 建议新功能或改进
+title: "[FEATURE] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a new feature!
+        感谢您建议新功能！
+
+        💡 Before submitting, please check if a similar feature request already exists.
+        💡 提交前，请检查是否已存在类似的功能请求。
+
+  - type: checkboxes
+    attributes:
+      label: Is there an existing feature request for this? / 是否已存在相关的功能请求？
+      description: Please search to see if a similar feature has already been requested. / 请先搜索是否已有类似的功能请求。
+      options:
+      - label: I have searched the existing issues and feature requests / 我已经搜索过现有的 Issues 和功能请求
+        required: true
+
+  - type: textarea
+    attributes:
+      label: Feature Description / 功能描述
+      description: A clear description of the feature you'd like to see. / 清晰描述您希望看到的功能。
+      placeholder: |
+        例如：支持检测 GraphQL 接口中的 SQL 注入
+        Example: Support detecting SQL injection in GraphQL endpoints
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Use Case / 使用场景
+      description: Why is this feature needed? What problem does it solve? / 为什么需要这个功能？它解决什么问题？
+      placeholder: |
+        例如：在测试使用 GraphQL 的应用时，当前插件无法正确解析和测试 GraphQL 查询参数
+        Example: When testing applications using GraphQL, the plugin cannot properly parse and test GraphQL query parameters
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Proposed Solution / 建议的解决方案
+      description: |
+        If you have ideas on how this feature could be implemented, share them here.
+        如果您对如何实现此功能有想法，请在此分享。
+
+        This is optional - we appreciate any suggestions!
+        这是可选的 - 我们欢迎任何建议！
+      placeholder: |
+        例如：可以在请求解析阶段识别 Content-Type: application/graphql，然后提取查询字段进行注入测试
+        Example: Could identify Content-Type: application/graphql during request parsing, then extract query fields for injection testing
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Alternatives Considered / 考虑过的替代方案
+      description: |
+        Have you considered any alternative solutions or workarounds?
+        您是否考虑过其他解决方案或变通方法？
+      placeholder: |
+        例如：目前只能手动将 GraphQL 查询发送到 Repeater 逐个测试
+        Example: Currently can only manually send GraphQL queries to Repeater for individual testing
+    validations:
+      required: false
+
+  - type: dropdown
+    attributes:
+      label: Priority / 优先级
+      description: How important is this feature to you? / 此功能对您有多重要？
+      options:
+        - Low / 低 - Nice to have
+        - Medium / 中 - Would be helpful
+        - High / 高 - Important for my work
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Additional Context / 额外信息
+      description: |
+        Any other context, screenshots, or examples that would help explain your request.
+        任何其他上下文、截图或示例来帮助解释您的请求。
+
+        💡 Tip: You can attach files by dragging them into this area. / 提示：您可以通过拖拽文件到此区域来附加文件。
+    validations:
+      required: false
